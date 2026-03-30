@@ -111,8 +111,26 @@ python3 test_binary_match.py  # Should report "SUCCESS: Binary matches exactly!"
 ├── test_binary_match.py           # Compatibility test
 ├── gen_ddr_config                 # C wrapper
 ├── ddr_config_bin.c               # C binary generator
+├── setup_github.sh                # GitHub repository setup helper
 └── reports/                       # Documentation
 ```
+
+## GitHub Repository Setup
+
+Use `setup_github.sh` to easily create a GitHub repository and push your code:
+
+```bash
+# Make script executable
+chmod +x setup_github.sh
+
+# Run the setup script
+./setup_github.sh
+```
+
+The script will guide you through:
+1. Configuring remote origin (SSH or HTTPS)
+2. Creating the repository on GitHub (if needed)
+3. Pushing your code to GitHub
 
 ## License
 
