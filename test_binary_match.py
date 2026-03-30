@@ -16,10 +16,10 @@ with open(python_bin, 'wb') as f:
     f.write(b'\x00' * (EMMC_CM4_TIME_TB_SIZE + struct_size))
 
 # Generate orbit config at offset
-# Match C binary parameters: density=16, densities list=[8,16] => density_code=1
+# Match C binary parameters: density=16
 generate_orbit_config_binary(dram_type='lpddr4', two_channel=False, density=16,
                              output_file=python_bin, offset=EMMC_CM4_TIME_TB_SIZE,
-                             density_code=1, rank_interleaving=1, num_rank=2)
+                             rank_interleaving=1, num_rank=2)
 
 # Read C binary
 c_bin = 'ddr_timing_table.bin'
@@ -45,9 +45,15 @@ if len(c_data) != len(py_data):
 # Compare byte by byte
 mismatch = 0
 for i in range(len(c_data)):
-    if c_data[i] != py_data[i]:
+    c_byte = c_data[i]
+    py_byte = py_data[i]
+    if isinstance(c_byte, str):
+        c_byte = ord(c_byte)
+    if isinstance(py_byte, str):
+        py_byte = ord(py_byte)
+    if c_byte != py_byte:
         if mismatch < 10:
-            print("Mismatch at offset %d (0x%x): C=0x%02x Python=0x%02x" % (i, i, c_data[i], py_data[i]))
+            print("Mismatch at offset %d (0x%x): C=0x%02x Python=0x%02x" % (i, i, c_byte, py_byte))
         mismatch += 1
 
 if mismatch == 0:

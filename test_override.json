@@ -1,0 +1,14 @@
+{
+  "rank_interleaving": 0,
+  "num_rank": 1,
+  "reboot_with_mrw": 1,
+  "rfm_en": 1,
+  "dsm_en": 0,
+  "ca_odt": 1,
+  "eye_scan_rd_en": 1,
+  "eye_scan_wr_en": 1,
+  "zq_calibration_period": 24000,
+  "t_refiab": 2000000,
+  "t_refipb": 250000,
+  "link_err_cnt_th": 10
+}

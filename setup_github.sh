@@ -24,7 +24,7 @@ fi
 
 # Get GitHub username
 read -p "Enter your GitHub username [claireyu]: " GITHUB_USERNAME
-GITHUB_USERNAME=${GITHUB_USERNAME:-claireyu}
+GITHUB_USERNAME=${GITHUB_USERNAME:-githubclaire}
 
 # Get repository name
 read -p "Enter repository name [ddr_timingtable_gen_tool]: " REPO_NAME

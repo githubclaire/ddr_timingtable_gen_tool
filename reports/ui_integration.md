@@ -1,7 +1,7 @@
 # DDR Timing Table Generation - UI Integration Report
 
 ## Overview
-Integrated DDR timing table generation and orbit configuration into a unified CLI tool. The modified `gen_timing_params` now generates both timing parameters and orbit configuration binary in a single command.
+Integrated DDR timing table generation and orbit configuration into unified CLI tools. The modified `gen_timing_params` generates both timing parameters and orbit configuration binary in a single command, with `ddr_config_ui.py` providing an alternative wrapper interface with identical parameters.
 
 ## Changes Made
 
@@ -56,10 +56,18 @@ Integrated DDR timing table generation and orbit configuration into a unified CL
 4. **Final Output**: Single binary file containing both timing tables and orbit configuration
 5. **Verification**: `test_binary_match.py` validates Python/C binary compatibility
 
+### 4. Enhanced Wrapper UI (`ddr_config_ui.py`)
+- **Complete Parameter Mirroring**: Exposes all parameters from `gen_timing_params` verbatim
+- **Fixed Import Errors**: Resolved "no module named 'gen_timing_params'" error by using subprocess invocation
+- **Automatic Orbit Integration**: Automatically adds orbit configuration generation to timing workflows
+- **Transparent Argument Forwarding**: Passes all CLI arguments directly to `gen_timing_params`
+- **Identical CLI**: Same command-line interface as `gen_timing_params` (can be used interchangeably)
+- **Backward Compatibility**: Existing scripts using `ddr_config_ui.py` continue to work
+
 ## UI Interface
 
-### Command-Line Arguments
-The unified UI exposes all original timing parameters plus new orbit configuration options:
+### Primary Interface: `gen_timing_params`
+The main unified UI exposes all original timing parameters plus new orbit configuration options:
 
 ```
 usage: gen_timing_params [-h] -d {lpddr4,lpddr5}
@@ -98,6 +106,54 @@ usage: gen_timing_params [-h] -d {lpddr4,lpddr5}
                          periods [periods ...]
 ```
 
+### Wrapper Interface: `ddr_config_ui.py`
+An alternative wrapper script that provides the same unified functionality with enhanced convenience:
+
+**Key Features:**
+- **Complete Parameter Exposure**: Mirrors all parameters from `gen_timing_params` verbatim
+- **Automatic Orbit Integration**: Automatically adds orbit configuration generation
+- **No Import Errors**: Fixed previous "no module named 'gen_timing_params'" error
+- **Argument Forwarding**: Forwards all CLI arguments transparently to `gen_timing_params`
+- **Orbit Config Defaults**: Sets sensible defaults for orbit configuration parameters
+
+**Command-Line Arguments** (identical to `gen_timing_params`):
+```
+usage: ddr_config_ui.py [-h] -d {lpddr4,lpddr5}
+                        [--densities DENSITIES [DENSITIES ...]]
+                        [--phy-name PHY_NAME] [--project-name PROJECT_NAME]
+                        [-l {c}] [-o OUTPUT] [--cpipe-depth CPIPE_DEPTH]
+                        [--dpipe-depth DPIPE_DEPTH] [-s SPEED_BIN]
+                        [-w {4,8,16,32}]
+                        [-e {lpddr4-byte-mode,additive-latency}]
+                        [--wire-length WIRE_LENGTH]
+                        [--omc-freq-ratio OMC_FREQ_RATIO]
+                        [--phy-freq-ratio PHY_FREQ_RATIO]
+                        [--meso-synchronizer] [--pl-en PL_EN]
+                        [--min-dram-tck MIN_DRAM_TCK]
+                        [--write-odt-upto WRITE_ODT_UPTO]
+                        [--read-dbi-upto READ_DBI_UPTO]
+                        [--write-dbi-upto WRITE_DBI_UPTO]
+                        [--read-lecc-upto READ_LECC_UPTO]
+                        [--write-lecc-upto WRITE_LECC_UPTO] [--emulation]
+                        [--geardown-upto] [--variable-trrd]
+                        [--wdqs-ctrl-mode WDQS_CTRL_MODE] [--txsr-as-1st-ed]
+                        [--rpste-upto RPSTE_UPTO] [--wpste-upto WPSTE_UPTO]
+                        [--nt-odt-upto NT_ODT_UPTO] [--enhanced-nt-odt]
+                        [--bg-mode-upto BG_MODE_UPTO]
+                        [--wck-always-on-from WCK_ALWAYS_ON_FROM]
+                        [--wck-always-on-upto WCK_ALWAYS_ON_UPTO]
+                        [--wck-1to4-upto WCK_1TO4_UPTO]
+                        [--wck-hf-upto WCK_HF_UPTO]
+                        [--wck-pst1-upto WCK_PST1_UPTO]
+                        [--wck-pst2-upto WCK_PST2_UPTO]
+                        [--rdqs-pst1-upto RDQS_PST1_UPTO]
+                        [--rdqs-pst2-upto RDQS_PST2_UPTO] [--two-channel]
+                        [--macro-ddr-type MACRO_DDR_TYPE]
+                        [--orbit-config-json ORBIT_CONFIG_JSON]
+                        [--orbit-config-use-python]
+                        periods [periods ...]
+```
+
 ### Orbit Configuration Parameters
 - **All `parse_args()` parameters** from original timing generator are exposed
 - **12 orbit configuration parameters** exposed via CLI arguments:
@@ -119,21 +175,38 @@ usage: gen_timing_params [-h] -d {lpddr4,lpddr5}
 ## Usage Examples
 
 ### Basic Usage
+Both interfaces (`gen_timing_params` and `ddr_config_ui.py`) accept identical command-line arguments:
+
 ```bash
 # Generate timing table with default orbit config
 python3 gen_timing_params -d lpddr4 --phy-name sphy-v9r8 -s 4266 1000
+# OR using the wrapper (identical arguments):
+python3 ddr_config_ui.py -d lpddr4 --phy-name sphy-v9r8 -s 4266 1000
 
 # Enable two-channel mode
 python3 gen_timing_params -d lpddr4 --phy-name sphy-v9r8 -s 4266 1000 --two-channel
+# Wrapper equivalent:
+python3 ddr_config_ui.py -d lpddr4 --phy-name sphy-v9r8 -s 4266 1000 --two-channel
 
 # Specify custom DDR type macro
 python3 gen_timing_params -d lpddr5 --macro-ddr-type 5 --two-channel 1000
+# Wrapper equivalent:
+python3 ddr_config_ui.py -d lpddr5 --macro-ddr-type 5 --two-channel 1000
 ```
 
 ### CLI Parameter Examples
+Both interfaces support identical orbit configuration parameters:
+
 ```bash
 # Modify orbit config fields via CLI arguments
 python3 gen_timing_params -d lpddr4 --phy-name sphy-v9r8 -s 4266 1000 \
+    --two-channel \
+    --orbit-rank-interleaving 1 \
+    --orbit-num-rank 2 \
+    --orbit-rfm-en 0 \
+    --orbit-ca-odt 0
+# Wrapper equivalent:
+python3 ddr_config_ui.py -d lpddr4 --phy-name sphy-v9r8 -s 4266 1000 \
     --two-channel \
     --orbit-rank-interleaving 1 \
     --orbit-num-rank 2 \
@@ -145,16 +218,29 @@ python3 gen_timing_params -d lpddr4 --phy-name sphy-v9r8 -s 4266 1000 \
     --orbit-config-use-python \
     --orbit-byte-mode 0 \
     --orbit-mixed 0
+# Wrapper equivalent (automatically uses Python implementation):
+python3 ddr_config_ui.py -d lpddr4 --phy-name sphy-v9r8 -s 4266 1000 \
+    --orbit-byte-mode 0 \
+    --orbit-mixed 0
 ```
 
 ### Advanced Configuration
+Wrapper supports same JSON override functionality:
+
 ```bash
 # Use JSON file for orbit_config overrides
 python3 gen_timing_params -d lpddr4 --phy-name sphy-v9r8 -s 4266 1000 \
     --orbit-config-json custom_config.json
+# Wrapper equivalent:
+python3 ddr_config_ui.py -d lpddr4 --phy-name sphy-v9r8 -s 4266 1000 \
+    --orbit-config-json custom_config.json
 
 # Combine CLI and JSON overrides
 python3 gen_timing_params -d lpddr4 --phy-name sphy-v9r8 -s 4266 1000 \
+    --two-channel \
+    --orbit-config-json custom_config.json
+# Wrapper equivalent:
+python3 ddr_config_ui.py -d lpddr4 --phy-name sphy-v9r8 -s 4266 1000 \
     --two-channel \
     --orbit-config-json custom_config.json
 ```
@@ -199,7 +285,7 @@ A comprehensive template `orbit_config_template.json` is provided with all modif
 ├── test_dual_channel.py           # Dual-channel verification
 ├── print_offsets.py               # Struct offset debugging tool
 ├── setup_github.sh                # GitHub repository setup script
-├── ddr_config_ui.py               # Alternative wrapper script
+├── ddr_config_ui.py               # Complete wrapper UI (mirrors all parameters)
 ├── gen_ddr_config                 # Original C compiler wrapper
 ├── ddr_config_bin.c               # C binary generator
 └── reports/
@@ -259,9 +345,12 @@ ddr_timing_table.bin              # Final output (timing + config)
 
 ### Sample Test Commands
 ```bash
-# Clean test with C implementation (default)
+# Clean test with C implementation (default) - using main interface
 rm -f ddr_timing_table.bin
 python3 gen_timing_params -d lpddr4 --phy-name sphy-v9r8 -s 4266 1000 --two-channel
+# Equivalent wrapper test
+rm -f ddr_timing_table.bin
+python3 ddr_config_ui.py -d lpddr4 --phy-name sphy-v9r8 -s 4266 1000 --two-channel
 
 # Verify output
 ls -l ddr_timing_table.bin          # Should exist (7864 bytes for dual channel)
@@ -271,11 +360,20 @@ hexdump -C -s 0x800 ddr_timing_table.bin | head -5  # Check config data
 rm -f ddr_timing_table.bin
 python3 gen_timing_params -d lpddr4 --phy-name sphy-v9r8 -s 4266 1000 \
     --two-channel --orbit-config-use-python
+# Wrapper automatically uses Python implementation for orbit config
+rm -f ddr_timing_table.bin
+python3 ddr_config_ui.py -d lpddr4 --phy-name sphy-v9r8 -s 4266 1000 \
+    --two-channel
 
 # Comprehensive binary comparison
 python3 test_binary_match.py        # Should report "SUCCESS: Binary matches exactly!"
 python3 test_lpddr5.py              # Verify LPDDR5 binary compatibility
 python3 test_dual_channel.py        # Verify dual-channel binary compatibility
+
+# Test wrapper with JSON overrides
+rm -f ddr_timing_table.bin
+python3 ddr_config_ui.py -d lpddr4 --phy-name sphy-v9r8 -s 4266 1000 \
+    --orbit-config-json orbit_config_template.json
 
 # GitHub repository setup
 chmod +x setup_github.sh
@@ -315,7 +413,7 @@ The complete tool is now ready for version control with:
 ## Limitations & Future Work
 
 ### Current Limitations
-1. **Partial Parameter Exposure**: 12 orbit config parameters exposed via CLI (sufficient for most use cases)
+1. **Partial Parameter Exposure**: 12 orbit config parameters exposed via CLI (sufficient for most use cases). **Note**: All timing parameters are fully exposed in both `gen_timing_params` and `ddr_config_ui.py` interfaces.
 2. **JSON Complexity**: Advanced users must create JSON files for full customization (template provided)
 3. **Python 2/3 Compatibility**: Some LSP warnings in supporting files but functionality unaffected
 4. **Error Handling**: Limited error recovery in integrated workflow
@@ -337,6 +435,7 @@ Successfully integrated orbit configuration generation into the existing DDR tim
 ✅ **Unified Workflow**: Single command generates both timing tables and orbit config  
 ✅ **Binary Compatibility**: Python and C implementations produce **identical output** (byte-for-byte match)  
 ✅ **Enhanced CLI**: 12 orbit config parameters exposed via command line  
+✅ **Wrapper UI**: `ddr_config_ui.py` provides identical CLI with automatic orbit integration  
 ✅ **JSON Support**: Template provided for full customization  
 ✅ **Dual-Channel Support**: Both single and dual-channel configurations supported  
 ✅ **LPDDR4/LPDDR5 Support**: Dynamic struct creation based on DRAM type  
@@ -357,4 +456,4 @@ Successfully integrated orbit configuration generation into the existing DDR tim
 **Generated**: 2026-03-30 (Updated)  
 **Tool Version**: glenfly_chin_rel7_230725  
 **Integration Status**: Complete - All requested tasks accomplished  
-**Modifications**: Added 12 CLI parameters, fixed binary compatibility, enhanced density mapping, created JSON template, added GitHub setup, comprehensive test suite
+**Modifications**: Added 12 CLI parameters, fixed binary compatibility, enhanced density mapping, created JSON template, added GitHub setup, comprehensive test suite, fixed wrapper UI import errors, exposed all timing parameters in wrapper

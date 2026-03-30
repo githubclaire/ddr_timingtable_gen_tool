@@ -50,8 +50,8 @@
   "zq_bg_mode": 1,
   
   "//": "Array fields (examples)",
-  "//": "dfs_lvl_t_ck": [1672, 2224, 5000],
-  "//": "chip": [{"size": 16, "num_bg": 0, "num_bank": 4, "num_row": 16, "num_col": 10}, ...],
-  "//": "region_start": [2147483648, 36507222016],
-  "//": "region_end": [6442450943, 42949672959]
+  "//": "dfs_lvl_t_ck example": "[1672, 2224, 5000]",
+  "//": "chip example": "[{\"size\": 16, \"num_bg\": 0, \"num_bank\": 4, \"num_row\": 16, \"num_col\": 10}, ...]",
+  "//": "region_start example": "[2147483648, 36507222016]",
+  "//": "region_end example": "[6442450943, 42949672959]"
 }

@@ -6,7 +6,7 @@ from ddr_config_init import ddr_config_init, create_orbit_config
 
 # Create LPDDR5 single channel config
 cfg = create_orbit_config('lpddr5', False)
-ddr_config_init(cfg, density=16, density_code=1, rank_interleaving=1, num_rank=2)
+ddr_config_init(cfg, density=16, rank_interleaving=1, num_rank=2)
 print('Python config size:', ctypes.sizeof(cfg))
 print('Fields:')
 for field_name, field_type in cfg._fields_:

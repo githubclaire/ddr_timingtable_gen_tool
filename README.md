@@ -15,13 +15,21 @@ Unified tool for generating DDR timing tables and orbit configuration binaries f
 ```bash
 # Generate timing table with default orbit config (C implementation)
 python3 gen_timing_params --dram-type lpddr4 --densities 8 --phy-name sphy-v9r8 1000
+# Alternative using wrapper (identical arguments):
+python3 ddr_config_ui.py --dram-type lpddr4 --densities 8 --phy-name sphy-v9r8 1000
 
 # Use Python implementation with custom parameters
 python3 gen_timing_params --dram-type lpddr4 --densities 8 --phy-name sphy-v9r8 \
     --orbit-config-use-python --orbit-rank-interleaving 0 --orbit-num-rank 1 1000
+# Wrapper automatically uses Python implementation:
+python3 ddr_config_ui.py --dram-type lpddr4 --densities 8 --phy-name sphy-v9r8 \
+    --orbit-rank-interleaving 0 --orbit-num-rank 1 1000
 
 # Use JSON overrides
 python3 gen_timing_params --dram-type lpddr4 --densities 8 --phy-name sphy-v9r8 \
+    --orbit-config-json custom_config.json 1000
+# Wrapper equivalent:
+python3 ddr_config_ui.py --dram-type lpddr4 --densities 8 --phy-name sphy-v9r8 \
     --orbit-config-json custom_config.json 1000
 ```
 
@@ -29,6 +37,7 @@ python3 gen_timing_params --dram-type lpddr4 --densities 8 --phy-name sphy-v9r8 
 
 ### Core Components
 - `gen_timing_params`: Main unified UI (modified original + orbit config integration)
+- `ddr_config_ui.py`: Alternative wrapper UI with identical CLI parameters
 - `orbit_config.py`: Python ctypes implementation of orbit_config struct
 - `ddr_config_init.py`: Python implementation of ddr_config_init() 
 - `gen_ddr_config`: Original C compiler wrapper
@@ -92,6 +101,19 @@ python3 gen_timing_params --dram-type lpddr4 --densities 8 --phy-name sphy-v9r8 
 python3 gen_timing_params --dram-type lpddr4 --densities 8 --phy-name sphy-v9r8 \
     --orbit-config-use-python 1000
 python3 test_binary_match.py  # Should report "SUCCESS: Binary matches exactly!"
+
+# Test wrapper interface
+rm -f ddr_timing_table.bin
+python3 ddr_config_ui.py --dram-type lpddr4 --densities 8 --phy-name sphy-v9r8 1000
+python3 test_binary_match.py  # Verify wrapper produces identical output
+
+# Run comprehensive shell tests (delete binaries before generation)
+chmod +x test_lpddr5.sh test_lpddr4.sh
+./test_lpddr5.sh  # LPDDR5 compatibility test
+./test_lpddr4.sh  # LPDDR4 compatibility test
+
+# Test JSON override functionality
+python3 test_json_override.py  # Verify JSON field overrides work
 ```
 
 ## Development
@@ -105,6 +127,7 @@ python3 test_binary_match.py  # Should report "SUCCESS: Binary matches exactly!"
 ### File Structure
 ```
 ├── gen_timing_params              # Main unified UI
+├── ddr_config_ui.py               # Alternative wrapper UI (identical CLI)
 ├── orbit_config.py                # Python orbit_config structures
 ├── ddr_config_init.py             # Python ddr_config_init
 ├── orbit_config_template.json     # JSON template

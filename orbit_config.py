@@ -27,18 +27,22 @@ PHY_REGISTER_BASE1_1 = 0x51190000
 EMMC_CM4_TIME_TB_SIZE = 0x00000800
 
 # Density codes from orbit_init_gen.h
-DENSITY_2 = 0
-DENSITY_3 = 1
-DENSITY_4 = 2
-DENSITY_6 = 3
-DENSITY_8 = 4
-DENSITY_12 = 5
-DENSITY_16 = 6
+DENSITY_1 = 0
+DENSITY_2 = 1
+DENSITY_3 = 2
+DENSITY_4 = 3
+DENSITY_6 = 4
+DENSITY_8 = 5
+DENSITY_12 = 6
+DENSITY_16 = 7
+DENSITY_24 = 8
+DENSITY_32 = 9
 # Note: density 1 not supported, default to DENSITY_2
 
 def get_density_code(density):
     """Convert density in Gb to density code."""
     mapping = {
+        1: DENSITY_1,
         2: DENSITY_2,
         3: DENSITY_3,
         4: DENSITY_4,
@@ -46,6 +50,8 @@ def get_density_code(density):
         8: DENSITY_8,
         12: DENSITY_12,
         16: DENSITY_16,
+        24: DENSITY_24,
+        32: DENSITY_32,
     }
     return mapping.get(density, DENSITY_2)
 

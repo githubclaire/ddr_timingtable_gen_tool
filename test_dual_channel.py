@@ -6,7 +6,7 @@ from ddr_config_init import ddr_config_init, create_orbit_config
 
 # Create LPDDR4 dual channel config
 cfg = create_orbit_config('lpddr4', True)
-ddr_config_init(cfg, dram_type='lpddr4', two_channel=True, density=16, density_code=1, rank_interleaving=1, num_rank=2, byte_mode=0, mixed=0)
+ddr_config_init(cfg, dram_type='lpddr4', two_channel=True, density=16, rank_interleaving=1, num_rank=2, byte_mode=0, mixed=0)
 print('Python config size:', ctypes.sizeof(cfg))
 print('Expected C size: 5816')
 print('Fields (partial):')
