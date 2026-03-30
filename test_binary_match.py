@@ -16,8 +16,10 @@ with open(python_bin, 'wb') as f:
     f.write(b'\x00' * (EMMC_CM4_TIME_TB_SIZE + struct_size))
 
 # Generate orbit config at offset
+# Match C binary parameters: density=16, densities list=[8,16] => density_code=1
 generate_orbit_config_binary(dram_type='lpddr4', two_channel=False, density=16,
-                             output_file=python_bin, offset=EMMC_CM4_TIME_TB_SIZE)
+                             output_file=python_bin, offset=EMMC_CM4_TIME_TB_SIZE,
+                             density_code=1, rank_interleaving=1, num_rank=2)
 
 # Read C binary
 c_bin = 'ddr_timing_table.bin'
