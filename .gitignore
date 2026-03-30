@@ -1,0 +1,43 @@
+# Binary files
+*.bin
+ddr_timing_table*.bin
+test_*.bin
+
+# Compiled executables
+ddr_config_bin_exec
+print_offsets
+print_offsets_clean
+print_offsets_single
+test_num_omc
+
+# Python bytecode
+*.pyc
+__pycache__/
+
+# Backup files
+*.backup
+*~
+
+# Generated C files (can be regenerated)
+orbit_timing_params.c
+mr_config_gen.h
+orbit_init_gen.h
+
+# IDE files
+.vscode/
+*.swp
+*.swo
+
+# Temporary files
+*.tmp
+*.log
+
+# Sample/binary comparison files
+ddr_timing_table_sample.bin
+ddr_timing_table_c.bin
+
+# C object files
+*.o
+
+# Test outputs
+test_python.bin

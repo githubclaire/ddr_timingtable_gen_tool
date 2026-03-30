@@ -1,0 +1,107 @@
+#!/usr/bin/env python3
+#=============================================================================
+# Release information
+# Design version: glenfly_chin_rel7_230725
+# Release generated at Tue Jul 25 09:23:19 2023
+#=============================================================================
+
+import os
+import subprocess
+import argparse
+
+def check_gcc_installed() -> bool:
+    try:
+        subprocess.run(
+            ["gcc", "--version"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=True
+        )
+        return True
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        return False
+
+def compile_test_c(ddr_type: str, two_channel: str, exec_file: str = "ddr_config_bin_exec") -> bool:
+
+    if not os.path.exists("ddr_config_bin.c"):
+        print("错误：当前目录下未找到ddr_config_bin.c文件！")
+        return False
+
+    header_dir       = "./"
+    header_dir_omc   = "../../arise2_gpu/product/arise2/module/arise2_omc/include"
+    header_dir_build = "../../build/arise2/include"
+
+    gcc_command = [
+        "gcc",
+        "-std=c99",
+        "-D", f"DDR_TYPE={ddr_type}",
+        "-D", f"DDR_TWO_CHANNEL={two_channel}",
+        "-I", header_dir,
+        "-I", header_dir_omc,
+        "-I", header_dir_build,
+        "ddr_config_bin.c",
+        "-o", exec_file
+    ]
+
+    try:
+        compile_result = subprocess.run(
+            gcc_command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            check=True
+        )
+
+        os.chmod(exec_file, 0o755)
+
+        if os.path.exists(exec_file):
+            return True
+        else:
+            print("编译失败：未生成可执行文件")
+            return False
+    except subprocess.CalledProcessError as e:
+        print(f"编译报错！错误信息如下：\n{e.output}")
+        return False
+
+def run_executable(exec_file: str = "ddr_config_bin_exec") -> bool:
+
+    if not os.path.exists(exec_file):
+        print(f"错误：未找到可执行文件{exec_file}")
+        return False
+
+    try:
+        subprocess.run(
+            [f"./{exec_file}"],
+            check=True
+        )
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"生成ddr_config失败！返回码：{e.returncode}")
+        return False
+
+def main():
+    parser = argparse.ArgumentParser(description="编译生成ddr_config")
+    parser.add_argument("macro_ddr_type", help="宏定义DDR_TYPE")
+    parser.add_argument("macro_two_channel", help="宏定义DDR_TWO_CHANNEL的值（示例：2）")
+    parser.add_argument("--clean", action="store_true", help="运行后自动删除可执行文件")
+
+    args = parser.parse_args()
+
+    if not check_gcc_installed():
+        print("错误：未检测到GCC编译器，请先安装（sudo apt install gcc）")
+        return
+
+    ddr_type = args.macro_ddr_type
+    two_channel = args.macro_two_channel
+
+    exec_file = "ddr_config_bin_exec"
+    if not compile_test_c(ddr_type, two_channel, exec_file):
+        return
+
+    run_success = run_executable(exec_file)
+
+    if args.clean and os.path.exists(exec_file):
+        os.remove(exec_file)
+
+if __name__ == "__main__":
+    main()

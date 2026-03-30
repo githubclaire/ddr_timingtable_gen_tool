@@ -1,0 +1,879 @@
+#!/usr/bin/env python3
+#=============================================================================
+# Release information
+# Design version: glenfly_chin_rel7_230725
+# Release generated at Tue Jul 25 09:23:19 2023
+#=============================================================================
+
+from argparse import ArgumentParser
+from collections import namedtuple, OrderedDict
+from orbit_defines import *
+from sphy_v9r8_config import sphy_v9r8_config
+import sys
+import os
+import struct
+import subprocess
+from math import ceil
+from timing import Timing
+from lpddr4_config import lpddr4_config
+from lpddr5_config import lpddr5_config
+import json
+
+class GenTimingParam():
+    init_funcs = {}
+
+    def __init__(self, args):
+        self.memcfgs = []
+        self.args = args
+
+        self.initialize()
+
+        # PHY Initialization
+        if self.args.phy_name == 'sphy-v9r8':
+            self.phy = sphy_v9r8_config(self)
+
+        if self.args.dram_type == "lpddr4":
+            self.dram = lpddr4_config(self)
+        elif self.args.dram_type == "lpddr5":
+            self.dram = lpddr5_config(self)
+
+        if self.args.dram_type in ('lpddr3', 'ddr3', 'ddr4') and 'dq_width' not in self.args:
+            parser.error('DQ width of each device should be specified if type of DRAM is DDR3 or DDR4')
+
+        self.has_converter = self.args.omc_freq_ratio != self.args.phy_freq_ratio
+        self.p_t_xsr = OrderedDict()
+        self.byte_mode = self.args.dq_width == 8
+
+        self.dram.initialize()
+
+    def initialize(self):
+        # not used by all DRAM types
+        self.t_wrwtr  = 0
+        self.t_ccdmw  = 0
+        self.mr_tccd_l = 0
+        self.mr_cal = 0
+        self.t_wtr_a_l = 0
+        self.t_rrd_l = 0
+        self.t_ccd_l = 0
+        self.t_rtrrd  = 0
+        self.t_sync_gear = 0
+        self.t_cmd_gear = 0
+
+        self.t_mrr = 0
+        self.t_xp_mrri = 0
+
+        self.t_rcd_derate = 0
+        self.tx_rcdwr_derate = 0
+        self.t_rc_derate = 0
+        self.t_ras_derate = 0
+        self.t_rrd_derate = 0
+        self.t_rppb_derate = 0
+        self.t_rpab_derate = 0
+
+        self.odtl_on = 0
+        self.odtl_off = 0
+
+        self.p_t_cacsh = Timing(0, 0, 0)
+        self.p_t_csh = Timing(0, 0, 0)
+        self.p_t_pdxl = Timing(0, 0, 0)
+        self.p_t_cslck = Timing(0, 0, 0)
+        self.p_t_pbr2act = Timing(0, 0, 0)
+
+        self.bank_mode = 0
+        self.wck_mode = 0
+        self.asize_ctrl = 0
+        self.dll_enable = 0
+
+        self.t_ccdmw_bg = 0
+        self.t_pbr2act = 0
+        self.tx_rcdwr = 0
+
+        self.t_wckenl_fs = 0
+        self.t_wckenl_rd = 0
+        self.t_wckenl_wr = 0
+        self.t_add_wrtowck_rtr = 0
+        self.t_add_rdtowrwck_rtr = 0
+        self.t_wckoff_on = 0
+        self.t_wckoff_fs = 0
+        self.t_wckoff_rd = 0
+        self.t_wckoff_wr = 0
+        self.t_wcktgl_cs = 0
+        self.t_casoff = 0
+        self.t_cslck = 0
+        self.t_wcktgl_rd = 0
+        self.t_wcktgl_wr = 0
+        self.t_wck_fast_tgl = 0
+        self.t_wck_tgl = 0
+
+        self.dfi_tctrlupd_max = 144
+        self.dfi_tctrlupd_min = 56
+
+    def delay_t_rcd(self,t_ck,t_rcd,t_rrd):
+        #print(t_ck, "Before calculation - t_rcd", t_rcd, "t_rrd", t_rrd)
+
+        if self.args.dram_type == 'lpddr4':
+            t_rcd2 = ceil(t_rcd/4)
+            t_rrd2 = ceil(t_rrd/4)
+        elif self.args.omc_freq_ratio == 2:
+            t_rcd2 = ceil(t_rcd/2)
+            t_rrd2 = ceil(t_rrd/2)
+        else:
+            t_rcd2 = t_rcd
+            t_rrd2 = t_rrd
+
+        if ( (t_rcd2 // 2 == t_rrd2) or (t_rcd2 // 3 == t_rrd2) or (t_rcd2 // 4 == t_rrd2) ):
+            if self.args.dram_type == 'lpddr4':
+                t_rcd += 4
+            else:
+                t_rcd += self.args.omc_freq_ratio
+        #print(t_ck, "After modification - t_rcd", t_rcd, "t_rrd", t_rrd, t_rcd2, t_rrd2)
+
+        return t_rcd
+
+    def calculate(self):
+        self.c_values = []
+
+        for t_ck in self.args.periods:
+            # In case of LPDDR5, t_ck means tWCK until dram.update() is called
+            #                    before dram.update(), t_ck is modified again
+            self.t_wck = t_ck
+
+            self.geardown_mode = self.args.geardown_upto >= t_ck
+            self.write_odt = self.args.write_odt_upto >= t_ck
+            self.write_odt_cr = self.args.dram_type not in ('lpddr4', 'lpddr5') and self.write_odt
+            self.write_dbi = self.args.dram_type in ('ddr4', 'lpddr4', 'lpddr5') and self.args.write_dbi_upto >= t_ck
+            self.read_dbi = self.args.dram_type in ('ddr4', 'lpddr4', 'lpddr5') and self.args.read_dbi_upto >= t_ck
+            self.write_lecc = self.args.dram_type in ('lpddr5', ) and self.args.write_lecc_upto > t_ck
+            self.read_lecc = self.args.dram_type in ('lpddr5', ) and self.args.read_lecc_upto > t_ck
+            self.rpste = args.rpste_upto >= t_ck
+            self.wpste = args.wpste_upto >= t_ck
+
+            self.nt_odt = self.args.nt_odt_upto >= t_ck
+            self.bg_mode = self.args.bg_mode_upto >= t_ck
+            self.wck_1to4 = self.args.wck_1to4_upto >= t_ck
+            self.wck_hf = self.args.wck_hf_upto >= t_ck
+            wck_always_on_from = 1000000 if self.args.wck_always_on_from == 0 else self.args.wck_always_on_from
+            wck_always_on_upto = 1000000 if self.args.wck_always_on_upto == 0 else self.args.wck_always_on_upto
+            self.wck_always_on = wck_always_on_from >= t_ck and wck_always_on_upto <= t_ck
+            self.emulation = self.args.emulation
+            if self.args.wck_pst2_upto >= t_ck:
+                self.wck_pst = 2
+            elif self.args.wck_pst1_upto >= t_ck:
+                self.wck_pst = 1
+            else:
+                self.wck_pst = 0
+
+            if self.args.rdqs_pst2_upto >= t_ck:
+                self.rdqs_pst = 2
+            elif self.args.rdqs_pst1_upto >= t_ck:
+                self.rdqs_pst = 1
+            else:
+                self.rdqs_pst = 0
+            self.rdqs_pst_mode = 0
+            self.rdqs_pre = 0
+
+            if not self.has_converter:
+                self.pipe_freq_ratio = 1
+            else:
+                self.pipe_freq_ratio = 2
+
+            if self.args.dram_type == 'lpddr5':
+                if self.wck_1to4:
+                    self.data_freq_ratio = 4
+                else:
+                    self.data_freq_ratio = 2
+                self.tphy_wrdata = self.data_freq_ratio
+            else:
+                self.data_freq_ratio = 2
+                self.tphy_wrdata = 2
+
+            self.min_t_ck = self.args.min_dram_tck * self.data_freq_ratio
+            self.tctrl_delay = 4
+
+            self.phy.update_conf(t_ck)
+
+            self.tphy_rdlat = 4
+            self.tphy_wrcslat = 0
+
+            self.tdram_clk_disable = 4
+            self.tdram_clk_enable = 4
+            self.pipe_depth_diff = args.dpipe_depth - args.cpipe_depth
+            self.pipe_delay = self.pipe_depth_diff*2*self.pipe_freq_ratio
+            self.tlp_resp = 16
+            self.tphyupd_req_dis = 0
+
+            if self.has_converter:
+                self.tctrl_delay += 4
+            if self.args.meso_synchronizer:
+                self.tctrl_delay += 4
+
+            self.twrdata_delay = self.pipe_delay \
+                                 + (32 if self.args.dram_type == 'lpddr4' or self.args.dram_type == 'lpddr5' else 8)//2 \
+                                 + (self.wpste+1) \
+                                 + ((self.tphy_wrdata//self.data_freq_ratio) if self.args.dram_type == 'lpddr5' else self.tphy_wrdata)
+            if self.has_converter:
+                self.twrdata_delay += self.args.phy_freq_ratio
+            if args.meso_synchronizer:
+                self.twrdata_delay += 4*self.args.phy_freq_ratio
+
+            # in case of LPDDR5. input t_ck is tWCK and output t_ck is tCK
+            if self.args.dram_type == 'lpddr5':
+                t_ck *= self.data_freq_ratio
+
+            self.t_rfcpb = OrderedDict()
+            self.t_rfcab = OrderedDict()
+            self.t_rfmpb = OrderedDict()
+            self.t_rfmab = OrderedDict()
+            self.t_refdpr = OrderedDict()
+            self.t_pbr2pbr = OrderedDict()
+            self.tx_pbr2pbr = OrderedDict()
+            self.t_xsr = OrderedDict()
+            self.t_xsdll = OrderedDict()
+            self.t_xs_fast = OrderedDict()
+
+            for d in self.densities:
+                self.t_rfcab[d] = self.p_t_rfcab[d].calc_ceil(t_ck)
+                self.t_rfmab[d] = self.p_t_rfmab[d].calc_ceil(t_ck)
+                self.t_rfcpb[d] = self.p_t_rfcpb[d].calc_ceil(t_ck)
+                self.t_rfmpb[d] = self.p_t_rfmpb[d].calc_ceil(t_ck)
+                self.t_pbr2pbr[d] = self.p_t_pbr2pbr[d].calc_ceil(t_ck)
+                self.tx_pbr2pbr[d] = min(self.t_rfcpb[d] - self.t_pbr2pbr[d], 255)
+                self.t_xsr  [d] = self.p_t_xsr  [d].calc_ceil(t_ck)
+                if self.args.dram_type == 'lpddr5':
+                    self.t_xsr[d] = self.t_rfcab[d] + self.t_xsr[d]
+                if self.args.txsr_as_1st_ed:
+                    self.t_xsr[d] += 2
+                self.t_refdpr[d] = self.t_rfcab[d]//2
+                self.t_xsdll[d] = 0
+                self.t_xs_fast[d] = 0
+                if self.t_refdpr[d] > 255:
+                    self.t_refdpr[d] = 255
+                elif self.t_refdpr[d] < 10:
+                    self.t_refdpr[d] = 0
+                else:
+                    self.t_refdpr[d] -= 10
+
+            self.dram.update(t_ck)
+
+            self.read_latency = self.memcfg.read_latency[self.rl_set]
+            self.write_latency = self.memcfg.write_latency[self.wl_set]
+            self.n_wr = self.memcfg.n_wr[self.nwr_set]
+            self.n_rtp = self.memcfg.n_rtp
+
+            self.mr_rl = self.memcfg.op
+            self.mr_wl = self.memcfg.op
+            self.mr_wr = self.memcfg.op
+
+            self.t_cacsh = self.p_t_cacsh.calc_ceil(t_ck)
+            self.t_csh = self.p_t_csh.calc_ceil(t_ck)
+            self.t_pdxl = self.p_t_pdxl.calc_ceil(t_ck)
+            self.t_cmdcke = self.p_t_cmdcke.calc_ceil(t_ck)
+            self.t_rppb = self.p_t_rppb.calc_ceil(t_ck)
+            self.t_rpab = self.p_t_rpab.calc_ceil(t_ck)
+            self.t_cke = self.p_t_cke.calc_ceil(t_ck)
+            self.t_ckesr = self.p_t_ckesr.calc_ceil(t_ck)
+            self.t_ckelck = self.p_t_ckelck.calc_ceil(t_ck)
+            self.t_xp = self.p_t_xp.calc_ceil(t_ck)
+            self.t_rc = self.p_t_rc.calc_ceil(t_ck)
+            self.t_ras = self.p_t_ras.calc_ceil(t_ck)
+            self.t_rtp = self.p_t_rtp.calc_ceil(t_ck)
+            self.t_rrd = self.p_t_rrd.calc_ceil(t_ck)
+            self.t_faw = self.p_t_faw.calc_ceil(t_ck)
+            self.t_mrw = self.p_t_mrw.calc_ceil(t_ck)
+            self.t_mod = self.p_t_mod.calc_ceil(t_ck)
+            self.t_mrr = self.p_t_mrr.calc_ceil(t_ck)
+            self.t_wtr = self.p_t_wtr.calc_ceil(t_ck)
+
+            self.t_rcd = self.p_t_rcd.calc_ceil(t_ck)
+            self.t_rcdwr = self.p_t_rcdwr.calc_ceil(t_ck)
+
+            self.t_rcd = self.delay_t_rcd(t_ck,self.t_rcd,self.t_rrd)
+            self.t_rcdwr = self.delay_t_rcd(t_ck,self.t_rcdwr,self.t_rrd)
+
+            self.tx_rcdwr = self.t_rcd - self.t_rcdwr
+
+            self.t_wr = self.p_t_wr.calc_ceil(t_ck)
+            self.t_zqcs = self.p_t_zqcs.calc_ceil(t_ck)
+            self.t_zqcl = self.p_t_zqcl.calc_ceil(t_ck)
+            self.t_xp_mrri = self.p_t_xp_mrri.calc_ceil(t_ck)
+
+            self.t_rc_derate = self.p_t_rc_derate.calc_ceil(t_ck)
+            self.t_ras_derate = self.p_t_ras_derate.calc_ceil(t_ck)
+            self.t_rrd_derate = self.p_t_rrd_derate.calc_ceil(t_ck)
+            self.t_rpab_derate = self.p_t_rpab_derate.calc_ceil(t_ck)
+            self.t_rppb_derate = self.p_t_rppb_derate.calc_ceil(t_ck)
+
+            self.t_rcd_derate = self.p_t_rcd_derate.calc_ceil(t_ck)
+            self.t_rcdwr_derate = self.p_t_rcdwr_derate.calc_ceil(t_ck)
+
+            self.t_rcd_derate = self.delay_t_rcd(t_ck,self.t_rcd_derate,self.t_rrd_derate)
+            self.t_rcdwr_derate = self.delay_t_rcd(t_ck,self.t_rcdwr_derate,self.t_rrd_derate)
+
+            self.tx_rcdwr_derate = self.t_rcd_derate - self.t_rcdwr_derate
+
+            self.t_cslck = self.p_t_cslck.calc_ceil(t_ck)
+            self.t_pbr2act = self.p_t_pbr2act.calc_ceil(t_ck)
+
+            self.dram.calculate(t_ck)
+            self.phy.calculate_mc_timing_param(t_ck)
+            self.t_wtrcr = max(self.t_wtrcr, 0)
+
+            self.phy.calculate_phy_timing_param(t_ck)
+            # update timing paramters for write odt incase of lpddr4
+            if self.args.dram_type in ('lpddr4',) and self.write_odt:
+                if self.t_rtw < self.t_rtw_odt:
+                    self.t_rtw = self.t_rtw_odt
+
+            if self.args.meso_synchronizer:
+                self.dfi_tctrlupd_max += 4
+                self.dfi_tctrlupd_min += 4
+
+            self.dfi_tctrlupd_max = self.dfi_tctrlupd_max*self.args.phy_freq_ratio + 2*self.args.omc_freq_ratio + self.args.cpipe_depth*2*self.pipe_freq_ratio
+            self.dfi_tctrlupd_min = self.dfi_tctrlupd_min*self.args.phy_freq_ratio + 2*self.args.omc_freq_ratio + self.args.cpipe_depth*2*self.pipe_freq_ratio
+
+            timing_param = [0 for x in range(21)]
+            timing_param[0] = (self.t_cacsh   << T_CACSH_SHIFT  |
+                               self.t_csh     << T_CSH_SHIFT    |
+                               self.t_pdxl    << T_PDXL_SHIFT   |
+                               self.t_cmdcke  << T_CMDCKE_SHIFT |
+                               self.t_rppb    << T_RPPB_SHIFT   |
+                               self.t_rpab    << T_RPAB_SHIFT   )
+            timing_param[1] = (self.t_cke     << T_CKE_SHIFT    |
+                               self.t_ckesr   << T_CKESR_SHIFT  |
+                               self.t_ckelck  << T_CKELCK_SHIFT |
+                               self.t_xp      << T_XP_SHIFT     )
+            timing_param[2] = (self.t_rc      << T_RC_SHIFT     |
+                               self.t_ras     << T_RAS_SHIFT    |
+                               self.t_rtp     << T_RTP_SHIFT    |
+                               self.t_rcd     << T_RCD_SHIFT    )
+            timing_param[3] = (self.t_wr_a    << T_WR_A_SHIFT   |
+                               self.t_wtr_a   << T_WTR_A_SHIFT  |
+                               self.t_rrd     << T_RRD_SHIFT    |
+                               self.t_faw     << T_FAW_SHIFT    )
+            timing_param[4] = (#self.t_rtrrd   << T_RTRRD_SHIFT         |
+                               self.t_wrwtr   << T_WRWTR_SHIFT         |
+                               self.read_latency << READ_LATENCY_SHIFT  |
+                               self.write_latency << WRITE_LATENCY_SHIFT )
+            timing_param[5] = (self.write_odt_cr << WRITE_ODT_EN_SHIFT |
+                               self.bank_mode << BANK_MODE_SHIFT |
+                               self.write_dbi << WR_DBI_EN_SHIFT |
+                               self.read_dbi << RD_DBI_EN_SHIFT |
+                               self.t_rtw << T_RTW_SHIFT |
+                               self.odtl_on << ODTL_ON_SHIFT |
+                               self.odtl_off << ODTL_OFF_SHIFT)
+            timing_param[6] = (self.t_ccdmw << T_CCDMW_SHIFT |
+                               self.t_mrw   << T_MRW_SHIFT   |
+                               self.t_mod   << T_MOD_SHIFT   |
+                               self.t_mrr   << T_MRR_SHIFT   )
+            timing_param[7] = (self.t_rdidle          << T_RDIDLE_SHIFT   |
+                               max(self.n_wr_p - self.n_wr_a, 0) << N_ADD_WR_P_SHIFT |
+                               max(self.t_wr_p - self.t_wr_a, 0) << T_ADD_WR_P_SHIFT |
+                               self.t_rtrcr           << T_RTRCR_SHIFT    )
+            timing_param[8] = (#t_ccd_gap << T_CCD_GAP_SHIFT | fix to 0
+                               #t_xsr << T_XSR_SHIFT | # density
+                               self.t_xp_mrri << T_XP_MRRI_SHIFT )
+                               #t_refdpr  << T_REFDPR_SHIFT # density
+            timing_param[9] = (self.t_wtrcr << T_WTRCR_SHIFT)
+                               #t_rfcpb << T_RFCPB_SHIFT | # density
+                               #t_rfcab << T_RFCAB_SHIFT) # density
+            timing_param[10] = 0#(t_xsdll   << T_XSDLL_SHIFT   | # density
+                                #t_xs_fast << T_XS_FAST_SHIFT | # density
+                                #t_pbr2pbr << T_PBR2PBR_SHIFT ) # density
+            timing_param[11] = (self.t_wtwcr<< T_WTWCR_SHIFT|
+                                self.n_rtp  << N_RTP_SHIFT  |
+                                self.n_wr_a << N_WR_A_SHIFT |
+                                self.n_wr   << N_WR_SHIFT   )
+            timing_param[12] = (self.t_wtr_a_l << T_WTR_A_L_SHIFT |
+                                self.t_rrd_l   << T_RRD_L_SHIFT   |
+                                self.t_ccd_l   << T_CCD_L_SHIFT   )
+            timing_param[13] = (self.t_sync_gear  << T_SYNC_GEAR_SHIFT  |
+                                self.t_cmd_gear   << T_CMD_GEAR_SHIFT   )
+            timing_param[14] = 0#(t_vrefca_short << T_VREFCA_SHORT_SHIFT |
+                                # t_vrefca_long << T_VREFCA_LONG_SHIFT |
+                                # t_caent << T_CAENT_SHIFT)
+            timing_param[15] = (self.t_ccdmw_bg << T_CCDMW_BG_SHIFT |
+                                self.t_pbr2act << T_PBR2ACT_SHIFT |
+                                self.tx_rcdwr << TX_RCDWR_SHIFT)
+            timing_param[16] = (self.wck_mode << WCK_MODE_SHIFT |
+                                self.asize_ctrl << ASIZE_CTRL_SHIFT |
+                                self.t_wckenl_fs << T_WCKENL_FS_SHIFT |
+                                self.t_wckenl_rd << T_WCKENL_RD_SHIFT |
+                                self.t_wckenl_wr << T_WCKENL_WR_SHIFT)
+            timing_param[17] = (self.t_add_wrtowck_rtr << T_ADD_WRTOWCK_RTR_SHIFT |
+                                self.t_add_rdtowrwck_rtr << T_ADD_RDTOWRWCK_RTR_SHIFT |
+                                self.t_wckoff_on << T_WCKOFF_ON_SHIFT |
+                                self.t_wckoff_fs << T_WCKOFF_FS_SHIFT |
+                                self.t_wckoff_rd << T_WCKOFF_RD_SHIFT |
+                                self.t_wckoff_wr << T_WCKOFF_WR_SHIFT)
+            timing_param[18] = (self.t_wcktgl_cs << T_WCKTGL_CS_SHIFT |
+                                self.t_casoff << T_CASOFF_SHIFT |
+                                self.t_cslck << T_CSLCK_SHIFT)
+            timing_param[19] = (self.t_wcktgl_rd << T_WCKTGL_RD_SHIFT |
+                                self.t_wcktgl_wr << T_WCKTGL_WR_SHIFT |
+                                self.t_wck_fast_tgl << T_WCK_FAST_TGL_SHIFT |
+                                self.t_wck_tgl << T_WCK_TGL_SHIFT)
+            timing_param[20] = 0#(t_rfmpb << T_RFMPB_SHIFT | # density
+                                # t_rfmab << T_RFMAB_SHIFT) # density
+            timing_param_derate = [0 for x in range(2)]
+            timing_param_derate[0] = (self.t_rcd_derate << T_RCD_DERATE_SHIFT |
+                                      self.t_rc_derate  << T_RC_DERATE_SHIFT  |
+                                      self.t_ras_derate << T_RAS_DERATE_SHIFT |
+                                      self.t_rrd_derate << T_RRD_DERATE_SHIFT )
+            timing_param_derate[1] = (self.tx_rcdwr_derate << TX_RCDWR_DERATE_SHIFT |
+                                      self.t_rppb_derate << T_RPPB_DERATE_SHIFT |
+                                      self.t_rpab_derate << T_RPAB_DERATE_SHIFT )
+
+            timing_zqcal = (self.t_zqcs << T_ZQCS_SHIFT |
+                            self.t_zqcl << T_ZQCL_SHIFT )
+
+            dfi_timing_param = [0 for x in range(8)]
+            dfi_timing_param[0] = (self.tphy_rdcslat << DFI_TPHY_RDCSLAT_SHIFT |
+                                   self.tphy_rdlat << DFI_TPHY_RDLAT_SHIFT |
+                                   self.trddata_en << DFI_TRDDATA_EN_SHIFT)
+            dfi_timing_param[1] = (self.tphy_wrcslat << DFI_TPHY_WRCSLAT_SHIFT |
+                                   self.tphy_wrlat << DFI_TPHY_WRLAT_SHIFT |
+                                   self.tphy_wrdata << DFI_TPHY_WRDATA_SHIFT)
+            dfi_timing_param[2] = (self.tctrl_delay << DFI_TCTRL_DELAY_SHIFT |
+                                   self.twrdata_delay << DFI_TWRDATA_DELAY_SHIFT |
+                                   self.tdram_clk_disable << DFI_TDRAM_CLK_DISABLE_SHIFT |
+                                   self.tdram_clk_enable << DFI_TDRAM_CLK_ENABLE_SHIFT)
+            dfi_timing_param[3] = 0
+            dfi_timing_param[4] = 0
+            dfi_timing_param[5] = ((self.data_freq_ratio//2) << DFI_DATA_FREQ_RATIO_SHIFT |
+                                   self.tlp_resp << DFI_TLP_RESP_SHIFT |
+                                   self.tphyupd_req_dis << DFI_PHYUPD_REQ_DIS_CNT_SHIFT)
+            dfi_timing_param[6] = 0
+            dfi_timing_param[7] = (self.dfi_tctrlupd_max << DFI_TCTRLUPD_MAX_SHIFT |
+                                   self.dfi_tctrlupd_min << DFI_TCTRLUPD_MIN_SHIFT)
+            c_value = '''{{{freq:d},
+      {t_ck:d},
+      0x{timing_zqcal:08x},
+      {{{timing_param:s}}},
+      {{{timing_derate:s}}},
+      {{{dfi_timing_param:s}}},
+      {{{t_rfcab:s}}},
+      {{{t_rfcpb:s}}},
+      {{{t_rfmab:s}}},
+      {{{t_rfmpb:s}}},
+      {{{t_refdpr:s}}},
+      {{{tx_pbr2pbr:s}}},
+      {{{t_xsr:s}}},
+      {{{t_xsdll:s}}},
+      {{{t_xs_fast:s}}},
+      {wck_ratio:d},
+      {tlp_resp:d},
+      {adc}
+      {dll_enable:d},
+      {write_odt:d},
+      {nt_odt:d},
+      {write_dbi:d},
+      {read_dbi:d},
+      {wpste:d},
+      {rpste:d},
+      {rl:d},
+      {wl:d},
+      {mr_rl:d},
+      {mr_wl:d},
+      {mr_wr:d},
+      {mr_rtp:d},
+      {mr_cal:d},
+      {mr_tccd_l:d},
+      {bank_mode:d},
+      {wck_fm:d},
+      {rdqs_pst_mode:d},
+      {rdqs_pst:d},
+      {rdqs_pre:d},
+      {wck_pst:d},
+      {wck_on:d},
+      {read_link_parity:d},
+      {write_link_parity:d},
+      {t_rtw:d},
+      {t_wtr_a:d},
+      {t_wtr:d},
+      {t_rc:d},
+      {trddata_en:d}
+    }}'''.format(
+      freq=int(1000000/t_ck),
+      t_ck=t_ck,
+      wck_ratio=self.data_freq_ratio,
+      dll_enable=self.dll_enable,
+      write_odt=self.write_odt,
+      nt_odt=self.nt_odt,
+      write_dbi=self.write_dbi,
+      read_dbi=self.read_dbi,
+      wpste=self.wpste,
+      rpste=self.rpste,
+      timing_param=', '.join(['0x{:08x}'.format(x) for x in timing_param]),
+      timing_derate=', '.join(['0x{:08x}'.format(x) for x in timing_param_derate]),
+      timing_zqcal=timing_zqcal,
+      dfi_timing_param=', '.join(['0x{:08x}'.format(x) for x in dfi_timing_param]),
+      tlp_resp=self.tlp_resp,
+      t_rfcab=', '.join(['{:d}'.format(x) for x in self.t_rfcab.values()]),
+      t_rfcpb=', '.join(['{:d}'.format(x) for x in self.t_rfcpb.values()]),
+      t_rfmab=', '.join(['{:d}'.format(x) for x in self.t_rfmab.values()]),
+      t_rfmpb=', '.join(['{:d}'.format(x) for x in self.t_rfmpb.values()]),
+      t_refdpr=', '.join(['{:d}'.format(x) for x in self.t_refdpr.values()]),
+      tx_pbr2pbr=', '.join(['{:d}'.format(x) for x in self.tx_pbr2pbr.values()]),
+      t_xsr=', '.join(['{:d}'.format(x) for x in self.t_xsr.values()]),
+      t_xsdll=', '.join(['{:d}'.format(x) for x in self.t_xsdll.values()]),
+      t_xs_fast=', '.join(['{:d}'.format(x) for x in self.t_xs_fast.values()]),
+      rl=self.read_latency,
+      adc='{:d},'.format(self.auto_dqs_clean),
+      wl=self.write_latency,
+      mr_rl=self.mr_rl,
+      mr_wl=self.mr_wl,
+      mr_wr=self.mr_wr,
+      mr_rtp=self.mr_wr,
+      mr_cal=self.mr_cal,
+      mr_tccd_l=self.mr_tccd_l,
+      bank_mode=self.bank_mode,
+      wck_fm=self.wck_hf,
+      rdqs_pst_mode=self.rdqs_pst_mode,
+      rdqs_pst=self.rdqs_pst,
+      rdqs_pre=self.rdqs_pre,
+      wck_pst=self.wck_pst,
+      wck_on=self.wck_always_on,
+      read_link_parity=self.read_lecc,
+      write_link_parity=self.write_lecc,
+      t_rtw=self.t_rtw,
+      t_wtr_a=self.t_wtr_a,
+      t_wtr=self.t_wtr,
+      t_rc=self.t_rc,
+      trddata_en=self.trddata_en
+    )
+
+            self.c_values.append(c_value)
+        return self.c_values
+
+    def write(self):
+        parameters = OrderedDict({
+                'OMC_NUM_TIMING_PARAMS': 21,
+                'OMC_NUM_DERATE_PARAMS': 2,
+                'OMC_NUM_DFI_TIMING_PARAMS': 8,
+                'OMC_NUM_DENSITIES': len(self.densities),
+                })
+
+        with open(args.output, 'w') as f:
+            f.write('struct timing_param timing_params[] = {\n')
+            f.write(',\n'.join([x.replace('\n', '').replace(' ', '') for x in self.c_values]))
+            f.write('\n};\n')
+
+        # For orbit config, density is fixed to 16 per customer spec.
+        # Ensure density 16 is in the mapping even if not in timing densities.
+        orbit_densities = list(self.densities)
+        if 16 not in orbit_densities:
+            orbit_densities.append(16)
+        
+        with open('orbit_init_gen.h', 'w') as f:
+            f.write('#ifndef __ORBIT_INIT_GEN__\n')
+            f.write('#define __ORBIT_INIT_GEN__\n')
+            f.write('\n')
+            for idx, d in enumerate(orbit_densities):
+                f.write('#define DENSITY_{:d}    {:d}\n'.format(d, idx))
+            f.write('typedef unsigned int omc_dram_density_t;\n')
+            
+            f.write('\n#ifdef _ORBIT_GET_DENSITY_\n')
+            f.write('\nomc_dram_density_t get_density_code(unsigned int density) {\n')
+            f.write('  switch (density) {\n')
+            f.write('\n'.join(['    case {d:d}: return DENSITY_{d:d};'.format(d=d) for d in orbit_densities]))
+            f.write('\n    default: /* add error handling code */ return DENSITY_{:d};\n'.format(orbit_densities[0]))
+            f.write('  }\n')
+            f.write('}\n')
+            f.write('#endif\n')
+            f.write('#endif\n')
+
+        with open('mr_config_gen.h', 'w') as f:
+            f.write('#define LPDDR4_WDQS_CTRL_MODE {}\n'.format(int(self.args.wdqs_ctrl_mode)))
+            f.write('#define LPDDR5_ENHANCED_NT_ODT {}\n'.format(int(self.args.enhanced_nt_odt)))
+            f.write('\n'.join(['#define {key:s} {var:d}'.format(key=key,var=var) for key, var in parameters.items()]))
+
+def parse_args():
+
+    enable_opts = ('lpddr4-byte-mode', 'additive-latency')
+
+    parser = ArgumentParser()
+    parser.add_argument('-d', '--dram-type', required=True, choices=('lpddr4', 'lpddr5'), help='target memory type')
+    parser.add_argument('--densities', type=str, nargs='+', help='list of target densities as Gb. It should be 1 in case of DDR3.')
+    parser.add_argument('--phy-name', type=str, help='name of phy')
+    parser.add_argument('--project-name', type=str, help='name of project')
+    parser.add_argument('-l', '--langugage', choices=('c',), default='c', help='target language')
+    parser.add_argument('-o', '--output', default='orbit_timing_params.c', help='output file name')
+    parser.add_argument('--cpipe-depth', default=0, type=int, help='pipe line differences between command channel')
+    parser.add_argument('--dpipe-depth', default=0, type=int, help='pipe line differences between data channel')
+    parser.add_argument('-s', '--speed-bin', type=str, help='speed-bin of DDR3 or DDR4 dram devices')
+    parser.add_argument('-w', '--dq-width', default=16, type=int, choices=[4, 8, 16, 32], help='DQ width of a die (not a package). Set 8 when at least one x8 die is used in a LPDDR4 or LPDDR5 package')
+    parser.add_argument('-e', '--enable', default=[], type=str, action='append', choices=enable_opts, help='enable additional timing options')
+    parser.add_argument('--wire-length', default=0, type=float, help='largest length of DQ and DQS wires from PHY I/O to DRAM I/O')
+    parser.add_argument('--omc-freq-ratio', default=2, type=int, help='Clock ratio of dfi_clk and memory clock in terms of OMC')
+    parser.add_argument('--phy-freq-ratio', default=2, type=int, help='Clock ratio of dfi_clk and memory clock in terms of PHY')
+    parser.add_argument('--meso-synchronizer', action='store_true', help='meso-synchronizer is implemented')
+    parser.add_argument('--pl-en', default=0, type=int, help='parity latency enable')
+    parser.add_argument('--min-dram-tck', default=314, type=int, help='Perioid of maximum operating frequency (as pico-seconds) / tWCK in case of LPDDR5')
+    parser.add_argument('periods', type=int, nargs='+', help='list of target tCK of DRAM (as pico-seconds) / tWCK in case of LPDDR5')
+
+    timing_grp = parser.add_argument_group(title="Timing features", description="Options can be enabled based on frequency. tWCK for LPDDR5 and tCK for others")
+    timing_grp.add_argument('--write-odt-upto', type=int, default=0, help='maximum tCK/tWCK (ps) to enable write ODT')
+    timing_grp.add_argument('--read-dbi-upto', type=int, default=0, help='maximum tCK/tWCK (ps) to enable read DBI')
+    timing_grp.add_argument('--write-dbi-upto', type=int, default=0, help='maximum tCK/tWCK (ps) to enable write DBI')
+    timing_grp.add_argument('--read-lecc-upto', type=int, default=0, help='maximum tCK/tWCK (ps) to enable read link ECC')
+    timing_grp.add_argument('--write-lecc-upto', type=int, default=0, help='maximum tCK/tWCK (ps) to enable write link ECC')
+    timing_grp.add_argument('--emulation', action='store_true', help='Setting emulation sequence')
+
+    ddr4_grp = parser.add_argument_group(title="DDR4 options", description="Options for DDR4")
+    ddr4_grp.add_argument('--geardown-upto', action='store_true', help='maximum tCK (ps) to enable geardown mode')
+
+    lp4_grp = parser.add_argument_group(title="LPDDR4 options", description="Options for LPDDR4")
+    lp4_grp.add_argument('--variable-trrd', action='store_true', help='use tRRD of 10 ns for LPDDR4-4267 devices when tCK is 535 ps or higher')
+    lp4_grp.add_argument('--wdqs-ctrl-mode', type=int, default=0, help='set WDQS control mode')
+    lp4_grp.add_argument('--txsr-as-1st-ed', action='store_true', help='use SRX to ACT/REF commands constraints based on 1st edition')
+    lp4_grp.add_argument('--rpste-upto', type=int, default=0, help='maximum tCK (ps) to enable extended read post-amble')
+    lp4_grp.add_argument('--wpste-upto', type=int, default=0, help='maximum tCK (ps) to enable extended write post-amble')
+
+    lp5_grp = parser.add_argument_group(title="LPDDR5 options", description="Options for LPDDR5")
+    lp5_grp.add_argument('--nt-odt-upto', type=int, default=0, help='maximum tWCK (ps) to enable NT-ODT')
+    lp5_grp.add_argument('--enhanced-nt-odt', action='store_true', help='devices support the enhanced NT-ODT')
+    lp5_grp.add_argument('--bg-mode-upto', type=int, default=625, help='maximum tWCK (ps) to enable bank-group mode')
+    lp5_grp.add_argument('--wck-always-on-from', type=int, default=1000000, help='minimum tWCK (ps) to enable WCK always-on mode')
+    lp5_grp.add_argument('--wck-always-on-upto', type=int, default=1000000, help='maximum tWCK (ps) to enable WCK always-on mode')
+    lp5_grp.add_argument('--wck-1to4-upto', type=int, default=625, help='maximum tWCK (ps) to enable WCK 1:4 mode')
+    lp5_grp.add_argument('--wck-hf-upto', type=int, default=624, help='maximum tWCK (ps) to enable WCK high-frequency mode')
+    lp5_grp.add_argument('--wck-pst1-upto', type=int, default=0, help='maximum tWCK (ps) to set WCK PST as 4.5*tWCK')
+    lp5_grp.add_argument('--wck-pst2-upto', type=int, default=0, help='maximum tWCK (ps) to set WCK PST as 6.5*tWCK')
+    lp5_grp.add_argument('--rdqs-pst1-upto', type=int, default=0, help='maximum tWCK (ps) to set RDQS PST as 2.5*tWCK')
+    lp5_grp.add_argument('--rdqs-pst2-upto', type=int, default=0, help='maximum tWCK (ps) to set RDQS PST as 4.5*tWCK')
+
+    orbit_grp = parser.add_argument_group(title="Orbit configuration", description="Parameters for orbit_config binary generation")
+    orbit_grp.add_argument('--two-channel', action='store_true', help='Enable two-channel mode (DDR_TWO_CHANNEL=1)')
+    orbit_grp.add_argument('--macro-ddr-type', type=int, help='Override DDR_TYPE macro value (2 for LPDDR4, other for LPDDR5)')
+    orbit_grp.add_argument('--orbit-byte-mode', type=int, default=0, choices=[0,1], help='Byte mode for LPDDR4 (0=x16, 1=x8)')
+    orbit_grp.add_argument('--orbit-mixed', type=int, default=0, choices=[0,1], help='Mixed rank density flag')
+    orbit_grp.add_argument('--orbit-rank-interleaving', type=int, default=1, choices=[0,1], help='Rank interleaving enable')
+    orbit_grp.add_argument('--orbit-num-rank', type=int, default=2, choices=[1,2], help='Number of ranks (max 2)')
+    orbit_grp.add_argument('--orbit-reboot-with-mrw', type=int, default=0, choices=[0,1], help='Reboot with MRW')
+    orbit_grp.add_argument('--orbit-rfm-en', type=int, default=0, choices=[0,1], help='RFM enable (LPDDR4/LPDDR5)')
+    orbit_grp.add_argument('--orbit-dsm-en', type=int, default=0, choices=[0,1], help='DSM enable (LPDDR5 Deep Sleep Mode)')
+    orbit_grp.add_argument('--orbit-ca-odt', type=int, default=0, choices=[0,1], help='CA ODT enable')
+    orbit_grp.add_argument('--orbit-config-json', type=str, help='JSON file with orbit_config field overrides')
+    orbit_grp.add_argument('--orbit-config-use-python', action='store_true', help='Use Python implementation instead of gen_ddr_config')
+
+    args = parser.parse_args()
+
+    # Convert densities from strings to integers
+    if args.densities:
+        args.densities = [int(d) for d in args.densities]
+
+    # Determine macro_ddr_type if not provided
+    if args.macro_ddr_type is None:
+        # Use 2 for LPDDR4, 5 for LPDDR5 (any value != 2)
+        if args.dram_type == 'lpddr4':
+            args.macro_ddr_type = 2
+        else:
+            args.macro_ddr_type = 5
+
+    for opt in enable_opts:
+        name = opt.replace('-', '_')
+        if opt in args.enable:
+            setattr(args, name, True)
+        else:
+            setattr(args, name, False)
+
+    # lpddr4 write ODT
+    if args.dram_type == "lpddr4" and args.write_odt_upto > 1249:
+        print("[Info] write-odt-upto({}) value is overrided as 1250 following the limitation of the LPDDR4 SDRAM.".format(args.write_odt_upto))
+        args.write_odt_upto = 1249
+
+    return args
+
+type_arr = [
+    'unsigned int freq',
+    'unsigned int t_ck',
+    'unsigned int timing_zqcal',
+    'unsigned int timing_param[OMC_NUM_TIMING_PARAMS]',
+    'unsigned int timing_param_derate[OMC_NUM_DERATE_PARAMS]',
+    'unsigned int dfi_timing_param[OMC_NUM_DFI_TIMING_PARAMS]',
+    'unsigned short int t_rfcab[OMC_NUM_DENSITIES]',
+    'unsigned short int t_rfcpb[OMC_NUM_DENSITIES]',
+    'unsigned short int t_rfmab[OMC_NUM_DENSITIES]',
+    'unsigned short int t_rfmpb[OMC_NUM_DENSITIES]',
+    'unsigned short int t_refdpr[OMC_NUM_DENSITIES]',
+    'unsigned short int tx_pbr2pbr[OMC_NUM_DENSITIES]',
+    'unsigned short int t_xsr[OMC_NUM_DENSITIES]',
+    'unsigned short int t_xsdll[OMC_NUM_DENSITIES]',
+    'unsigned short int t_xs_fast[OMC_NUM_DENSITIES]',
+    'unsigned char wck_ratio', 
+    'unsigned char tlp_resp',
+    'unsigned char auto_dqs_clean',
+    'unsigned char dll_enable',
+    'unsigned char write_odt',
+    'unsigned char nt_odt',
+    'unsigned char write_dbi',
+    'unsigned char read_dbi',
+    'unsigned char wpste',
+    'unsigned char rpste',
+    'unsigned char rl',
+    'unsigned char wl',
+    'unsigned char mr_rl',
+    'unsigned char mr_wl',
+    'unsigned char mr_wr',
+    'unsigned char mr_rtp',
+    'unsigned char mr_cal',
+    'unsigned char mr_tccd_l',
+    'unsigned char bank_mode',
+    'unsigned char wck_fm',
+    'unsigned char rdqs_pst_mode',
+    'unsigned char rdqs_pst',
+    'unsigned char rdqs_pre',
+    'unsigned char wck_pst',
+    'unsigned char wck_on',
+    'unsigned char read_link_parity',
+    'unsigned char write_link_parity',
+    'unsigned char t_rtw',
+    'unsigned char t_wtr_a',
+    'unsigned char t_wtr',
+    'unsigned char t_rc',
+    'unsigned char trddata_en'
+]#注意结构体数组结尾任需要对齐
+
+type_mapping = {
+        'unsigned char': 'B',
+        'unsigned short int': 'H',
+        'unsigned int': 'I'
+    }
+
+def get_type_format_list():
+    type_format_list = []
+    for type_str in type_arr:
+        # > big-endian
+        # > small-endian
+        type_format_list.append(type_mapping[' '.join(type_str.split(' ')[:-1])])
+    return type_format_list
+
+def gen_timingtable_bin(my_values):
+    type_format_list = get_type_format_list()
+    byte_str = b''
+    value_list = []
+    format_list = ""
+
+    for c_values in my_values:
+        c_values = c_values[1:-1]  # 去掉最外层括号
+        c_values = c_values.replace('\n', '')
+        c_values = c_values.replace('      ', '')
+        c_values = c_values.replace(' ', '')
+        c_values = c_values.split(',')
+        brace_flag = 0
+        i = 0  # format index
+        for c_value in c_values:
+            old_val = c_value
+            if c_value.startswith('{'):
+                brace_flag += 1  # 最多只有两层，进入第二层
+                c_value = c_value[1:]
+            if c_value.endswith('}'):
+                c_value = c_value[:-1]
+                brace_flag -= 1  # 退出第二层
+            if c_value.startswith('0x'):
+                c_value = int(c_value, 16)
+            else:
+                c_value = int(c_value)
+
+            type_format = type_format_list[i]
+            if brace_flag == 0:
+                i = i + 1
+            try:
+                value_list.append(c_value)
+                format_list += type_format
+            except Exception as e:
+                print(i, old_val, c_value, type(c_value), type_format, brace_flag)
+                print(type_format_list[i])
+                print(e)
+                break
+    byte_str += struct.pack(format_list, *value_list)
+    # if not os.path.exists("../../out/bin/"):
+    #     os.makedirs("../../out/bin/")
+    # with open('../../out/bin/ddr_timing_table.bin', 'wb') as f:
+    #     f.write(byte_str)
+    with open('ddr_timing_table.bin', 'wb') as f:
+        f.write(byte_str)
+
+
+def generate_orbit_config_bin(args):
+    """Generate orbit_config binary and write at offset 0x800."""
+    if args.orbit_config_use_python:
+        # Use Python implementation
+        try:
+            from ddr_config_init import generate_orbit_config_binary
+        except ImportError as e:
+            print("Error: Python orbit config modules not found:", e)
+            sys.exit(1)
+        
+        # Density fixed to 16 per customer spec (line 72 of ddr_config.h)
+        density = 16
+        
+        # Collect modifiable field overrides from CLI arguments
+        overrides = {}
+        # Map argument names to orbit_config field names
+        field_map = {
+            'orbit_byte_mode': 'byte_mode',
+            'orbit_mixed': 'mixed',
+            'orbit_rank_interleaving': 'rank_interleaving',
+            'orbit_num_rank': 'num_rank',
+            'orbit_reboot_with_mrw': 'reboot_with_mrw',
+            'orbit_rfm_en': 'rfm_en',
+            'orbit_dsm_en': 'dsm_en',
+            'orbit_ca_odt': 'ca_odt',
+        }
+        for arg_name, field_name in field_map.items():
+            if hasattr(args, arg_name):
+                overrides[field_name] = getattr(args, arg_name)
+        
+        # Compute density_code matching C logic (index in orbit_densities list)
+        orbit_densities = list(args.densities) if args.densities else []
+        if 16 not in orbit_densities:
+            orbit_densities.append(16)
+        density_code = orbit_densities.index(16)
+        overrides['density_code'] = density_code
+        
+        # Additional overrides from JSON file
+        if args.orbit_config_json:
+            with open(args.orbit_config_json, 'r') as f:
+                json_overrides = json.load(f)
+                # Convert keys to match struct field names (same as JSON keys)
+                overrides.update(json_overrides)
+        
+        # Convert dram_type string to match Python expectation
+        dram_type = args.dram_type  # 'lpddr4' or 'lpddr5'
+        two_channel = args.two_channel
+        
+        # Extract byte_mode and mixed from overrides to avoid duplicate keyword arguments
+        byte_mode = overrides.pop('byte_mode', 0)
+        mixed = overrides.pop('mixed', 0)
+        print(f"Generating orbit config using Python: dram_type={dram_type}, two_channel={two_channel}, density={density}")
+        generate_orbit_config_binary(dram_type=dram_type,
+                                     two_channel=two_channel,
+                                     density=density,
+                                     byte_mode=byte_mode,
+                                     mixed=mixed,
+                                     output_file='ddr_timing_table.bin',
+                                     offset=0x800,
+                                     **overrides)
+        print("Python orbit config generation completed.")
+    else:
+        # Use original C implementation via gen_ddr_config
+        import subprocess
+        macro_ddr_type = args.macro_ddr_type
+        macro_two_channel = 1 if args.two_channel else 0
+        script_path = os.path.join(os.path.dirname(__file__), 'gen_ddr_config')
+        cmd = [sys.executable, script_path, str(macro_ddr_type), str(macro_two_channel)]
+        print(f"Running: {' '.join(cmd)}")
+        result = subprocess.run(cmd)
+        if result.returncode != 0:
+            print("Error: gen_ddr_config failed")
+            sys.exit(result.returncode)
+
+
+if __name__ == '__main__':
+    args = parse_args()
+    timing_param = GenTimingParam(args)
+    c_values = timing_param.calculate();
+    timing_param.write();
+    gen_timingtable_bin(c_values)
+    generate_orbit_config_bin(args)

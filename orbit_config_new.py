@@ -1,0 +1,261 @@
+#!/usr/bin/env python2
+"""
+Python implementation of orbit_config struct and ddr_config_init.
+"""
+
+import struct
+from ctypes import c_uint8, c_uint16, c_uint32, c_uint64, Structure, Union, Array
+
+# Constants from arise2_config.h
+DRAM0_BASE = 0x0080000000
+RESERVED1_BASE = 0x0100000000
+DRAM0_SIZE = RESERVED1_BASE - DRAM0_BASE  # 0x0080000000
+
+DRAM1_BASE = 0x0880000000
+PCIE1_ECM_BASE = 0x1000000000
+DRAM1_SIZE = PCIE1_ECM_BASE - DRAM1_BASE  # 0x0780000000
+
+OMC_REGISTER_BASE0_0 = 0x51120000
+OMC_REGISTER_BASE0_1 = 0x51130000
+OMC_REGISTER_BASE1_0 = 0x51140000
+OMC_REGISTER_BASE1_1 = 0x51150000
+PHY_REGISTER_BASE0_0 = 0x51160000
+PHY_REGISTER_BASE0_1 = 0x51170000
+PHY_REGISTER_BASE1_0 = 0x51180000
+PHY_REGISTER_BASE1_1 = 0x51190000
+
+EMMC_CM4_TIME_TB_SIZE = 0x00000800
+
+# Density codes from orbit_init_gen.h
+DENSITY_1 = 0
+DENSITY_2 = 1
+DENSITY_3 = 2
+DENSITY_4 = 3
+DENSITY_6 = 4
+DENSITY_8 = 5
+DENSITY_12 = 6
+DENSITY_16 = 7
+DENSITY_24 = 8
+DENSITY_32 = 9
+
+def get_density_code(density):
+    """Convert density in Gb to density code."""
+    mapping = {
+        1: DENSITY_1,
+        2: DENSITY_2,
+        3: DENSITY_3,
+        4: DENSITY_4,
+        6: DENSITY_6,
+        8: DENSITY_8,
+        12: DENSITY_12,
+        16: DENSITY_16,
+        24: DENSITY_24,
+        32: DENSITY_32,
+    }
+    return mapping.get(density, DENSITY_1)
+
+# Enums from arise2_omc.h (partial)
+CH_128 = 0
+CH_256 = 1
+BG_NOINT = 0
+PAGE_SIZE_32 = 1
+PAGE_SIZE_16 = 2
+PAGE_SIZE_8 = 3
+BY_MC = 0
+BY_PHY_IDLE = 1
+BY_PHY_PD = 2
+BY_PHY_SR = 3
+BY_PHY_SRPD = 4
+
+# Sub-structures (same as before)
+class chip_config(Structure):
+    _fields_ = [
+        ("size", c_uint32),
+        ("num_bg", c_uint32),
+        ("num_bank", c_uint32),
+        ("num_row", c_uint32),
+        ("num_col", c_uint32),
+    ]
+
+class train_result_t(Structure):
+    _fields_ = [
+        ("lock_value_init", c_uint32),
+        ("rd_deskew_center_dm_cs0", c_uint32),
+        ("rd_deskew_center_cs0", c_uint32 * 8),
+        ("rd_deskew_left_dm_cs0", c_uint32),
+        ("rd_deskew_left_cs0", c_uint32 * 8),
+        ("rd_dqs_vwmc_cs0", c_uint32),
+        ("rd_dqs_vwml_cs0", c_uint32),
+        ("rd_deskew_center_dm_cs1", c_uint32),
+        ("rd_deskew_center_cs1", c_uint32 * 8),
+        ("rd_deskew_left_dm_cs1", c_uint32),
+        ("rd_deskew_left_cs1", c_uint32 * 8),
+        ("rd_dqs_vwmc_cs1", c_uint32),
+        ("rd_dqs_vwml_cs1", c_uint32),
+        ("wr_deskewc_cs0", c_uint32 * 8),
+        ("dm_deskewc_cs0", c_uint32),
+        ("ecc_deskewc_cs0", c_uint32),
+        ("wr_deskewl_cs0", c_uint32 * 8),
+        ("dm_deskewl_cs0", c_uint32),
+        ("ecc_deskewl_cs0", c_uint32),
+        ("wr_byte0_cyc_cs0_code", c_uint32),
+        ("wr_byte1_cyc_cs0_code", c_uint32),
+        ("wr_deskewc_cs1", c_uint32 * 8),
+        ("dm_deskewc_cs1", c_uint32),
+        ("ecc_deskewc_cs1", c_uint32),
+        ("wr_deskewl_cs1", c_uint32 * 8),
+        ("dm_deskewl_cs1", c_uint32),
+        ("ecc_deskewl_cs1", c_uint32),
+        ("wr_byte0_cyc_cs1_code", c_uint32),
+        ("wr_byte1_cyc_cs1_code", c_uint32),
+    ]
+
+class prbs_result_t(Structure):
+    _fields_ = [
+        ("offsetr0_cs0", c_uint16),
+        ("offsetr1_cs0", c_uint16),
+        ("offsetw0_cs0", c_uint16),
+        ("offsetw1_cs0", c_uint16),
+        ("offsetr0_cs1", c_uint16),
+        ("offsetr1_cs1", c_uint16),
+        ("offsetw0_cs1", c_uint16),
+        ("offsetw1_cs1", c_uint16),
+    ]
+
+# Factory function to create orbit_config class with or without LPDDR5 fields
+def get_orbit_config_class(dram_type='lpddr4'):
+    """Return orbit_config class with appropriate fields for dram_type."""
+    # Determine if LPDDR5 fields should be included
+    include_lp5 = (dram_type.lower() == 'lpddr5')
+    
+    class orbit_config(Structure):
+        _pack_ = 8
+        _fields_ = []
+    
+    fields = []
+    # Fields in exact order as arise2_omc.h
+    fields.append(("dram_boot", c_uint8))
+    fields.append(("ch_intr_size", c_uint8))
+    fields.append(("bg_intr_size", c_uint8))
+    fields.append(("fsp_op", c_uint8))
+    fields.append(("fsp_wr", c_uint8))
+    fields.append(("dq_vref_byte0", c_uint8 * 2))
+    fields.append(("dq_vref_byte1", c_uint8 * 2))
+    fields.append(("ca_vref", c_uint8 * 2))
+    
+    if include_lp5:
+        fields.append(("lp5_mr2", c_uint8))
+        fields.append(("lp5_mr3", c_uint8))
+        fields.append(("lp5_mr10", c_uint8))
+        fields.append(("lp5_mr11", c_uint8))
+        fields.append(("lp5_mr12", c_uint8))
+        fields.append(("lp5_mr16", c_uint8))
+        fields.append(("lp5_mr17", c_uint8))
+        fields.append(("lp5_mr18", c_uint8))
+        fields.append(("zq_bg_mode", c_uint8))
+    
+    # ORBIT_ECC fields omitted
+    fields.append(("phy_freq_ratio", c_uint16))
+    fields.append(("omc_freq_ratio", c_uint16))
+    fields.append(("int_cpipe_depth", c_uint16))
+    fields.append(("int_dpipe_depth", c_uint16))
+    fields.append(("cpipe_depth", c_uint16))
+    fields.append(("dpipe_depth", c_uint16))
+    fields.append(("reboot", c_uint16))
+    fields.append(("reqq_depth", c_uint16))
+    fields.append(("density", c_uint16))
+    fields.append(("rank_interleaving", c_uint16))
+    fields.append(("num_rank", c_uint16))
+    fields.append(("reboot_with_mrw", c_uint16))
+    fields.append(("ctrl_dq_width", c_uint16))
+    fields.append(("dq_width", c_uint16))
+    fields.append(("use_dfi_train_if", c_uint16))
+    fields.append(("phy_ind_mode_en", c_uint16))
+    fields.append(("phy_low_power", c_uint16))
+    fields.append(("phy_idle_cnt_th", c_uint16))
+    fields.append(("lp_wakeup", c_uint16 * 3))  # SIZEOF_TIMING_PARAMS - 1 = 3
+    fields.append(("half_dq_en", c_uint16))
+    
+    # LPDDR4 specific field (conditional)
+    if dram_type.lower() == 'lpddr4':
+        fields.append(("lpddr4_rpre", c_uint16))
+    
+    fields.append(("rfm_en", c_uint16))
+    fields.append(("dsm_en", c_uint16))
+    fields.append(("eye_scan_rd_en", c_uint16))
+    fields.append(("eye_scan_wr_en", c_uint16))
+    fields.append(("eye_scan_prbs_rd_en", c_uint16))
+    fields.append(("eye_scan_prbs_wr_en", c_uint16))
+    fields.append(("ca_odt", c_uint16))
+    fields.append(("phy_odt", c_uint16))
+    fields.append(("init_zq_calibration", c_uint16))
+    fields.append(("temp_sensing", c_uint16))
+    fields.append(("zq_calibration", c_uint16))
+    fields.append(("periodic_training", c_uint16))
+    fields.append(("periodic_training_period", c_uint16))
+    fields.append(("dynamic_power_down", c_uint16))
+    fields.append(("dynamic_self_refresh", c_uint16))
+    fields.append(("regional_clock_gating", c_uint16))
+    fields.append(("phy_clock_gating", c_uint16))
+    fields.append(("dram_clock_gating", c_uint16))
+    fields.append(("dfs_lvl_t_ck", c_uint16 * 3))
+    fields.append(("num_of_region", c_uint16))
+    fields.append(("command_bus_training", c_uint16))
+    fields.append(("ca_vref_training", c_uint16))
+    fields.append(("prbs_training", c_uint16))
+    fields.append(("reboot_with_training", c_uint16))
+    fields.append(("dfs_training", c_uint16))
+    fields.append(("phy_vref_trn_mode", c_uint16))
+    fields.append(("phy_duty_trn_mode", c_uint16))
+    fields.append(("dram_vref_trn_mode", c_uint16))
+    fields.append(("dram_duty_trn_mode", c_uint16))
+    
+    fields.append(("density_code", c_uint32))
+    fields.append(("rclk_t_ck", c_uint32))
+    fields.append(("boot_t_ck", c_uint32))
+    fields.append(("boot_t_ck_low", c_uint32))
+    fields.append(("dram_t_ck", c_uint32))
+    fields.append(("prev_dram_t_ck", c_uint32))
+    
+    fields.append(("chip", chip_config * 2))
+    fields.append(("num_of_ch", c_uint32 * 2))
+    fields.append(("base_addr", c_uint32))
+    fields.append(("base_addr_id", c_uint32 * 4))  # NUM_OF_OMC = 2 or 4
+    fields.append(("phy_base_addr", c_uint32))
+    fields.append(("phy_base_addr_id", c_uint32 * 4))
+    fields.append(("tphyupd_resp", c_uint32))
+    fields.append(("dynamic_self_refresh_threshold", c_uint32))
+    fields.append(("dynamic_power_down_threshold", c_uint32))
+    fields.append(("zq_calibration_period", c_uint32))
+    fields.append(("tctrlupd_interval", c_uint32))
+    fields.append(("temp_sensing_period", c_uint32))
+    fields.append(("t_refipb", c_uint32))
+    fields.append(("t_refiab", c_uint32))
+    fields.append(("t_zqcal", c_uint32))
+    fields.append(("link_err_cnt_th", c_uint32))
+    fields.append(("mrr_byte_lane", c_uint32))
+    fields.append(("byte_lane_inversion", c_uint32))
+    
+    # region_start and region_end come BEFORE prbs_result and train_result
+    fields.append(("region_start", c_uint64 * 2))
+    fields.append(("region_end", c_uint64 * 2))
+    
+    fields.append(("prbs_result", prbs_result_t * 4))  # NUM_OF_PHY = 2 or 4
+    fields.append(("train_result", train_result_t * 4 * 4))  # NUM_OF_PHY * SIZEOF_TIMING_PARAMS (4)
+    
+    # Set fields
+    orbit_config._fields_ = fields
+    return orbit_config
+
+# Default class (LPDDR4)
+orbit_config = get_orbit_config_class('lpddr4')
+
+# Helper function to create config based on dram_type
+def create_orbit_config(dram_type='lpddr4'):
+    """Create and zero an orbit_config instance for given dram_type."""
+    cls = get_orbit_config_class(dram_type)
+    cfg = cls()
+    # Zero fill
+    for field_name, _ in cfg._fields_:
+        setattr(cfg, field_name, 0)
+    return cfg
