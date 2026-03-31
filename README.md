@@ -78,19 +78,30 @@ Features:
 - All CLI parameters exposed in categorized sections
 - Dynamic periods with add/remove buttons
 - ps/MHz unit toggle for timing values
-- dram_t_ck field (base timing cycle)
-- DRAM type override dropdown
+- dram_t_ck field (base timing cycle: 471ps LPDDR4, 1256ps LPDDR5)
+- DRAM type override dropdown for manual selection
 - Tooltips on all labels
 - Load/Save JSON configuration
 - Generate binary and header with modified parameters
 - Analyze generated binary (timing table + orbit config)
-- Periodic-training-period and temp-sensing-period visibility based on checkbox
 - zq_bg_mode field (LPDDR5)
+- Visibility toggles:
+  - zq-calibration-period (shows when zq-calibration checked)
+  - periodic-training-period (shows when periodic-training checked)
+  - temp-sensing-period (shows when temp-sensing checked)
+  - dsm-en (shows only for LPDDR5)
+  - rank-interleaving (shows when num-rank=2)
 
 ## Testing
 
 ```bash
-# Run automated GUI tests
+# Run LPDDR4 binary generation test
+./test_lpddr4.sh
+
+# Run LPDDR5 binary generation test
+./test_lpddr5.sh
+
+# Run GUI parameter tests
 python3 test_gui_params.py
 ```
 
