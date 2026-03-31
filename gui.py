@@ -25,20 +25,29 @@ def get_mrr_byte_lane(dq_width):
         return 0x55
 
 
+def safe_int(val, default=0):
+    """Safely convert value to int, handling float strings."""
+    if val is None or val == '':
+        return default
+    try:
+        return int(float(val))
+    except (ValueError, TypeError):
+        return default
+
 def generate_ddr_config_h(params):
     """Generate ddr_config.h with full template matching ddr_config.h.template."""
     dram_type = params.get('dram-type', 'lpddr4')
-    cpipe_depth = int(params.get('cpipe-depth', 1))
-    dpipe_depth = int(params.get('dpipe-depth', 1))
-    orbit_density = int(params.get('orbit-config-density', 16))
-    dq_width = int(params.get('dq-width', 16))
+    cpipe_depth = safe_int(params.get('cpipe-depth'), 1)
+    dpipe_depth = safe_int(params.get('dpipe-depth'), 1)
+    orbit_density = safe_int(params.get('orbit-config-density'), 16)
+    dq_width = safe_int(params.get('dq-width'), 16)
     mrr_byte_lane = get_mrr_byte_lane(dq_width)
     two_channel = params.get('two-channel', 'false') == 'true'
-    byte_mode = int(params.get('orbit-byte-mode', 0))
-    mixed = int(params.get('orbit-mixed', 0))
+    byte_mode = safe_int(params.get('orbit-byte-mode'), 0)
+    mixed = safe_int(params.get('orbit-mixed'), 0)
     
     rank_interleaving = 1 if params.get('orbit-rank-interleaving') == 'true' else 0
-    num_rank = int(params.get('orbit-num-rank', 2))
+    num_rank = safe_int(params.get('orbit-num-rank'), 2)
     reboot_with_mrw = 1 if params.get('orbit-reboot-with-mrw') == 'true' else 0
     rfm_en = 1 if params.get('orbit-rfm-en') == 'true' else 0
     dsm_en = 1 if params.get('orbit-dsm-en') == 'true' else 0
@@ -62,16 +71,18 @@ def generate_ddr_config_h(params):
     phy_clock_gating = 1 if params.get('phy-clock-gating') == 'true' else 0
     phy_low_power = 1 if params.get('phy-low-power') == 'true' else 0
     
-    zq_calibration_period = int(params.get('zq-calibration-period', 48000))
+    zq_calibration_period = safe_int(params.get('zq-calibration-period'), 48000)
     periodic_training = 1 if params.get('periodic-training') == 'true' else 0
-    periodic_training_period = int(params.get('periodic-training-period', 24000))
+    periodic_training_period = safe_int(params.get('periodic-training-period'), 24000)
     temp_sensing = 1 if params.get('temp-sensing') == 'true' else 0
-    temp_sensing_period = int(params.get('temp-sensing-period', 32000))
-    t_refiab = int(params.get('t-refiab', 3904000))
-    t_refipb = int(params.get('t-refipb', 488000))
-    t_zqcal = int(params.get('t-zqcal', 1000000))
+    temp_sensing_period = safe_int(params.get('temp-sensing-period'), 32000)
+    t_refiab = safe_int(params.get('t-refiab'), 3904000)
+    t_refipb = safe_int(params.get('t-refipb'), 488000)
+    t_zqcal = safe_int(params.get('t-zqcal'), 1000000)
     
-    dfs_lvl_t_ck_0 = int(params.get('dfs-lvl-t-ck-0', 938))
+    dfs_lvl_t_ck_0 = safe_int(params.get('dfs-lvl-t-ck-0'), 938)
+    dfs_lvl_t_ck_1 = safe_int(params.get('dfs-lvl-t-ck-1'), 1631)
+    dfs_lvl_t_ck_2 = safe_int(params.get('dfs-lvl-t-ck-2'), 2500)
     dfs_lvl_t_ck_1 = int(params.get('dfs-lvl-t-ck-1', 1631))
     dfs_lvl_t_ck_2 = int(params.get('dfs-lvl-t-ck-2', 2500))
     
@@ -97,9 +108,13 @@ def generate_ddr_config_h(params):
 
 #include <stdint.h>
 
-#define DRAM_TYPE_LPDDR{dram_type.upper()}
-#define DDR_TYPE {dram_type_macro}
-
+'''
+    if dram_type == 'lpddr5':
+        content += '#define DRAM_TYPE_LPDDR5\n'
+    else:
+        content += '#define DRAM_TYPE_LPDDR4\n'
+    content += f'#define DDR_TYPE {dram_type_macro}\n'
+    content += '''
 #define OMC_REGISTER_BASE0_0   0x20000000
 #define OMC_REGISTER_BASE0_1   0x21000000
 #define PHY_REGISTER_BASE0_0   0x10000000
@@ -558,76 +573,106 @@ class DDRHandler(http.server.BaseHTTPRequestHandler):
             message = []
             success = True
             
+            # Helper function to convert param to int (handles float strings)
+            def to_int(val):
+                if val is None or val == '':
+                    return None
+                try:
+                    return int(float(val))
+                except (ValueError, TypeError):
+                    return None
+            
             # Build gen_timing_params command
             cmd = [sys.executable, 'gen_timing_params']
             cmd.extend(['--dram-type', params.get('dram-type', 'lpddr4')])
-            cmd.extend(['--densities', str(params.get('orbit-config-density', 16))])
+            cmd.extend(['--densities', str(to_int(params.get('orbit-config-density')) or 16)])
             cmd.extend(['--phy-name', params.get('phy-name', 'sphy-v9r8')])
             cmd.extend(['--speed-bin', params.get('speed-bin', '4266')])
             dq_width = params.get('dq-width', '16')
             cmd.extend(['--dq-width', dq_width])
             
-            # Pipe params
-            cmd.extend(['--cpipe-depth', str(params.get('cpipe-depth', 1))])
-            cmd.extend(['--dpipe-depth', str(params.get('dpipe-depth', 1))])
+            # Pipe params - convert to int
+            cpipe = to_int(params.get('cpipe-depth'))
+            dpipe = to_int(params.get('dpipe-depth'))
+            cmd.extend(['--cpipe-depth', str(cpipe if cpipe else 1)])
+            cmd.extend(['--dpipe-depth', str(dpipe if dpipe else 1)])
             
             # Frequency ratios
             dram_type = params.get('dram-type', 'lpddr4')
             cmd.extend(['--omc-freq-ratio', str(params.get('omc-freq-ratio', 2))])
             cmd.extend(['--phy-freq-ratio', str(params.get('phy-freq-ratio', 2))])
             
-            # Timing params
+            # Timing params - convert to int
             if params.get('wire-length'):
-                cmd.extend(['--wire-length', str(params.get('wire-length'))])
-            if params.get('write-odt-upto'):
-                cmd.extend(['--write-odt-upto', str(params.get('write-odt-upto'))])
-            if params.get('read-dbi-upto'):
-                cmd.extend(['--read-dbi-upto', str(params.get('read-dbi-upto'))])
-            if params.get('write-dbi-upto'):
-                cmd.extend(['--write-dbi-upto', str(params.get('write-dbi-upto'))])
-            if params.get('min-dram-tck'):
-                cmd.extend(['--min-dram-tck', str(params.get('min-dram-tck'))])
-            if params.get('dram-tck'):
-                cmd.extend(['--dram-tck', str(params.get('dram-tck'))])
-            if params.get('read-lecc-upto'):
-                cmd.extend(['--read-lecc-upto', str(params.get('read-lecc-upto'))])
-            if params.get('write-lecc-upto'):
-                cmd.extend(['--write-lecc-upto', str(params.get('write-lecc-upto'))])
+                val = to_int(params.get('wire-length'))
+                if val:
+                    cmd.extend(['--wire-length', str(val)])
+            write_odt = to_int(params.get('write-odt-upto'))
+            if write_odt is not None:
+                cmd.extend(['--write-odt-upto', str(write_odt)])
+            read_dbi = to_int(params.get('read-dbi-upto'))
+            if read_dbi is not None:
+                cmd.extend(['--read-dbi-upto', str(read_dbi)])
+            write_dbi = to_int(params.get('write-dbi-upto'))
+            if write_dbi is not None:
+                cmd.extend(['--write-dbi-upto', str(write_dbi)])
+            min_dram = to_int(params.get('min-dram-tck'))
+            if min_dram is not None:
+                cmd.extend(['--min-dram-tck', str(min_dram)])
+            dram_tck = to_int(params.get('dram-tck'))
+            if dram_tck is not None:
+                cmd.extend(['--dram-tck', str(dram_tck)])
+            read_lecc = to_int(params.get('read-lecc-upto'))
+            if read_lecc is not None:
+                cmd.extend(['--read-lecc-upto', str(read_lecc)])
+            write_lecc = to_int(params.get('write-lecc-upto'))
+            if write_lecc is not None:
+                cmd.extend(['--write-lecc-upto', str(write_lecc)])
             
             # LPDDR4 specific
             if dram_type == 'lpddr4':
-                if params.get('wdqs-ctrl-mode'):
-                    cmd.extend(['--wdqs-ctrl-mode', str(params.get('wdqs-ctrl-mode'))])
+                wdqs = to_int(params.get('wdqs-ctrl-mode'))
+                if wdqs:
+                    cmd.extend(['--wdqs-ctrl-mode', str(wdqs)])
                 if params.get('variable-trrd') == 'true':
                     cmd.append('--variable-trrd')
                 if params.get('txsr-as-1st-ed') == 'true':
                     cmd.append('--txsr-as-1st-ed')
             else:
-                if params.get('wck-1to4-upto'):
-                    cmd.extend(['--wck-1to4-upto', str(params.get('wck-1to4-upto'))])
-                if params.get('wck-always-on-from'):
-                    cmd.extend(['--wck-always-on-from', str(params.get('wck-always-on-from'))])
-                if params.get('wck-always-on-upto'):
-                    cmd.extend(['--wck-always-on-upto', str(params.get('wck-always-on-upto'))])
+                # LPDDR5 specific
+                wck_1to4 = to_int(params.get('wck-1to4-upto'))
+                if wck_1to4 is not None:
+                    cmd.extend(['--wck-1to4-upto', str(wck_1to4)])
+                wck_from = to_int(params.get('wck-always-on-from'))
+                if wck_from is not None:
+                    cmd.extend(['--wck-always-on-from', str(wck_from)])
+                wck_upto = to_int(params.get('wck-always-on-upto'))
+                if wck_upto is not None:
+                    cmd.extend(['--wck-always-on-upto', str(wck_upto)])
             
             # Orbit config
             if params.get('two-channel') == 'true':
                 cmd.append('--two-channel')
-            if params.get('orbit-config-density'):
-                cmd.extend(['--orbit-config-density', str(params.get('orbit-config-density'))])
-            if params.get('orbit-byte-mode'):
-                cmd.extend(['--orbit-byte-mode', str(params.get('orbit-byte-mode'))])
-            if params.get('orbit-mixed'):
-                cmd.extend(['--orbit-mixed', str(params.get('orbit-mixed'))])
+            orbit_density = to_int(params.get('orbit-config-density'))
+            if orbit_density:
+                cmd.extend(['--orbit-config-density', str(orbit_density)])
+            byte_mode = to_int(params.get('orbit-byte-mode'))
+            if byte_mode is not None:
+                cmd.extend(['--orbit-byte-mode', str(byte_mode)])
+            mixed = to_int(params.get('orbit-mixed'))
+            if mixed is not None:
+                cmd.extend(['--orbit-mixed', str(mixed)])
             if params.get('orbit-rank-interleaving') == 'true':
                 cmd.extend(['--orbit-rank-interleaving', '1'])
-            if params.get('orbit-num-rank'):
-                cmd.extend(['--orbit-num-rank', str(params.get('orbit-num-rank'))])
+            num_rank = to_int(params.get('orbit-num-rank'))
+            if num_rank:
+                cmd.extend(['--orbit-num-rank', str(num_rank)])
             if params.get('orbit-reboot-with-mrw') == 'true':
                 cmd.append('--orbit-reboot-with-mrw')
             if params.get('orbit-rfm-en') == 'true':
                 cmd.append('--orbit-rfm-en')
-            if params.get('orbit-dsm-en') == 'true':
+            # dsm-en only for LPDDR5
+            if dram_type == 'lpddr5' and params.get('orbit-dsm-en') == 'true':
                 cmd.append('--orbit-dsm-en')
             if params.get('orbit-ca-odt') == 'true':
                 cmd.append('--orbit-ca-odt')
