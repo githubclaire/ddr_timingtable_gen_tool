@@ -645,7 +645,8 @@ def parse_args():
     parser.add_argument('--phy-freq-ratio', default=2, type=int, help='Clock ratio of dfi_clk and memory clock in terms of PHY')
     parser.add_argument('--meso-synchronizer', action='store_true', help='meso-synchronizer is implemented')
     parser.add_argument('--pl-en', default=0, type=int, help='parity latency enable')
-    parser.add_argument('--min-dram-tck', default=314, type=int, help='Perioid of maximum operating frequency (as pico-seconds) / tWCK in case of LPDDR5')
+    parser.add_argument('--min-dram-tck', default=314, type=int, help='Period of maximum operating frequency (as pico-seconds) / tWCK in case of LPDDR5')
+    parser.add_argument('--dram-tck', default=None, type=int, help='Base DRAM timing (tCK/tWCK in ps). Default: 471 for LPDDR4, 1256 for LPDDR5')
     parser.add_argument('periods', type=int, nargs='+', help='list of target tCK of DRAM (as pico-seconds) / tWCK in case of LPDDR5')
 
     timing_grp = parser.add_argument_group(title="Timing features", description="Options can be enabled based on frequency. tWCK for LPDDR5 and tCK for others")

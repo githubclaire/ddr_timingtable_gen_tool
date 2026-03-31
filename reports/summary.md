@@ -245,7 +245,62 @@ Determines DFS level based on clock period and WCK ratio:
 - `README.md`: Updated with usage examples and architecture overview
 - `reports/ui_integration.md`: Detailed integration report
 
-**Status**: **Production Ready** - The tool now provides a complete solution for generating both DDR timing tables and orbit configuration binaries with full compatibility between Python and C implementations.
+**Integration Status**: **Production Ready** - The tool now provides a complete solution for generating both DDR timing tables and orbit configuration binaries with full compatibility between Python and C implementations.
+
+## GUI Web Interface Update (2026-03-31)
+
+### New Features Implemented
+
+**Basic Parameters:**
+- ✅ Dynamic periods with add/remove buttons - generate timing tables with variable number of frequency points
+- ✅ `dram_t_ck` field - base DRAM timing cycle (471 ps for LPDDR4, 1256 ps for LPDDR5)
+- ✅ ps/MHz toggle - convert timing values between picoseconds and MHz
+- ✅ DRAM type override dropdown - manually force LPDDR4 or LPDDR5 detection
+- ✅ Tooltips on all labels - hover to see field descriptions
+
+**Orbit Configuration:**
+- ✅ 8 subsections: Basic/Geometry, Mode Control, Training Enable, Power Management, Timing Intervals, DFS Timing, Feature Flags, MRR
+- ✅ Dynamic show/hide for `periodic-training-period` and `temp-sensing-period` based on checkbox state
+- ✅ `zq_bg_mode` field added to LPDDR5 Options
+- ✅ MRR byte lane auto-calculated (read-only)
+
+**Binary Analysis:**
+- ✅ Dynamic period loading - parses actual number of periods from binary
+- ✅ Fixed dfs_lvl_t_ck offsets (0x5e/0x60/0x62)
+- ✅ Improved DRAM type detection using t_ck pattern at offset 0x04
+- ✅ File size threshold updates for newer binary formats (5096/5104 for single, 7864/7872 for dual)
+
+**ddr_config.h Generation:**
+- ✅ Full template matching ddr_config.h.template structure
+- ✅ All orbit_config fields populated from GUI form values
+
+**Test Script:**
+- ✅ `test_gui_params.py` - automated test suite for GUI parameters
+- ✅ Reference binary comparison tests
+
+### Files Modified
+- `gui.py` - Main web server with /generate and /analyze endpoints
+- `templates/gui.html` - HTML frontend with all GUI elements
+- `gen_timing_params` - Added --dram-tck CLI argument
+- `test_gui_params.py` - New automated test script
+- `reports/summary.md` - Updated with new features
+- `README.md` - Updated documentation
+
+### Usage
+```bash
+# Start GUI server
+python3 gui.py
+
+# Open in browser
+http://localhost:5000
+
+# Run automated tests
+python3 test_gui_params.py
+```
+
+### Known Issues
+- Some test cases require specific parameter combinations (WCK settings for LPDDR5)
+- Reference binary comparison requires matching exact parameters from test_lpddr4.sh/test_lpddr5.sh
 
 ## Conclusion
 

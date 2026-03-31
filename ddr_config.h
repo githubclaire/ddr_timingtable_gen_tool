@@ -1,4 +1,34 @@
+#ifndef __DDR_CONFIG__
+#define __DDR_CONFIG__
 
+#include <stdint.h>
+
+#define DRAM_TYPE_LPDDRLPDDR5
+#define DDR_TYPE 5
+
+#define OMC_REGISTER_BASE0_0   0x20000000
+#define OMC_REGISTER_BASE0_1   0x21000000
+#define PHY_REGISTER_BASE0_0   0x10000000
+#define PHY_REGISTER_BASE0_1   0x11000000
+
+#define DRAM0_BASE  0x80000000
+#define DRAM0_SIZE  0x40000000
+#define DRAM1_BASE  0x100000000
+#define DRAM1_SIZE  0x40000000
+
+#define BY_MC  0
+#define DDR_TWO_CHANNEL 0
+#define ORBIT_DENSITY 4
+#define CPIPE_DEPTH 1
+#define DPIPE_DEPTH 1
+#define MRR_BYTE_LANE 0x55
+
+struct orbit_config;
+struct chip_config;
+struct train_result_t;
+struct prbs_result_t;
+
+static void ddr_config_init(struct orbit_config *omc_config);
 
 void orbit_update_chips(struct orbit_config *cfg, uint8_t byte_mode, uint8_t mixed) {
   int i;
@@ -55,7 +85,6 @@ void orbit_update_chips(struct orbit_config *cfg, uint8_t byte_mode, uint8_t mix
   }
 }
 
-#ifndef _ORBIT_GET_DENSITY_
 static unsigned int get_density_code(unsigned int density) {
   switch (density) {
     case 1: return 0;
@@ -71,9 +100,7 @@ static unsigned int get_density_code(unsigned int density) {
     default: return 0;
   }
 }
-#endif
 
-//init omc_config
 static void ddr_config_init(struct orbit_config *omc_config)
 {
   memset(omc_config, 0, sizeof(struct orbit_config));
@@ -85,16 +112,11 @@ static void ddr_config_init(struct orbit_config *omc_config)
 #ifdef DRAM_TYPE_LPDDR5
   omc_config->dram_t_ck = 1256;
 #else
-  omc_config->dram_t_ck = 471;
+  omc_config->dram_t_ck = 1256;
 #endif
-#ifdef ORBIT_DENSITY
-  omc_config->density = ORBIT_DENSITY;  // for each rank (from --density arg)
-#else
-  omc_config->density = DEFAULT_DENSITY;  // for each rank (fallback)
-#endif
+  omc_config->density = ORBIT_DENSITY;
   omc_config->density_code = get_density_code(omc_config->density);
 
-  // DRAM Address Configuration
   omc_config->num_of_region = 2;
   omc_config->region_start[0] = (DRAM0_BASE);
   omc_config->region_end[0]   = (DRAM0_BASE + DRAM0_SIZE - 1);
@@ -110,11 +132,8 @@ static void ddr_config_init(struct orbit_config *omc_config)
   omc_config->region_end[1]   /= 2;
 #endif
 
-  // APB Base Address Configuration
-  //Boardcast addr
   omc_config->base_addr = (uintptr_t)OMC_REGISTER_BASE0_0;
   omc_config->phy_base_addr = (uintptr_t)PHY_REGISTER_BASE0_0;
-  //addr of each
 
   omc_config->base_addr_id[0] = (uintptr_t)OMC_REGISTER_BASE0_0;
   omc_config->base_addr_id[1] = (uintptr_t)OMC_REGISTER_BASE0_1;
@@ -127,11 +146,6 @@ static void ddr_config_init(struct orbit_config *omc_config)
   omc_config->phy_base_addr_id[3] = (uintptr_t)PHY_REGISTER_BASE1_1 ;
 #endif
 
-
-//================================================
-// Customer Request Spec.
-//  - Don't change the following parameters
-//================================================
 #ifdef DRAM_TYPE_LPDDR5
   omc_config->phy_freq_ratio = 1;
   omc_config->omc_freq_ratio = 1;
@@ -146,54 +160,34 @@ static void ddr_config_init(struct orbit_config *omc_config)
   omc_config->dram_boot = BY_MC;
   omc_config->reqq_depth = 40;
   omc_config->ctrl_dq_width = 16;
-  omc_config->dq_width = 16; // per each device (physical dq width)
+  omc_config->dq_width = 16;
   omc_config->ch_intr_size = CH_256;
-  omc_config->mrr_byte_lane = 0x55;  // This is decided by physical_dq_width
-                             // When physical_dq_width == 32, valid lane is 4'b0001 (first)
-                             // When physical_dq_width == 16, valid lane is 4'b0101
-                             // When physical_dq_width ==  8, valid lane is 4'b1111
+  omc_config->mrr_byte_lane = 0x55;
   omc_config->byte_lane_inversion = 0;
   omc_config->chip[0].size = omc_config->density*omc_config->ctrl_dq_width/omc_config->dq_width;
   omc_config->chip[1].size = omc_config->density*omc_config->ctrl_dq_width/omc_config->dq_width;
   omc_config->fsp_op = 0;
   omc_config->fsp_wr = 0;
 
-//================================================
-// Customer Request Spec.
-//  - The following parameters can be modified for tests
-//================================================
   omc_config->rank_interleaving = 1;
-  omc_config->num_rank = 2; // number of rank.
-                    // - This value should be under the maximum rank number. Maxumum number is 2.
+  omc_config->num_rank = 2;
   omc_config->reboot_with_mrw = 0;
 
-//================================================
-// Memory Feature
-//  - The following parameters can be modified for tests
-//================================================
-  omc_config->rfm_en = 0; // only for LPDDR4, LPDDR5
-  omc_config->dsm_en = 0; // LPDDR5 Deep Sleep Mode. In Power-Off scenario, DRAM goes into DSM.
+  omc_config->rfm_en = 0;
+  omc_config->dsm_en = 0;
   omc_config->ca_odt = 0;
 #ifdef DRAM_TYPE_LPDDR5
   omc_config->zq_bg_mode = 1;
 #else
   if (omc_config->dram_t_ck > 937) {
-    omc_config->lpddr4_rpre = 1; // Toggle
+    omc_config->lpddr4_rpre = 1;
   } else {
-    omc_config->lpddr4_rpre = 0; // Static
+    omc_config->lpddr4_rpre = 0;
   }
 #endif
 
-//================================================
-// PHY Feature
-//  - Don't change the following parameters
-//================================================
   omc_config->phy_ind_mode_en = 0;
 
-//================================================
-// Training control
-//  - The following parameters can be modified for tests
-//================================================
   omc_config->eye_scan_rd_en        = 0;
   omc_config->eye_scan_wr_en        = 0;
   omc_config->eye_scan_prbs_rd_en   = 0;
@@ -208,71 +202,47 @@ static void ddr_config_init(struct orbit_config *omc_config)
   omc_config->reboot_with_training  = 0;
   omc_config->init_zq_calibration   = 0;
   omc_config->zq_calibration        = 0;
-  omc_config->zq_calibration_period = 48000; // us. Follow ZQ_INTERVAL in mr_config.h
+  omc_config->zq_calibration_period = 48000;
   omc_config->dfs_training         = 0;
 
-//================================================
-// Training control
-//  - The following parameters can be modified for tests
-//================================================
   omc_config->periodic_training = 0;
-  omc_config->periodic_training_period = 24000; // us
+  omc_config->periodic_training_period = 24000;
 
-//================================================
-// All level training control
-//================================================
 #ifdef DRAM_TYPE_LPDDR5
-  // 1:2 ratio can support up to 3200Mbps
-  omc_config->dfs_lvl_t_ck[0] = 1672; // tCK = 600MHz
-  omc_config->dfs_lvl_t_ck[1] = 2224; // tCK = 450MHz
-  omc_config->dfs_lvl_t_ck[2] = 5000; // tCK = 200MHz
+  omc_config->dfs_lvl_t_ck[0] = 938;
+  omc_config->dfs_lvl_t_ck[1] = 1631;
+  omc_config->dfs_lvl_t_ck[2] = 2500;
 #else
-  omc_config->dfs_lvl_t_ck[0] = 938;  // tCK = 400MHz
-  omc_config->dfs_lvl_t_ck[1] = 1631; // tCK = 613MHz
-  omc_config->dfs_lvl_t_ck[2] = 2500; // tCK = 1066MHz
+  omc_config->dfs_lvl_t_ck[0] = 938;
+  omc_config->dfs_lvl_t_ck[1] = 1631;
+  omc_config->dfs_lvl_t_ck[2] = 2500;
 #endif
 
-//================================================
-// OMC Functions
-//  - The following parameters can be modified for tests
-//================================================
   omc_config->temp_sensing = 0;
-  omc_config->temp_sensing_period = 32000; // us
+  omc_config->temp_sensing_period = 32000;
   omc_config->dynamic_self_refresh = 0;
-  omc_config->dynamic_self_refresh_threshold = 0; // cycle
+  omc_config->dynamic_self_refresh_threshold = 0;
   omc_config->dynamic_power_down = 0;
-  omc_config->dynamic_power_down_threshold = 0; // cycle
-  omc_config->regional_clock_gating = 1;
-  omc_config->dram_clock_gating = 1;
-  omc_config->phy_clock_gating = 0; // This should be 0 when DFI LP interface enabled
-  omc_config->phy_low_power = 0;  // Enable DFI LP interface
-  omc_config->phy_idle_cnt_th = 0; // Valid when phy_low_power is not 0
+  omc_config->dynamic_power_down_threshold = 0;
+  omc_config->regional_clock_gating = 0;
+  omc_config->dram_clock_gating = 0;
+  omc_config->phy_clock_gating = 0;
+  omc_config->phy_low_power = 0;
+  omc_config->phy_idle_cnt_th = 0;
 #ifdef DRAM_TYPE_LPDDR5
   omc_config->bg_intr_size = PAGE_SIZE_8;
 #else
   omc_config->bg_intr_size = BG_NOINT;
 #endif
-  // Timing Param
   omc_config->t_refiab = 3904000;
   omc_config->t_refipb = 488000;
   omc_config->t_zqcal = 1000000;
-  // OMC features
-#ifdef ORBIT_ECC
-  omc_config->fsecc_op_en = 0;        // 1: in-line ECC enabled
-  omc_config->fsecc_region_op_en = 0; // 1: region based ecc feature enable
-                              // full space ecc enabled     when fsecc_op_en == 1 and fsecc_region_op_en == 0
-                              // regions based  ecc enabled when fsecc_op_en == 1 and fsecc_region_op_en == 1
-#endif
 #ifdef DRAM_TYPE_LPDDR5
   omc_config->link_err_cnt_th = 5;
 #else
   omc_config->link_err_cnt_th = 0;
 #endif
 
-//================================================
-// These features aren't supported.
-//  - Don't change the following parameters
-//================================================
   omc_config->tctrlupd_interval = 0;
   omc_config->lp_wakeup[0] = 4;
   omc_config->lp_wakeup[1] = 4;
@@ -281,3 +251,5 @@ static void ddr_config_init(struct orbit_config *omc_config)
 
   orbit_update_chips(omc_config, 0, 0);
 }
+
+#endif

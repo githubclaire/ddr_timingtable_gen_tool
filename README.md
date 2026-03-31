@@ -15,21 +15,13 @@ Unified tool for generating DDR timing tables and orbit configuration binaries f
 ```bash
 # Generate timing table with default orbit config (C implementation)
 python3 gen_timing_params --dram-type lpddr4 --densities 8 --phy-name sphy-v9r8 1000
-# Alternative using wrapper (identical arguments):
-python3 ddr_config_ui.py --dram-type lpddr4 --densities 8 --phy-name sphy-v9r8 1000
 
 # Use Python implementation with custom parameters
 python3 gen_timing_params --dram-type lpddr4 --densities 8 --phy-name sphy-v9r8 \
     --orbit-config-use-python --orbit-rank-interleaving 0 --orbit-num-rank 1 1000
-# Wrapper automatically uses Python implementation:
-python3 ddr_config_ui.py --dram-type lpddr4 --densities 8 --phy-name sphy-v9r8 \
-    --orbit-rank-interleaving 0 --orbit-num-rank 1 1000
 
 # Use JSON overrides
 python3 gen_timing_params --dram-type lpddr4 --densities 8 --phy-name sphy-v9r8 \
-    --orbit-config-json custom_config.json 1000
-# Wrapper equivalent:
-python3 ddr_config_ui.py --dram-type lpddr4 --densities 8 --phy-name sphy-v9r8 \
     --orbit-config-json custom_config.json 1000
 ```
 
@@ -37,7 +29,7 @@ python3 ddr_config_ui.py --dram-type lpddr4 --densities 8 --phy-name sphy-v9r8 \
 
 ### Core Components
 - `gen_timing_params`: Main unified UI (modified original + orbit config integration)
-- `ddr_config_ui.py`: Alternative wrapper UI with identical CLI parameters
+- `gui.py`: Web-based GUI (runs in browser at http://localhost:5000)
 - `orbit_config.py`: Python ctypes implementation of orbit_config struct
 - `ddr_config_init.py`: Python implementation of ddr_config_init() 
 - `gen_ddr_config`: Original C compiler wrapper
@@ -72,6 +64,36 @@ All original `gen_timing_params` arguments supported:
 - `--orbit-config-json`: JSON file with field overrides
 - `--orbit-config-use-python`: Use Python instead of C implementation
 
+## Web GUI
+
+Run the web-based GUI:
+
+```bash
+python3 gui.py
+```
+
+Then open http://localhost:5000 in your browser.
+
+Features:
+- All CLI parameters exposed in categorized sections
+- Dynamic periods with add/remove buttons
+- ps/MHz unit toggle for timing values
+- dram_t_ck field (base timing cycle)
+- DRAM type override dropdown
+- Tooltips on all labels
+- Load/Save JSON configuration
+- Generate binary and header with modified parameters
+- Analyze generated binary (timing table + orbit config)
+- Periodic-training-period and temp-sensing-period visibility based on checkbox
+- zq_bg_mode field (LPDDR5)
+
+## Testing
+
+```bash
+# Run automated GUI tests
+python3 test_gui_params.py
+```
+
 ## JSON Configuration
 
 Use `orbit_config_template.json` as a starting point for custom overrides:
@@ -80,85 +102,42 @@ Use `orbit_config_template.json` as a starting point for custom overrides:
 {
   "rank_interleaving": 1,
   "num_rank": 2,
-  "rfm_en": 0,
-  "dsm_en": 0,
-  "ca_odt": 0,
-  "eye_scan_rd_en": 0,
-  "temp_sensing_period": 32000,
-  "dynamic_self_refresh": 0,
-  "regional_clock_gating": 1
+  "dfs_lvl_t_ck": [938, 1631, 2500]
 }
 ```
 
-## Testing
+## File Structure
 
-```bash
-# Verify binary compatibility between Python and C implementations
-python3 test_binary_match.py
-
-# Generate and compare outputs
-rm -f ddr_timing_table.bin
-python3 gen_timing_params --dram-type lpddr4 --densities 8 --phy-name sphy-v9r8 1000
-python3 gen_timing_params --dram-type lpddr4 --densities 8 --phy-name sphy-v9r8 \
-    --orbit-config-use-python 1000
-python3 test_binary_match.py  # Should report "SUCCESS: Binary matches exactly!"
-
-# Test wrapper interface
-rm -f ddr_timing_table.bin
-python3 ddr_config_ui.py --dram-type lpddr4 --densities 8 --phy-name sphy-v9r8 1000
-python3 test_binary_match.py  # Verify wrapper produces identical output
-
-# Run comprehensive shell tests (delete binaries before generation)
-chmod +x test_lpddr5.sh test_lpddr4.sh
-./test_lpddr5.sh  # LPDDR5 compatibility test
-./test_lpddr4.sh  # LPDDR4 compatibility test
-
-# Test JSON override functionality
-python3 test_json_override.py  # Verify JSON field overrides work
-```
-
-## Development
-
-### Key Integration Points
-1. **Modified `gen_timing_params`**: Added orbit config argument group and generation function
-2. **Dynamic struct creation**: `make_orbit_config_class()` generates appropriate ctypes classes
-3. **Density code mapping**: Enhanced `orbit_init_gen.h` generation for compatibility
-4. **Binary assembly**: Orbit config written at offset 0x800 in output file
-
-### File Structure
 ```
 ├── gen_timing_params              # Main unified UI
-├── ddr_config_ui.py               # Alternative wrapper UI (identical CLI)
+├── gui.py                         # Web-based GUI
+├── templates/gui.html             # GUI HTML template
 ├── orbit_config.py                # Python orbit_config structures
 ├── ddr_config_init.py             # Python ddr_config_init
 ├── orbit_config_template.json     # JSON template
 ├── test_binary_match.py           # Compatibility test
 ├── gen_ddr_config                 # C wrapper
 ├── ddr_config_bin.c               # C binary generator
-├── setup_github.sh                # GitHub repository setup helper
+├── ddr_config.h.template          # C header template
 └── reports/                       # Documentation
 ```
 
-## GitHub Repository Setup
-
-Use `setup_github.sh` to easily create a GitHub repository and push your code:
+## Testing
 
 ```bash
-# Make script executable
-chmod +x setup_github.sh
+# Test binary compatibility
+python3 test_binary_match.py
 
-# Run the setup script
-./setup_github.sh
+# Test LPDDR4
+chmod +x test_lpddr4.sh
+./test_lpddr4.sh
+
+# Test LPDDR5
+chmod +x test_lpddr5.sh
+./test_lpddr5.sh
 ```
 
-The script will guide you through:
-1. Configuring remote origin (SSH or HTTPS)
-2. Creating the repository on GitHub (if needed)
-3. Pushing your code to GitHub
-
 ## Density Code Mapping
-
-The tool uses fixed density code values based on density (not position in list):
 
 | Density (Gb) | Density Code |
 |--------------|--------------|
