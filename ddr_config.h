@@ -55,6 +55,24 @@ void orbit_update_chips(struct orbit_config *cfg, uint8_t byte_mode, uint8_t mix
   }
 }
 
+#ifndef _ORBIT_GET_DENSITY_
+static unsigned int get_density_code(unsigned int density) {
+  switch (density) {
+    case 1: return 0;
+    case 2: return 1;
+    case 3: return 2;
+    case 4: return 3;
+    case 6: return 4;
+    case 8: return 5;
+    case 12: return 6;
+    case 16: return 7;
+    case 24: return 8;
+    case 32: return 9;
+    default: return 0;
+  }
+}
+#endif
+
 //init omc_config
 static void ddr_config_init(struct orbit_config *omc_config)
 {
@@ -69,7 +87,11 @@ static void ddr_config_init(struct orbit_config *omc_config)
 #else
   omc_config->dram_t_ck = 471;
 #endif
-  omc_config->density = 16;  // for each rank
+#ifdef ORBIT_DENSITY
+  omc_config->density = ORBIT_DENSITY;  // for each rank (from --density arg)
+#else
+  omc_config->density = DEFAULT_DENSITY;  // for each rank (fallback)
+#endif
   omc_config->density_code = get_density_code(omc_config->density);
 
   // DRAM Address Configuration

@@ -74,7 +74,6 @@ def parse_args():
 
     orbit_grp = parser.add_argument_group(title="Orbit configuration", description="Parameters for orbit_config binary generation")
     orbit_grp.add_argument('--two-channel', action='store_true', help='Enable two-channel mode (DDR_TWO_CHANNEL=1)')
-    orbit_grp.add_argument('--macro-ddr-type', type=int, help='Override DDR_TYPE macro value (2 for LPDDR4, other for LPDDR5)')
     orbit_grp.add_argument('--orbit-byte-mode', type=int, default=0, choices=[0,1], help='Byte mode for LPDDR4 (0=x16, 1=x8)')
     orbit_grp.add_argument('--orbit-mixed', type=int, default=0, choices=[0,1], help='Mixed rank density flag')
     orbit_grp.add_argument('--orbit-rank-interleaving', type=int, default=1, choices=[0,1], help='Rank interleaving enable')
@@ -92,13 +91,12 @@ def parse_args():
     if args.densities:
         args.densities = [int(d) for d in args.densities]
 
-    # Determine macro_ddr_type if not provided
-    if args.macro_ddr_type is None:
-        # Use 2 for LPDDR4, 5 for LPDDR5 (any value != 2)
-        if args.dram_type == 'lpddr4':
-            args.macro_ddr_type = 2
-        else:
-            args.macro_ddr_type = 5
+    # Determine macro_ddr_type from dram_type
+    # Use 2 for LPDDR4, 5 for LPDDR5
+    if args.dram_type == 'lpddr4':
+        args.macro_ddr_type = 2
+    else:
+        args.macro_ddr_type = 5
 
     for opt in enable_opts:
         name = opt.replace('-', '_')

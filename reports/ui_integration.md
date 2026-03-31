@@ -8,7 +8,6 @@ Integrated DDR timing table generation and orbit configuration into unified CLI 
 ### 1. Modified `gen_timing_params`
 - Added new argument group "Orbit configuration" with 12 parameters:
   - `--two-channel`: Enable two-channel mode (DDR_TWO_CHANNEL=1)
-  - `--macro-ddr-type`: Override DDR_TYPE macro value (2 for LPDDR4, other for LPDDR5)
   - `--orbit-byte-mode`: Byte mode for LPDDR4 (0=x16, 1=x8)
   - `--orbit-mixed`: Mixed rank density flag
   - `--orbit-rank-interleaving`: Rank interleaving enable
@@ -17,13 +16,16 @@ Integrated DDR timing table generation and orbit configuration into unified CLI 
   - `--orbit-rfm-en`: RFM enable (LPDDR4/LPDDR5)
   - `--orbit-dsm-en`: DSM enable (LPDDR5 Deep Sleep Mode)
   - `--orbit-ca-odt`: CA ODT enable
+  - `--orbit-config-density`: Density (Gb) for orbit_config (defaults to first --densities value or 16)
   - `--orbit-config-json`: JSON file with orbit_config field overrides
   - `--orbit-config-use-python`: Use Python implementation instead of gen_ddr_config
 - Integrated automatic orbit configuration binary generation via `generate_orbit_config_bin()` function
 - Maintains backward compatibility with existing timing parameter generation
 - **Binary Compatibility Fixes**:
-  - Fixed density code mapping to match generated `orbit_init_gen.h` (uses index in density list)
-  - Enhanced `orbit_init_gen.h` generation to include density 16 even if not in timing densities
+  - Fixed density code mapping to use fixed values based on density (DENSITY_1=0, DENSITY_2=1, DENSITY_4=3, etc.)
+  - Enhanced `orbit_init_gen.h` generation to include all densities and print supported densities
+  - Added density 1 support in get_density_code()
+  - gen_ddr_config auto-reads density from orbit_init_gen.h DEFAULT_DENSITY
   - Struct field ordering corrected for exact binary match (region_start/region_end before prbs_result/train_result)
   - Fixed `mrr_byte_lane` assignment to hardcoded `0x55` value (matches C binary)
   - Fixed struct alignment (`_pack_ = 8`) for exact binary layout
@@ -99,10 +101,9 @@ usage: gen_timing_params [-h] -d {lpddr4,lpddr5}
                          [--wck-pst1-upto WCK_PST1_UPTO]
                          [--wck-pst2-upto WCK_PST2_UPTO]
                          [--rdqs-pst1-upto RDQS_PST1_UPTO]
-                         [--rdqs-pst2-upto RDQS_PST2_UPTO] [--two-channel]
-                         [--macro-ddr-type MACRO_DDR_TYPE]
-                         [--orbit-config-json ORBIT_CONFIG_JSON]
-                         [--orbit-config-use-python]
+                          [--rdqs-pst2-upto RDQS_PST2_UPTO] [--two-channel]
+                          [--orbit-config-json ORBIT_CONFIG_JSON]
+                          [--orbit-config-use-python]
                          periods [periods ...]
 ```
 
@@ -147,16 +148,15 @@ usage: ddr_config_ui.py [-h] -d {lpddr4,lpddr5}
                         [--wck-pst1-upto WCK_PST1_UPTO]
                         [--wck-pst2-upto WCK_PST2_UPTO]
                         [--rdqs-pst1-upto RDQS_PST1_UPTO]
-                        [--rdqs-pst2-upto RDQS_PST2_UPTO] [--two-channel]
-                        [--macro-ddr-type MACRO_DDR_TYPE]
-                        [--orbit-config-json ORBIT_CONFIG_JSON]
-                        [--orbit-config-use-python]
+                         [--rdqs-pst2-upto RDQS_PST2_UPTO] [--two-channel]
+                         [--orbit-config-json ORBIT_CONFIG_JSON]
+                         [--orbit-config-use-python]
                         periods [periods ...]
 ```
 
 ### Orbit Configuration Parameters
 - **All `parse_args()` parameters** from original timing generator are exposed
-- **12 orbit configuration parameters** exposed via CLI arguments:
+- **11 orbit configuration parameters** exposed via CLI arguments:
   - `--two-channel`: Enable two-channel mode (DDR_TWO_CHANNEL=1)
   - `--orbit-byte-mode`: Byte mode for LPDDR4 (0=x16, 1=x8)
   - `--orbit-mixed`: Mixed rank density flag
@@ -166,10 +166,10 @@ usage: ddr_config_ui.py [-h] -d {lpddr4,lpddr5}
   - `--orbit-rfm-en`: RFM enable (LPDDR4/LPDDR5)
   - `--orbit-dsm-en`: DSM enable (LPDDR5 Deep Sleep Mode)
   - `--orbit-ca-odt`: CA ODT enable
-  - `--macro-ddr-type`: Override DDR_TYPE macro value (2 for LPDDR4, other for LPDDR5)
   - `--orbit-config-json`: JSON file with orbit_config field overrides
   - `--orbit-config-use-python`: Use Python implementation instead of gen_ddr_config
-- **Additional fields** can be modified via JSON configuration file
+ - **DDR_TYPE auto-determination**: DDR_TYPE macro value is automatically set based on --dram-type (2 for LPDDR4, 5 for LPDDR5)
+ - **Additional fields** can be modified via JSON configuration file
 - **Binary Compatibility**: Python and C implementations produce identical binary output
 
 ## Usage Examples
@@ -188,10 +188,7 @@ python3 gen_timing_params -d lpddr4 --phy-name sphy-v9r8 -s 4266 1000 --two-chan
 # Wrapper equivalent:
 python3 ddr_config_ui.py -d lpddr4 --phy-name sphy-v9r8 -s 4266 1000 --two-channel
 
-# Specify custom DDR type macro
-python3 gen_timing_params -d lpddr5 --macro-ddr-type 5 --two-channel 1000
-# Wrapper equivalent:
-python3 ddr_config_ui.py -d lpddr5 --macro-ddr-type 5 --two-channel 1000
+
 ```
 
 ### CLI Parameter Examples
@@ -339,9 +336,10 @@ ddr_timing_table.bin              # Final output (timing + config)
 ✅ **LPDDR4 Single Channel**: 3048 bytes, exact match (all bytes identical)
 ✅ **LPDDR5 Single Channel**: 3056 bytes, exact match (all bytes identical)  
 ✅ **LPDDR4 Dual Channel**: 5816 bytes, exact match (all bytes identical)
+✅ **Dual-channel shell tests**: LPDDR4 and LPDDR5 test scripts now validate both single and dual-channel configurations
 ✅ **Dynamic Struct Creation**: Python classes created based on DRAM type and channel count
 ✅ **Field Overrides**: JSON configuration system works correctly
-✅ **CLI Arguments**: All 12 orbit config parameters exposed and functional
+✅ **CLI Arguments**: All 11 orbit config parameters exposed and functional
 
 ### Sample Test Commands
 ```bash
@@ -417,7 +415,7 @@ The complete tool is now ready for version control with:
 2. **JSON Complexity**: Advanced users must create JSON files for full customization (template provided)
 3. **Python 2/3 Compatibility**: Some LSP warnings in supporting files but functionality unaffected
 4. **Error Handling**: Limited error recovery in integrated workflow
-5. **Density Fixed**: Orbit config density fixed to 16 Gb per customer spec (line 72 of ddr_config.h)
+5. **Density Configuration**: Use `--orbit-config-density` to set orbit config density (defaults to first `--densities` value or 16). C implementation reads from `orbit_init_gen.h` DEFAULT_DENSITY.
 6. **GitHub Authentication**: SSH/HTTPS authentication requires user setup (script provided)
 
 ### Recommended Enhancements
@@ -435,6 +433,7 @@ Successfully integrated orbit configuration generation into the existing DDR tim
 ✅ **Unified Workflow**: Single command generates both timing tables and orbit config  
 ✅ **Binary Compatibility**: Python and C implementations produce **identical output** (byte-for-byte match)  
 ✅ **Enhanced CLI**: 12 orbit config parameters exposed via command line  
+✅ **Density Configuration**: `--orbit-config-density` allows setting orbit config density (supports 1-32 Gb)
 ✅ **Wrapper UI**: `ddr_config_ui.py` provides identical CLI with automatic orbit integration  
 ✅ **JSON Support**: Template provided for full customization  
 ✅ **Dual-Channel Support**: Both single and dual-channel configurations supported  
@@ -442,6 +441,7 @@ Successfully integrated orbit configuration generation into the existing DDR tim
 ✅ **Backward Compatibility**: Existing timing-only workflows unaffected  
 ✅ **Comprehensive Testing**: Verified all configurations produce exact binary matches  
 ✅ **GitHub Integration**: Repository setup script for easy code sharing  
+✅ **Auto-detect Density**: gen_ddr_config reads density from orbit_init_gen.h automatically
 
 **Binary Compatibility Verification**: All configurations pass byte-for-byte comparison:
 - **LPDDR4 Single Channel**: 3048 bytes ✓
@@ -450,10 +450,24 @@ Successfully integrated orbit configuration generation into the existing DDR tim
 
 **Dynamic Implementation**: Python creates appropriate ctypes structures dynamically based on DRAM type and channel count, ensuring exact binary layout matching.
 
+**Density Code Mapping** (fixed values based on density):
+| Density (Gb) | Density Code |
+|--------------|--------------|
+| 1 | 0 |
+| 2 | 1 |
+| 3 | 2 |
+| 4 | 3 |
+| 6 | 4 |
+| 8 | 5 |
+| 12 | 6 |
+| 16 | 7 |
+| 24 | 8 |
+| 32 | 9 |
+
 **Production Ready**: The solution replaces the previous two-step process (gen_timing_params + gen_ddr_config) with a single tool, enabling complete DDR initialization data generation for Glenfly's Orbit memory controllers and SPHY-V9R8 PHY. The code is fully documented, tested, and ready for production use.
 
 ---
-**Generated**: 2026-03-30 (Updated)  
+**Generated**: 2026-03-31 (Updated)  
 **Tool Version**: glenfly_chin_rel7_230725  
 **Integration Status**: Complete - All requested tasks accomplished  
-**Modifications**: Added 12 CLI parameters, fixed binary compatibility, enhanced density mapping, created JSON template, added GitHub setup, comprehensive test suite, fixed wrapper UI import errors, exposed all timing parameters in wrapper
+**Modifications**: Added 12 CLI parameters, fixed binary compatibility, enhanced density mapping (fixed values), added density 1 support, auto-read density from orbit_init_gen.h, created JSON template, added GitHub setup, comprehensive test suite, fixed wrapper UI import errors, exposed all timing parameters in wrapper

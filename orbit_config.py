@@ -41,6 +41,22 @@ DENSITY_32 = 9
 
 def get_density_code(density):
     """Convert density in Gb to density code."""
+    # First try to read dynamic mapping from orbit_init_gen.h
+    try:
+        import os
+        if os.path.exists('orbit_init_gen.h'):
+            with open('orbit_init_gen.h', 'r') as f:
+                content = f.read()
+                import re
+                pattern = r'#define DENSITY_(\d+)\s+(\d+)'
+                matches = re.findall(pattern, content)
+                mapping = {int(dens): int(idx) for dens, idx in matches}
+                if density in mapping:
+                    return mapping[density]
+    except Exception:
+        pass  # Fall back to fixed mapping
+    
+    # Fixed mapping fallback (for backward compatibility)
     mapping = {
         1: DENSITY_1,
         2: DENSITY_2,

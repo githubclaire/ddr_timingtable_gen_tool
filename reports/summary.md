@@ -229,9 +229,11 @@ Determines DFS level based on clock period and WCK ratio:
    - LPDDR5 Single Channel: 3056 bytes ✓  
    - LPDDR4 Dual Channel: 5816 bytes ✓
 2. **Dynamic Struct Creation**: Python classes generated based on `dram_type` and `two_channel` parameters
-3. **Density Code Mapping**: Fixed to use generated `orbit_init_gen.h` density mapping
-4. **Struct Alignment**: Correct field ordering and `_pack_ = 8` alignment matching C binary layout
-5. **Parameter Overrides**: JSON configuration system for full field customization
+3. **Density Code Mapping**: Fixed values based on density (DENSITY_1=0, DENSITY_2=1, ..., DENSITY_32=9)
+4. **Density 1 Support**: Added density 1 to get_density_code() mapping
+5. **Auto-detect Density**: gen_ddr_config reads density from orbit_init_gen.h DEFAULT_DENSITY
+6. **Struct Alignment**: Correct field ordering and `_pack_ = 8` alignment matching C binary layout
+7. **Parameter Overrides**: JSON configuration system for full field customization
 
 **Files Created/Modified**:
 - `gen_timing_params` (modified): Main unified UI with orbit config argument group

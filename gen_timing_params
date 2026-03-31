@@ -558,29 +558,65 @@ class GenTimingParam():
             f.write(',\n'.join([x.replace('\n', '').replace(' ', '') for x in self.c_values]))
             f.write('\n};\n')
 
-        # For orbit config, density is fixed to 16 per customer spec.
-        # Ensure density 16 is in the mapping even if not in timing densities.
-        orbit_densities = list(self.densities)
-        if 16 not in orbit_densities:
-            orbit_densities.append(16)
+        # Determine orbit config density (--orbit-config-density or first from --densities or default 16)
+        if self.args.orbit_config_density:
+            orbit_config_density = self.args.orbit_config_density
+        elif self.args.densities:
+            orbit_config_density = self.args.densities[0]
+        else:
+            orbit_config_density = 16
+        
+        # Fixed density code mapping based on density value (not position)
+        # This matches the C implementation's get_density_code mapping
+        density_code_mapping = {
+            1: 0,
+            2: 1,
+            3: 2,
+            4: 3,
+            6: 4,
+            8: 5,
+            12: 6,
+            16: 7,
+            24: 8,
+            32: 9,
+        }
+        
+        # Collect all unique densities needed for the mapping
+        orbit_densities = set(self.densities)
+        orbit_densities.add(orbit_config_density)
+        orbit_densities.add(16)  # Ensure 16 is always in mapping per customer spec
+        orbit_densities = sorted(list(orbit_densities))
         
         with open('orbit_init_gen.h', 'w') as f:
             f.write('#ifndef __ORBIT_INIT_GEN__\n')
             f.write('#define __ORBIT_INIT_GEN__\n')
             f.write('\n')
-            for idx, d in enumerate(orbit_densities):
-                f.write('#define DENSITY_{:d}    {:d}\n'.format(d, idx))
+            for d in orbit_densities:
+                code = density_code_mapping.get(d, 0)
+                f.write('#define DENSITY_{:d}    {:d}\n'.format(d, code))
+            # Add DEFAULT_DENSITY macro
+            f.write('#define DEFAULT_DENSITY    {:d}\n'.format(orbit_config_density))
             f.write('typedef unsigned int omc_dram_density_t;\n')
             
             f.write('\n#ifdef _ORBIT_GET_DENSITY_\n')
             f.write('\nomc_dram_density_t get_density_code(unsigned int density) {\n')
             f.write('  switch (density) {\n')
             f.write('\n'.join(['    case {d:d}: return DENSITY_{d:d};'.format(d=d) for d in orbit_densities]))
-            f.write('\n    default: /* add error handling code */ return DENSITY_{:d};\n'.format(orbit_densities[0]))
+            f.write('\n    default: /* add error handling code */ return DENSITY_{:d};\n'.format(orbit_config_density))
             f.write('  }\n')
             f.write('}\n')
             f.write('#endif\n')
             f.write('#endif\n')
+
+        print("\n=== Supported Densities and Density Codes ===")
+        for d in orbit_densities:
+            code = density_code_mapping.get(d, 0)
+            print(f"  Density {d:2d} Gb -> density_code {code}")
+        print("=============================================")
+        print(f"  DEFAULT_DENSITY = {orbit_config_density}")
+        print(f"  Orbit config density = {orbit_config_density}")
+        print(f"  Orbit config density_code = {density_code_mapping.get(orbit_config_density, 0)}")
+        print("=============================================\n")
 
         with open('mr_config_gen.h', 'w') as f:
             f.write('#define LPDDR4_WDQS_CTRL_MODE {}\n'.format(int(self.args.wdqs_ctrl_mode)))
@@ -594,6 +630,7 @@ def parse_args():
     parser = ArgumentParser()
     parser.add_argument('-d', '--dram-type', required=True, choices=('lpddr4', 'lpddr5'), help='target memory type')
     parser.add_argument('--densities', type=str, nargs='+', help='list of target densities as Gb. It should be 1 in case of DDR3.')
+    parser.add_argument('--orbit-config-density', type=int, help='density (Gb) for orbit_config. If not specified, uses first value from --densities or defaults to 16.')
     parser.add_argument('--phy-name', type=str, help='name of phy')
     parser.add_argument('--project-name', type=str, help='name of project')
     parser.add_argument('-l', '--langugage', choices=('c',), default='c', help='target language')
@@ -644,7 +681,6 @@ def parse_args():
 
     orbit_grp = parser.add_argument_group(title="Orbit configuration", description="Parameters for orbit_config binary generation")
     orbit_grp.add_argument('--two-channel', action='store_true', help='Enable two-channel mode (DDR_TWO_CHANNEL=1)')
-    orbit_grp.add_argument('--macro-ddr-type', type=int, help='Override DDR_TYPE macro value (2 for LPDDR4, other for LPDDR5)')
     orbit_grp.add_argument('--orbit-byte-mode', type=int, default=0, choices=[0,1], help='Byte mode for LPDDR4 (0=x16, 1=x8)')
     orbit_grp.add_argument('--orbit-mixed', type=int, default=0, choices=[0,1], help='Mixed rank density flag')
     orbit_grp.add_argument('--orbit-rank-interleaving', type=int, default=1, choices=[0,1], help='Rank interleaving enable')
@@ -662,13 +698,12 @@ def parse_args():
     if args.densities:
         args.densities = [int(d) for d in args.densities]
 
-    # Determine macro_ddr_type if not provided
-    if args.macro_ddr_type is None:
-        # Use 2 for LPDDR4, 5 for LPDDR5 (any value != 2)
-        if args.dram_type == 'lpddr4':
-            args.macro_ddr_type = 2
-        else:
-            args.macro_ddr_type = 5
+    # Determine macro_ddr_type from dram_type
+    # Use 2 for LPDDR4, 5 for LPDDR5
+    if args.dram_type == 'lpddr4':
+        args.macro_ddr_type = 2
+    else:
+        args.macro_ddr_type = 5
 
     for opt in enable_opts:
         name = opt.replace('-', '_')
@@ -805,8 +840,13 @@ def generate_orbit_config_bin(args):
             print("Error: Python orbit config modules not found:", e)
             sys.exit(1)
         
-        # Density fixed to 16 per customer spec (line 72 of ddr_config.h)
-        density = 16
+        # Determine density (--orbit-config-density or first from --densities or default 16)
+        if args.orbit_config_density:
+            density = args.orbit_config_density
+        elif args.densities:
+            density = args.densities[0]
+        else:
+            density = 16
         
         # Collect modifiable field overrides from CLI arguments
         overrides = {}
@@ -826,10 +866,33 @@ def generate_orbit_config_bin(args):
                 overrides[field_name] = getattr(args, arg_name)
         
         # Compute density_code matching C logic (index in orbit_densities list)
-        orbit_densities = list(args.densities) if args.densities else []
-        if 16 not in orbit_densities:
-            orbit_densities.append(16)
-        density_code = orbit_densities.index(16)
+        # Read mapping from orbit_init_gen.h generated by timing write()
+        density_code = 0
+        try:
+            with open('orbit_init_gen.h', 'r') as f:
+                content = f.read()
+                # Parse lines like "#define DENSITY_4    0"
+                import re
+                pattern = r'#define DENSITY_(\d+)\s+(\d+)'
+                matches = re.findall(pattern, content)
+                mapping = {int(dens): int(idx) for dens, idx in matches}
+                if density in mapping:
+                    density_code = mapping[density]
+                else:
+                    # Fallback: use first density in mapping
+                    if mapping:
+                        density_code = list(mapping.values())[0]
+                    else:
+                        # Default to 0
+                        pass
+        except Exception as e:
+            print(f"Warning: Failed to parse orbit_init_gen.h: {e}")
+            # Fallback to old logic
+            orbit_densities = list(args.densities) if args.densities else []
+            if density not in orbit_densities:
+                orbit_densities.append(density)
+            density_code = orbit_densities.index(density)
+        
         overrides['density_code'] = density_code
         
         # Additional overrides from JSON file
@@ -861,8 +924,15 @@ def generate_orbit_config_bin(args):
         import subprocess
         macro_ddr_type = args.macro_ddr_type
         macro_two_channel = 1 if args.two_channel else 0
+        # Determine orbit_config_density from args
+        if args.orbit_config_density:
+            orbit_config_density = args.orbit_config_density
+        elif args.densities:
+            orbit_config_density = args.densities[0]
+        else:
+            orbit_config_density = 16
         script_path = os.path.join(os.path.dirname(__file__), 'gen_ddr_config')
-        cmd = [sys.executable, script_path, str(macro_ddr_type), str(macro_two_channel)]
+        cmd = [sys.executable, script_path, str(macro_ddr_type), str(macro_two_channel), '--density', str(orbit_config_density)]
         print(f"Running: {' '.join(cmd)}")
         result = subprocess.run(cmd)
         if result.returncode != 0:

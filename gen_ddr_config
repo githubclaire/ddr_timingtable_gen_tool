@@ -21,7 +21,7 @@ def check_gcc_installed() -> bool:
     except (FileNotFoundError, subprocess.CalledProcessError):
         return False
 
-def compile_test_c(ddr_type: str, two_channel: str, exec_file: str = "ddr_config_bin_exec") -> bool:
+def compile_test_c(ddr_type: str, two_channel: str, density: int, exec_file: str = "ddr_config_bin_exec") -> bool:
 
     if not os.path.exists("ddr_config_bin.c"):
         print("错误：当前目录下未找到ddr_config_bin.c文件！")
@@ -36,6 +36,7 @@ def compile_test_c(ddr_type: str, two_channel: str, exec_file: str = "ddr_config
         "-std=c99",
         "-D", f"DDR_TYPE={ddr_type}",
         "-D", f"DDR_TWO_CHANNEL={two_channel}",
+        "-D", f"ORBIT_DENSITY={density}",
         "-I", header_dir,
         "-I", header_dir_omc,
         "-I", header_dir_build,
@@ -83,6 +84,7 @@ def main():
     parser = argparse.ArgumentParser(description="编译生成ddr_config")
     parser.add_argument("macro_ddr_type", help="宏定义DDR_TYPE")
     parser.add_argument("macro_two_channel", help="宏定义DDR_TWO_CHANNEL的值（示例：2）")
+    parser.add_argument("--density", type=int, default=None, help="密度值 (Gb), 如果未指定则从orbit_init_gen.h读取")
     parser.add_argument("--clean", action="store_true", help="运行后自动删除可执行文件")
 
     args = parser.parse_args()
@@ -93,9 +95,29 @@ def main():
 
     ddr_type = args.macro_ddr_type
     two_channel = args.macro_two_channel
+    
+    # Try to read density from orbit_init_gen.h if not provided
+    density = args.density
+    if density is None:
+        if os.path.exists('orbit_init_gen.h'):
+            try:
+                with open('orbit_init_gen.h', 'r') as f:
+                    content = f.read()
+                    import re
+                    match = re.search(r'#define\s+DEFAULT_DENSITY\s+(\d+)', content)
+                    if match:
+                        density = int(match.group(1))
+                        print(f"Read density from orbit_init_gen.h: {density}")
+            except Exception as e:
+                print(f"Warning: Failed to read orbit_init_gen.h: {e}")
+        if density is None:
+            density = 16
+            print(f"Using default density: {density}")
+    else:
+        print(f"Using density from command line: {density}")
 
     exec_file = "ddr_config_bin_exec"
-    if not compile_test_c(ddr_type, two_channel, exec_file):
+    if not compile_test_c(ddr_type, two_channel, density, exec_file):
         return
 
     run_success = run_executable(exec_file)

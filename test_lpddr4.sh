@@ -3,42 +3,101 @@ set -e
 
 SRC_DIR=.
 
-echo "=== LPDDR4 Binary Compatibility Test ==="
+ORBIT_DENSITY=4
+
+echo "=== LPDDR4 Binary Compatibility Test (Single & Dual Channel) ==="
 echo "1. Clean up previous binaries..."
-rm -f ddr_timing_table.bin ddr_timing_table.lpddr4.bin
+rm -f ddr_timing_table.bin ddr_timing_table.lpddr4.bin ddr_timing_table.lpddr4.single.bin ddr_timing_table.lpddr4.dual.bin
 
 echo "2. First generate timing table (required for C binary)..."
 $SRC_DIR/gen_timing_params --dram-type lpddr4 --phy-name sphy-v9r8 --speed-bin 4266 --dq-width 16 \
-                           --densities 16 \
+                           --orbit-config-density $ORBIT_DENSITY \
                            --wdqs-ctrl-mode 1 --wire-length 10 --read-dbi-upto 10000 --write-dbi-upto 10000 --write-odt-upto 1250 \
                            --cpipe-depth 1 --dpipe-depth 1 \
                            --txsr-as-1st-ed --variable-trrd \
                            471 938 1631 2500
 
-echo "3. Generate C reference binary..."
+echo "3. Generate C reference binary (single channel)..."
 /usr/bin/python3 ./gen_ddr_config 2 0
 if [ -f "ddr_timing_table.bin" ]; then
     cp ddr_timing_table.bin ddr_timing_table.lpddr4.bin
-    echo "Created C reference: ddr_timing_table.lpddr4.bin"
+    cp ddr_timing_table.bin ddr_timing_table.lpddr4.single.bin
+    echo "Created C reference: ddr_timing_table.lpddr4.single.bin"
 else
     echo "ERROR: Failed to generate C reference binary"
     exit 1
 fi
 
-echo "4. Generate Python orbit config binary..."
+echo "4. Generate Python orbit config binary (single channel)..."
 rm -f ddr_timing_table.bin
 $SRC_DIR/gen_timing_params --dram-type lpddr4 --phy-name sphy-v9r8 --speed-bin 4266 --dq-width 16 \
-                           --densities 16 \
+                           --orbit-config-density $ORBIT_DENSITY \
                            --wdqs-ctrl-mode 1 --wire-length 10 --read-dbi-upto 10000 --write-dbi-upto 10000 --write-odt-upto 1250 \
                            --cpipe-depth 1 --dpipe-depth 1 \
                            --txsr-as-1st-ed --variable-trrd \
                            --orbit-config-use-python --orbit-byte-mode 0 --orbit-mixed 0 --orbit-rank-interleaving 1 --orbit-num-rank 2 \
                            471 938 1631 2500
 
-echo "5. Comparing Python vs C binaries..."
+echo "5. Comparing Python vs C binaries (single channel)..."
 python -c "
 import sys
 with open('ddr_timing_table.bin', 'rb') as f1, open('ddr_timing_table.lpddr4.bin', 'rb') as f2:
+    data1 = f1.read()
+    data2 = f2.read()
+    if len(data1) != len(data2):
+        print('Size mismatch:', len(data1), 'vs', len(data2))
+        sys.exit(1)
+    mismatches = []
+    for i in range(len(data1)):
+        if data1[i] != data2[i]:
+            mismatches.append(i)
+            if len(mismatches) > 10:
+                break
+    if mismatches:
+        print('Binary mismatches at offsets:', mismatches[:10])
+        # Show first mismatch context
+        i = mismatches[0]
+        start = max(0, i-16)
+        end = min(len(data1), i+16)
+        print('Python:', ' '.join('%02x' % ord(data1[j]) for j in range(start, end)))
+        print('C     :', ' '.join('%02x' % ord(data2[j]) for j in range(start, end)))
+        sys.exit(1)
+    else:
+        print('SUCCESS: Binary matches C implementation exactly!')
+" 2>&1
+
+echo "6. Generate C reference binary (dual channel)..."
+rm -f ddr_timing_table.bin
+$SRC_DIR/gen_timing_params --dram-type lpddr4 --phy-name sphy-v9r8 --speed-bin 4266 --dq-width 16 \
+                           --orbit-config-density $ORBIT_DENSITY \
+                           --wdqs-ctrl-mode 1 --wire-length 10 --read-dbi-upto 10000 --write-dbi-upto 10000 --write-odt-upto 1250 \
+                           --cpipe-depth 1 --dpipe-depth 1 \
+                           --txsr-as-1st-ed --variable-trrd \
+                           471 938 1631 2500
+/usr/bin/python3 ./gen_ddr_config 2 1
+if [ -f "ddr_timing_table.bin" ]; then
+    cp ddr_timing_table.bin ddr_timing_table.lpddr4.dual.bin
+    echo "Created C reference: ddr_timing_table.lpddr4.dual.bin"
+else
+    echo "ERROR: Failed to generate C reference binary"
+    exit 1
+fi
+
+echo "7. Generate Python orbit config binary (dual channel)..."
+rm -f ddr_timing_table.bin
+$SRC_DIR/gen_timing_params --dram-type lpddr4 --phy-name sphy-v9r8 --speed-bin 4266 --dq-width 16 \
+                           --orbit-config-density $ORBIT_DENSITY \
+                           --wdqs-ctrl-mode 1 --wire-length 10 --read-dbi-upto 10000 --write-dbi-upto 10000 --write-odt-upto 1250 \
+                           --cpipe-depth 1 --dpipe-depth 1 \
+                           --txsr-as-1st-ed --variable-trrd \
+                           --orbit-config-use-python --orbit-byte-mode 0 --orbit-mixed 0 --orbit-rank-interleaving 1 --orbit-num-rank 2 \
+                           --two-channel \
+                           471 938 1631 2500
+
+echo "8. Comparing Python vs C binaries (dual channel)..."
+python -c "
+import sys
+with open('ddr_timing_table.bin', 'rb') as f1, open('ddr_timing_table.lpddr4.dual.bin', 'rb') as f2:
     data1 = f1.read()
     data2 = f2.read()
     if len(data1) != len(data2):

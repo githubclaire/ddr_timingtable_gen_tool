@@ -68,6 +68,7 @@ All original `gen_timing_params` arguments supported:
 - `--orbit-rfm-en`: RFM enable (LPDDR4/LPDDR5)
 - `--orbit-dsm-en`: DSM enable (LPDDR5 Deep Sleep Mode)
 - `--orbit-ca-odt`: CA ODT enable
+- `--orbit-config-density`: Density (Gb) for orbit_config (defaults to first --densities or 16)
 - `--orbit-config-json`: JSON file with field overrides
 - `--orbit-config-use-python`: Use Python instead of C implementation
 
@@ -155,6 +156,25 @@ The script will guide you through:
 2. Creating the repository on GitHub (if needed)
 3. Pushing your code to GitHub
 
+## Density Code Mapping
+
+The tool uses fixed density code values based on density (not position in list):
+
+| Density (Gb) | Density Code |
+|--------------|--------------|
+| 1 | 0 |
+| 2 | 1 |
+| 3 | 2 |
+| 4 | 3 |
+| 6 | 4 |
+| 8 | 5 |
+| 12 | 6 |
+| 16 | 7 |
+| 24 | 8 |
+| 32 | 9 |
+
+Use `--orbit-config-density` to set the orbit config density (defaults to first `--densities` value or 16).
+
 ## License
 
 Proprietary - Glenfly Technology
@@ -162,5 +182,5 @@ Proprietary - Glenfly Technology
 ---
 
 **Version**: glenfly_chin_rel7_230725  
-**Generated**: 2026-03-30  
+**Generated**: 2026-03-31  
 **Integration Status**: Complete - Unified timing and orbit config generation
