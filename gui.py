@@ -399,7 +399,7 @@ def analyze_binary_file(file_path, dram_type_override=None):
     # Use tighter thresholds: >= 7860 = dual channel
     if file_size >= 7860:
         is_dual_channel = True
-        is_lpddr5 = True  # Dual channel implies LPDDR5
+        # Don't assume LPDDR5 - dual channel can be LPDDR4 too
     elif file_size >= 5090 and file_size < 5200:
         # Single channel - check t_ck to differentiate
         if file_size >= 5100:
@@ -668,16 +668,16 @@ class DDRHandler(http.server.BaseHTTPRequestHandler):
             if num_rank:
                 cmd.extend(['--orbit-num-rank', str(num_rank)])
             if params.get('orbit-reboot-with-mrw') == 'true':
-                cmd.append('--orbit-reboot-with-mrw')
+                cmd.extend(['--orbit-reboot-with-mrw', '1'])
             if params.get('orbit-rfm-en') == 'true':
-                cmd.append('--orbit-rfm-en')
+                cmd.extend(['--orbit-rfm-en', '1'])
             # dsm-en only for LPDDR5
             if dram_type == 'lpddr5' and params.get('orbit-dsm-en') == 'true':
-                cmd.append('--orbit-dsm-en')
+                cmd.extend(['--orbit-dsm-en', '1'])
             if params.get('orbit-ca-odt') == 'true':
-                cmd.append('--orbit-ca-odt')
-            if params.get('orbit-config-use-python') == 'true':
-                cmd.append('--orbit-config-use-python')
+                cmd.extend(['--orbit-ca-odt', '1'])
+            # Always use Python implementation for full binary
+            cmd.extend(['--orbit-config-use-python'])
             
             # Periods
             periods = params.get('periods', '471 938 1631 2500').split()

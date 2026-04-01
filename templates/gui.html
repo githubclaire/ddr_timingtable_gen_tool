@@ -133,22 +133,14 @@
                         </div>
                     </div>
                     <div class="field field-unit">
-                        <label title="Base DRAM timing cycle (tCK for LPDDR4, tWCK for LPDDR5)">Min tCK/tWCK</label>
+                        <label title="Min tCK/tWCK in ps. Range: 200-3000ps (333-5000MHz)">Min tCK/tWCK</label>
                         <input type="number" name="min-dram-tck" value="314" step="any">
                         <span class="unit-label">ps</span>
                     </div>
                     <div class="field field-unit">
-                        <label title="Base DRAM timing cycle for configuration">dram_t_ck</label>
+                        <label title="Base DRAM timing in ps. Range: 300-5000ps (200-3333MHz)">dram_t_ck</label>
                         <input type="number" name="dram-tck" value="471" step="any" id="dram-tck">
                         <span class="unit-label">ps</span>
-                    </div>
-                    <div class="field">
-                        <label title="Override auto-detected DRAM type">DRAM Type Override</label>
-                        <select name="dram-type-override" id="dram-type-override">
-                            <option value="auto" selected>Auto-detect</option>
-                            <option value="lpddr4">LPDDR4</option>
-                            <option value="lpddr5">LPDDR5</option>
-                        </select>
                     </div>
                 </div>
             </div>
@@ -196,27 +188,27 @@
                         <label><input type="radio" name="timing-unit" value="MHz"> MHz</label>
                     </div>
                     <div class="field field-unit">
-                        <label>write-odt-upto</label>
+                        <label title="Max ps for write ODT. LPDDR4: 1250ps max, LPDDR5: 10000ps max">write-odt-upto</label>
                         <input type="number" name="write-odt-upto" value="1250" step="any">
                         <span class="unit-label">ps</span>
                     </div>
                     <div class="field field-unit">
-                        <label>read-dbi-upto</label>
+                        <label title="Max ps for read DBI. Range: 1000-10000ps (100-1000MHz)">read-dbi-upto</label>
                         <input type="number" name="read-dbi-upto" value="10000" step="any">
                         <span class="unit-label">ps</span>
                     </div>
                     <div class="field field-unit">
-                        <label>write-dbi-upto</label>
+                        <label title="Max ps for write DBI. Range: 1000-10000ps (100-1000MHz)">write-dbi-upto</label>
                         <input type="number" name="write-dbi-upto" value="10000" step="any">
                         <span class="unit-label">ps</span>
                     </div>
                     <div class="field field-unit">
-                        <label>read-lecc-upto</label>
+                        <label title="Max ps for read ECC. Range: 500-2500ps (400-2000MHz)">read-lecc-upto</label>
                         <input type="number" name="read-lecc-upto" value="0" step="any">
                         <span class="unit-label">ps</span>
                     </div>
                     <div class="field field-unit">
-                        <label>write-lecc-upto</label>
+                        <label title="Max ps for write ECC. Range: 500-2500ps (400-2000MHz)">write-lecc-upto</label>
                         <input type="number" name="write-lecc-upto" value="0" step="any">
                         <span class="unit-label">ps</span>
                     </div>
@@ -253,17 +245,17 @@
                 </div>
                 <div class="section-content">
                     <div class="field field-unit">
-                        <label>wck-1to4-upto</label>
+                        <label title="Max tWCK for WCK 1:4 mode (LPDDR5). Range: 625-2500ps (400-1600MHz)">wck-1to4-upto</label>
                         <input type="number" name="wck-1to4-upto" value="625" step="any">
                         <span class="unit-label">ps</span>
                     </div>
                     <div class="field field-unit">
-                        <label>wck-always-on-from</label>
+                        <label title="Min tWCK for WCK always-on mode (LPDDR5). Range: 0-1000ps">wck-always-on-from</label>
                         <input type="number" name="wck-always-on-from" value="0" step="any">
                         <span class="unit-label">ps</span>
                     </div>
                     <div class="field field-unit">
-                        <label>wck-always-on-upto</label>
+                        <label title="Max tWCK for WCK always-on (LPDDR5). Range: 314-1256ps (796-3185MHz)">wck-always-on-upto</label>
                         <input type="number" name="wck-always-on-upto" value="314" step="any">
                         <span class="unit-label">ps</span>
                     </div>
@@ -381,17 +373,17 @@
                     <div class="subsection">
                         <div class="subsection-title">DFS Timing</div>
                         <div class="field field-unit">
-                            <label>dfs_lvl_t_ck[0]</label>
+                            <label title="DFS timing level 0 in ps. Range: 500-3000ps (333-2000MHz)">dfs_lvl_t_ck[0]</label>
                             <input type="number" name="dfs-lvl-t-ck-0" value="938" step="any" id="dfs0">
                             <span class="unit-label">ps</span>
                         </div>
                         <div class="field field-unit">
-                            <label>dfs_lvl_t_ck[1]</label>
+                            <label title="DFS timing level 1 in ps. Range: 500-3000ps (333-2000MHz)">dfs_lvl_t_ck[1]</label>
                             <input type="number" name="dfs-lvl-t-ck-1" value="1631" step="any" id="dfs1">
                             <span class="unit-label">ps</span>
                         </div>
                         <div class="field field-unit">
-                            <label>dfs_lvl_t_ck[2]</label>
+                            <label title="DFS timing level 2 in ps. Range: 500-5000ps (200-2000MHz)">dfs_lvl_t_ck[2]</label>
                             <input type="number" name="dfs-lvl-t-ck-2" value="2500" step="any" id="dfs2">
                             <span class="unit-label">ps</span>
                         </div>
@@ -408,7 +400,6 @@
                         <div class="field checkbox"><input type="checkbox" name="dfs-training"><label>dfs-training</label></div>
                         <div class="field checkbox"><input type="checkbox" name="periodic-training" id="periodic-training-cb" onchange="togglePeriodicTraining()"><label>periodic-training</label></div>
                         <div class="field checkbox"><input type="checkbox" name="temp-sensing" id="temp-sensing-cb" onchange="toggleTempSensing()"><label>temp-sensing</label></div>
-                        <div class="field checkbox"><input type="checkbox" name="orbit-config-use-python"><label>use-python</label></div>
                     </div>
 
                     <!-- MRR (Auto-calculated) -->
@@ -447,8 +438,8 @@
 
 <script>
 // Unit conversion
-function psToMHz(ps) { return ps > 0 ? (1000000 / ps).toFixed(2) : 0; }
-function MHzToPs(mhz) { return mhz > 0 ? (1000000 / mhz).toFixed(2) : 0; }
+function psToMHz(ps) { return ps > 0 ? Math.round(1000000 / ps) : 0; }
+function MHzToPs(mhz) { return mhz > 0 ? Math.round(1000000 / mhz) : 0; }
 
 function toggleSection(header) {
     const content = header.nextElementSibling;
@@ -461,6 +452,32 @@ function toggleDramOptions() {
     const dramType = document.querySelector('select[name="dram-type"]').value;
     document.getElementById('lpddr4-options').style.display = dramType === 'lpddr4' ? 'block' : 'none';
     document.getElementById('lpddr5-options').style.display = dramType === 'lpddr5' ? 'block' : 'none';
+    
+    // Update density validation based on DRAM type
+    updateDensityValidation();
+}
+
+function updateDensityValidation() {
+    const dramType = document.querySelector('select[name="dram-type"]').value;
+    const densityField = document.querySelector('input[name="orbit-config-density"]');
+    
+    const validDensities = {
+        'lpddr4': [2, 3, 4, 6, 8, 12, 16],
+        'lpddr5': [1, 2, 3, 4, 6, 8, 12, 16, 24, 32]
+    };
+    
+    const valid = validDensities[dramType];
+    const validList = valid.join(', ');
+    
+    // Set tooltip with valid densities
+    densityField.title = `Valid densities for ${dramType.toUpperCase()}: ${validList} Gb`;
+    
+    // Clamp current value to valid range
+    const currentVal = parseInt(densityField.value);
+    if (isNaN(currentVal) || !valid.includes(currentVal)) {
+        // Set to first valid value as default
+        densityField.value = valid[0];
+    }
 }
 
 function setFreqRatios() {
@@ -509,6 +526,12 @@ function setupTimingUnitToggle() {
 
 function handleTimingUnitChange(e) {
     const isMHz = e.target.value === 'MHz';
+    
+    // Update Basic Parameters section unit labels (first section)
+    document.querySelector('.section:first-child .section-content').querySelectorAll('.field-unit .unit-label').forEach(label => {
+        label.textContent = isMHz ? 'MHz' : 'ps';
+    });
+    
     const unitLabels = document.querySelectorAll('#lpddr5-options .field-unit .unit-label, #dfs-timing-fields .field-unit .unit-label, .section-content:nth-of-type(3) .field-unit .unit-label');
     
     // Update unit labels in Timing Features section
@@ -535,7 +558,7 @@ function handleTimingUnitChange(e) {
         'read-lecc-upto', 'write-lecc-upto',
         'wck-1to4-upto', 'wck-always-on-from', 'wck-always-on-upto',
         'dfs-lvl-t-ck-0', 'dfs-lvl-t-ck-1', 'dfs-lvl-t-ck-2',
-        'dram-tck'
+        'dram-tck', 'min-dram-tck'
     ];
     
     fieldsToConvert.forEach(name => {
@@ -833,6 +856,12 @@ function setCheckboxValue(name, value) {
 }
 
 async function generate() {
+    // Validate first
+    if (!validateForm()) return;
+    
+    // Validate timing ranges
+    if (!validateTimingRanges()) return;
+    
     const form = document.getElementById('paramsForm');
     const formData = new FormData(form);
     const params = {};
@@ -845,6 +874,53 @@ async function generate() {
     checkboxes.forEach(cb => {
         if (!cb.checked) params[cb.name] = 'false';
     });
+    
+    // ============================================================
+    // FIX: Convert MHz values to ps (integer) before sending to CLI
+    // ============================================================
+    const isMHz = document.querySelector('input[name="timing-unit"]:checked')?.value === 'MHz';
+    
+    if (isMHz) {
+        const fieldsToConvert = [
+            'write-odt-upto', 'read-dbi-upto', 'write-dbi-upto',
+            'read-lecc-upto', 'write-lecc-upto', 'wck-1to4-upto',
+            'wck-always-on-from', 'wck-always-on-upto',
+            'dfs-lvl-t-ck-0', 'dfs-lvl-t-ck-1', 'dfs-lvl-t-ck-2',
+            'dram-tck', 'min-dram-tck',
+            'periods-0', 'periods-1', 'periods-2', 'periods-3'
+        ];
+        
+        fieldsToConvert.forEach(name => {
+            const field = document.querySelector(`[name="${name}"]`);
+            if (field && field.value) {
+                const mhz = parseFloat(field.value);
+                if (!isNaN(mhz) && mhz > 0) {
+                    // Convert MHz to ps (integer), e.g., 2123MHz → 471ps
+                    field.value = Math.round(1000000 / mhz);
+                }
+            }
+        });
+        
+        // Reset toggle to ps mode
+        document.querySelector('input[name="timing-unit"][value="ps"]').checked = true;
+        
+        // Update unit labels back to ps
+        document.querySelectorAll('.unit-label').forEach(label => {
+            label.textContent = 'ps';
+        });
+        
+        // Re-extract form data after conversion
+        const newFormData = new FormData(form);
+        for (let [key, value] of newFormData.entries()) {
+            params[key] = value;
+        }
+        checkboxes.forEach(cb => {
+            if (!cb.checked) params[cb.name] = 'false';
+        });
+    }
+    // ============================================================
+    // END FIX
+    // ============================================================
     
     const statusEl = document.getElementById('status');
     statusEl.className = 'status';
@@ -963,9 +1039,78 @@ function validateForm() {
     return true;
 }
 
+function validateTimingRanges() {
+    const dramType = document.querySelector('select[name="dram-type"]').value;
+    const errors = [];
+    
+    // Valid ranges for timing fields
+    const timingRanges = {
+        'dram-tck': { min: 300, max: 5000 },
+        'min-dram-tck': { min: 200, max: 3000 },
+        'write-odt-upto': { min: 1250, max: 10000, lpddr4_max: 1250 },
+        'read-dbi-upto': { min: 1000, max: 10000 },
+        'write-dbi-upto': { min: 1000, max: 10000 },
+        'read-lecc-upto': { min: 500, max: 2500 },
+        'write-lecc-upto': { min: 500, max: 2500 },
+    };
+    
+    // Add LPDDR5-specific fields
+    if (dramType === 'lpddr5') {
+        timingRanges['wck-1to4-upto'] = { min: 625, max: 2500 };
+        timingRanges['wck-always-on-upto'] = { min: 314, max: 1256 };
+    }
+    
+    for (const [fieldName, range] of Object.entries(timingRanges)) {
+        const field = document.querySelector(`[name="${fieldName}"]`);
+        if (!field || !field.value) continue;
+        
+        const val = parseInt(field.value);
+        if (isNaN(val)) continue;
+        
+        let min = range.min;
+        let max = range.max;
+        
+        // LPDDR4 specific limit for write-odt-upto
+        if (fieldName === 'write-odt-upto' && dramType === 'lpddr4') {
+            max = range.lpddr4_max;
+        }
+        
+        if (val < min || val > max) {
+            errors.push(`${fieldName}: ${val} (valid: ${min}-${max}ps)`);
+            field.style.borderColor = 'red';
+        }
+    }
+    
+    // Validate density
+    const densityField = document.querySelector('input[name="orbit-config-density"]');
+    if (densityField && densityField.value) {
+        const density = parseInt(densityField.value);
+        const validDensities = {
+            'lpddr4': [2, 3, 4, 6, 8, 12, 16],
+            'lpddr5': [1, 2, 3, 4, 6, 8, 12, 16, 24, 32]
+        };
+        if (!validDensities[dramType].includes(density)) {
+            errors.push(`density: ${density} (valid for ${dramType.toUpperCase()}: ${validDensities[dramType].join(', ')})`);
+            densityField.style.borderColor = 'red';
+        }
+    }
+    
+    if (errors.length > 0) {
+        const statusEl = document.getElementById('status');
+        statusEl.className = 'status error';
+        statusEl.innerHTML = '<strong>Validation Error:</strong><br>' + errors.join('<br>');
+        statusEl.style.display = 'block';
+        return false;
+    }
+    return true;
+}
+
 async function generate() {
     // Validate first
     if (!validateForm()) return;
+    
+    // Validate timing ranges
+    if (!validateTimingRanges()) return;
     
     const form = document.getElementById('paramsForm');
     const formData = new FormData(form);
@@ -976,6 +1121,56 @@ async function generate() {
     
     // Add periods values (dynamically named inputs)
     params['periods'] = getPeriodsValues().join(' ');
+    
+    // ============================================================
+    // FIX: Convert MHz values to ps (integer) before sending to CLI
+    // ============================================================
+    const isMHz = document.querySelector('input[name="timing-unit"]:checked')?.value === 'MHz';
+    
+    if (isMHz) {
+        const fieldsToConvert = [
+            'write-odt-upto', 'read-dbi-upto', 'write-dbi-upto',
+            'read-lecc-upto', 'write-lecc-upto', 'wck-1to4-upto',
+            'wck-always-on-from', 'wck-always-on-upto',
+            'dfs-lvl-t-ck-0', 'dfs-lvl-t-ck-1', 'dfs-lvl-t-ck-2',
+            'dram-tck', 'min-dram-tck',
+            'periods-0', 'periods-1', 'periods-2', 'periods-3'
+        ];
+        
+        fieldsToConvert.forEach(name => {
+            const field = document.querySelector(`[name="${name}"]`);
+            if (field && field.value) {
+                const mhz = parseFloat(field.value);
+                if (!isNaN(mhz) && mhz > 0) {
+                    // Convert MHz to ps (integer), e.g., 2123MHz → 471ps
+                    field.value = Math.round(1000000 / mhz);
+                }
+            }
+        });
+        
+        // Reset toggle to ps mode
+        document.querySelector('input[name="timing-unit"][value="ps"]').checked = true;
+        
+        // Update unit labels back to ps
+        document.querySelectorAll('.unit-label').forEach(label => {
+            label.textContent = 'ps';
+        });
+        
+        // Re-extract form data after conversion
+        const newFormData = new FormData(form);
+        for (let [key, value] of newFormData.entries()) {
+            params[key] = value;
+        }
+        checkboxes.forEach(cb => {
+            params[cb.name] = cb.checked ? 'true' : 'false';
+        });
+        
+        // Update periods value
+        params['periods'] = getPeriodsValues().join(' ');
+    }
+    // ============================================================
+    // END FIX
+    // ============================================================
     
     // Send to server for binary generation
     const statusEl = document.getElementById('status');
