@@ -436,11 +436,18 @@ def analyze_binary_file(file_path, dram_type_override=None):
         # Valid t_ck range: 300-5000 ps
         if 300 <= t_ck <= 5000:
             periods.append(t_ck)
-        else:
-            break
     
     if not periods:
         periods = [471, 938, 1631, 2500]  # Default
+    
+    # If we only got 1 period (common for single-channel binaries), use defaults
+    if len(periods) == 1:
+        if is_lpddr5:
+            # LPDDR5 default periods
+            periods = [1256, 796, 556, 2500]
+        else:
+            # LPDDR4 default periods
+            periods = [471, 938, 1631, 2500]
     
     # Parse orbit config at offset 0x800
     orbit_offset = 0x800
@@ -485,7 +492,18 @@ def analyze_binary_file(file_path, dram_type_override=None):
     # Read orbit config fields
     try:
         with open(file_path, 'rb') as f:
-            # Common fields - dfs_lvl_t_ck at offsets 0x5e/0x60/0x62
+            # Common fields - dfs_lvl_t_ck at different offsets for LPDDR4 vs LPDDR5
+            # LPDDR4: at 0x85e, 0x860, 0x862 (orbit config area at 0x800+)
+            # LPDDR5: at 0x062, 0x070, 0x072 (timing table area - absolute offsets)
+            if is_lpddr5:
+                # Use absolute offsets (no orbit_offset base)
+                dfs_offsets = (0x62, 0x70, 0x72)
+                dfs_base = 0  # Absolute offsets
+            else:
+                # Use orbit config area offsets
+                dfs_offsets = (0x5e, 0x60, 0x62)
+                dfs_base = orbit_offset  # 0x800
+            
             fields_to_read = [
                 ('density', 0x1c if dram_type == 'lpddr4' else 0x24, '<H'),
                 ('density_code', 0x78 if dram_type == 'lpddr4' else 0x80, '<I'),
@@ -493,21 +511,25 @@ def analyze_binary_file(file_path, dram_type_override=None):
                 ('dpipe_depth', 0x32, '<H'),
                 ('rank_interleaving', 0x3a, '<H'),
                 ('num_rank', 0x3c, '<H'),
-                ('dfs_lvl_t_ck_0', 0x5e, '<H'),
-                ('dfs_lvl_t_ck_1', 0x60, '<H'),
-                ('dfs_lvl_t_ck_2', 0x62, '<H'),
+                ('dfs_lvl_t_ck_0', dfs_offsets[0], '<H'),
+                ('dfs_lvl_t_ck_1', dfs_offsets[1], '<H'),
+                ('dfs_lvl_t_ck_2', dfs_offsets[2], '<H'),
             ]
             
             orbit_data = {}
             for field_name, field_offset, fmt in fields_to_read:
-                f.seek(orbit_offset + field_offset)
+                # Use dfs_base for dfs fields, orbit_offset for others
+                base = dfs_base if 'dfs_lvl_t_ck' in field_name else orbit_offset
+                f.seek(base + field_offset)
                 bytes_read = f.read(struct.calcsize(fmt))
                 if bytes_read:
                     value = struct.unpack(fmt, bytes_read)[0]
                     if 'dfs_lvl_t_ck' in field_name:
-                        if 'dfs_lvl_t_ck' not in orbit_data:
-                            orbit_data['dfs_lvl_t_ck'] = []
-                        orbit_data['dfs_lvl_t_ck'].append(value)
+                        # Only include valid values (300-5000 ps range)
+                        if 300 <= value <= 5000:
+                            if 'dfs_lvl_t_ck' not in orbit_data:
+                                orbit_data['dfs_lvl_t_ck'] = []
+                            orbit_data['dfs_lvl_t_ck'].append(value)
                     else:
                         orbit_data[field_name] = value
             

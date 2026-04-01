@@ -204,12 +204,12 @@
                     </div>
                     <div class="field field-unit">
                         <label title="Max ps for read ECC. Range: 500-2500ps (400-2000MHz)">read-lecc-upto</label>
-                        <input type="number" name="read-lecc-upto" value="0" step="any">
+                        <input type="number" name="read-lecc-upto" value="625" step="any">
                         <span class="unit-label">ps</span>
                     </div>
                     <div class="field field-unit">
                         <label title="Max ps for write ECC. Range: 500-2500ps (400-2000MHz)">write-lecc-upto</label>
-                        <input type="number" name="write-lecc-upto" value="0" step="any">
+                        <input type="number" name="write-lecc-upto" value="625" step="any">
                         <span class="unit-label">ps</span>
                     </div>
                 </div>
@@ -527,28 +527,8 @@ function setupTimingUnitToggle() {
 function handleTimingUnitChange(e) {
     const isMHz = e.target.value === 'MHz';
     
-    // Update Basic Parameters section unit labels (first section)
-    document.querySelector('.section:first-child .section-content').querySelectorAll('.field-unit .unit-label').forEach(label => {
-        label.textContent = isMHz ? 'MHz' : 'ps';
-    });
-    
-    const unitLabels = document.querySelectorAll('#lpddr5-options .field-unit .unit-label, #dfs-timing-fields .field-unit .unit-label, .section-content:nth-of-type(3) .field-unit .unit-label');
-    
-    // Update unit labels in Timing Features section
-    const timingSection = document.querySelectorAll('.section-content')[2];
-    if (timingSection) {
-        timingSection.querySelectorAll('.unit-label').forEach(label => {
-            label.textContent = isMHz ? 'MHz' : 'ps';
-        });
-    }
-    
-    // Update DFS timing section
-    document.querySelectorAll('.subsection:nth-of-type(6) .field-unit .unit-label').forEach(label => {
-        label.textContent = isMHz ? 'MHz' : 'ps';
-    });
-    
-    // Update LPDDR5 options section
-    document.querySelectorAll('#lpddr5-options .field-unit .unit-label').forEach(label => {
+    // Update unit labels
+    document.querySelectorAll('.unit-label').forEach(label => {
         label.textContent = isMHz ? 'MHz' : 'ps';
     });
     
@@ -558,53 +538,13 @@ function handleTimingUnitChange(e) {
         'read-lecc-upto', 'write-lecc-upto',
         'wck-1to4-upto', 'wck-always-on-from', 'wck-always-on-upto',
         'dfs-lvl-t-ck-0', 'dfs-lvl-t-ck-1', 'dfs-lvl-t-ck-2',
-        'dram-tck', 'min-dram-tck'
+        'dram-tck', 'min-dram-tck',
+        'periods-0', 'periods-1', 'periods-2', 'periods-3'
     ];
     
     fieldsToConvert.forEach(name => {
         const field = document.querySelector(`[name="${name}"]`);
         if (field && field.value) {
-            const val = parseFloat(field.value);
-            if (!isNaN(val) && val > 0) {
-                field.value = isMHz ? psToMHz(val) : MHzToPs(val);
-            }
-        }
-    });
-    
-    // Update min-dram-tck unit label
-    const minTckLabel = document.querySelector('[name="min-dram-tck"]').closest('.field-unit').querySelector('.unit-label');
-    if (minTckLabel) minTckLabel.textContent = isMHz ? 'MHz' : 'ps';
-    
-    // Convert min-dram-tck
-    const minTckField = document.querySelector('[name="min-dram-tck"]');
-    if (minTckField && minTckField.value) {
-        const val = parseFloat(minTckField.value);
-        if (!isNaN(val) && val > 0) {
-            minTckField.value = isMHz ? psToMHz(val) : MHzToPs(val);
-        }
-    }
-    
-    // Update dram-tck unit label and convert
-    const dramTckField = document.querySelector('[name="dram-tck"]');
-    if (dramTckField) {
-        const dramTckLabel = dramTckField.closest('.field-unit').querySelector('.unit-label');
-        if (dramTckLabel) dramTckLabel.textContent = isMHz ? 'MHz' : 'ps';
-        if (dramTckField.value) {
-            const val = parseFloat(dramTckField.value);
-            if (!isNaN(val) && val > 0) {
-                dramTckField.value = isMHz ? psToMHz(val) : MHzToPs(val);
-            }
-        }
-    }
-    
-    // Update periods unit labels and convert values
-    const periodsUnitLabels = document.querySelectorAll('#periods-container .unit-label');
-    const periodsFields = document.querySelectorAll('#periods-container input[name^="periods-"]');
-    periodsUnitLabels.forEach(label => {
-        label.textContent = isMHz ? 'MHz' : 'ps';
-    });
-    periodsFields.forEach(field => {
-        if (field.value) {
             const val = parseFloat(field.value);
             if (!isNaN(val) && val > 0) {
                 field.value = isMHz ? psToMHz(val) : MHzToPs(val);
