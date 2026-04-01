@@ -561,13 +561,12 @@ def test_parameters():
 
 
 def test_reference_binaries():
-    """Test reference binary comparison using dynamic param extraction."""
+    """Test reference binary comparison using GUI generated params."""
     print("\n=== Testing Reference Binary Comparison ===")
     
     results = []
     
-    # Test cases with explicit params that match shell script generation
-    # These are hardcoded to match exactly what test_gen_lpddr4_bin.sh and test_gen_lpddr5_bin.sh generate
+    # Test cases with params that match GUI generation
     test_cases = [
         ('ddr_timing_table.lpddr4.single.ref.bin', "LPDDR4 single", {
             'dram-type': 'lpddr4',
@@ -606,8 +605,8 @@ def test_reference_binaries():
             'read-dbi-upto': '10000',
             'write-dbi-upto': '10000',
             'write-odt-upto': '10000',
-            'omc-freq-ratio': '2',  # CLI default
-            'phy-freq-ratio': '2',  # CLI default
+            'omc-freq-ratio': '2',
+            'phy-freq-ratio': '2',
             'wck-1to4-upto': '625',
             'wck-always-on-from': '0',
             'wck-always-on-upto': '314',
