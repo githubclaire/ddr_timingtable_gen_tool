@@ -101,7 +101,7 @@
                 <div class="section-content">
                     <div class="field">
                         <label title="DRAM memory type selection">DRAM Type</label>
-                        <select name="dram-type" onchange="toggleDramOptions(); setFreqRatios(); updatePeriodsLabel(); updateDramTckDefault(); toggleDsmEn();">
+                        <select name="dram-type" onchange="toggleDramOptions(); setFreqRatios(); updatePeriodsLabel(); updateDramTckDefault(); toggleDsmEn(); updateDensityOptions();">
                             <option value="lpddr4">LPDDR4</option>
                             <option value="lpddr5">LPDDR5</option>
                         </select>
@@ -154,24 +154,19 @@
                 <div class="section-content">
                     <div class="field">
                         <label>cpipe-depth</label>
-                        <input type="number" name="cpipe-depth" value="1">
+                        <input type="number" name="cpipe-depth" value="1" readonly>
                     </div>
-                        <div class="field">
-                            <label>two-channel</label>
-                        </div>
-                        <div class="field">
-                            <label>orbit-config-density (Gb)</label>
-                            <select name="orbit-config-density" id="density-select">
-                                <option value="16" selected>16</option>
-                            </select>
-                        </div>
+                    <div class="field">
+                        <label>dpipe-depth</label>
+                        <input type="number" name="dpipe-depth" value="1" readonly>
+                    </div>
                     <div class="field">
                         <label>omc-freq-ratio</label>
-                        <input type="number" name="omc-freq-ratio" value="2" id="omc-freq-ratio">
+                        <input type="number" name="omc-freq-ratio" value="2" id="omc-freq-ratio" readonly>
                     </div>
                     <div class="field">
                         <label>phy-freq-ratio</label>
-                        <input type="number" name="phy-freq-ratio" value="2" id="phy-freq-ratio">
+                        <input type="number" name="phy-freq-ratio" value="2" id="phy-freq-ratio" readonly>
                     </div>
                     <div class="field field-unit">
                         <label>wire-length</label>
@@ -239,6 +234,16 @@
                         <input type="checkbox" name="txsr-as-1st-ed" checked>
                         <label>txsr-as-1st-ed</label>
                     </div>
+                    <div class="field field-unit">
+                        <label title="Max tCK (ps) to enable extended read post-amble">rpste-upto</label>
+                        <input type="number" name="rpste-upto" value="0" step="any">
+                        <span class="unit-label">ps</span>
+                    </div>
+                    <div class="field field-unit">
+                        <label title="Max tCK (ps) to enable extended write post-amble">wpste-upto</label>
+                        <input type="number" name="wpste-upto" value="0" step="any">
+                        <span class="unit-label">ps</span>
+                    </div>
                 </div>
             </div>
 
@@ -271,6 +276,45 @@
                             <option value="1" selected>Enable (1)</option>
                         </select>
                     </div>
+                    <div class="field field-unit">
+                        <label title="Max tWCK (ps) to enable NT-ODT">nt-odt-upto</label>
+                        <input type="number" name="nt-odt-upto" value="0" step="any">
+                        <span class="unit-label">ps</span>
+                    </div>
+                    <div class="field checkbox">
+                        <input type="checkbox" name="enhanced-nt-odt">
+                        <label>enhanced-nt-odt</label>
+                    </div>
+                    <div class="field field-unit">
+                        <label title="Max tWCK (ps) to enable bank-group mode">bg-mode-upto</label>
+                        <input type="number" name="bg-mode-upto" value="625" step="any">
+                        <span class="unit-label">ps</span>
+                    </div>
+                    <div class="field field-unit">
+                        <label title="Max tWCK (ps) to enable WCK high-frequency mode">wck-hf-upto</label>
+                        <input type="number" name="wck-hf-upto" value="624" step="any">
+                        <span class="unit-label">ps</span>
+                    </div>
+                    <div class="field field-unit">
+                        <label title="Max tWCK (ps) to set WCK PST as 4.5*tWCK">wck-pst1-upto</label>
+                        <input type="number" name="wck-pst1-upto" value="0" step="any">
+                        <span class="unit-label">ps</span>
+                    </div>
+                    <div class="field field-unit">
+                        <label title="Max tWCK (ps) to set WCK PST as 6.5*tWCK">wck-pst2-upto</label>
+                        <input type="number" name="wck-pst2-upto" value="0" step="any">
+                        <span class="unit-label">ps</span>
+                    </div>
+                    <div class="field field-unit">
+                        <label title="Max tWCK (ps) to set RDQS PST as 2.5*tWCK">rdqs-pst1-upto</label>
+                        <input type="number" name="rdqs-pst1-upto" value="0" step="any">
+                        <span class="unit-label">ps</span>
+                    </div>
+                    <div class="field field-unit">
+                        <label title="Max tWCK (ps) to set RDQS PST as 4.5*tWCK">rdqs-pst2-upto</label>
+                        <input type="number" name="rdqs-pst2-upto" value="0" step="any">
+                        <span class="unit-label">ps</span>
+                    </div>
                 </div>
             </div>
 
@@ -290,7 +334,9 @@
                         </div>
                         <div class="field">
                             <label>orbit-config-density (Gb)</label>
-                            <input type="number" name="orbit-config-density" value="16">
+                            <select name="orbit-config-density" id="orbit-config-density">
+                                <option value="16" selected>16</option>
+                            </select>
                         </div>
                         <div class="field">
                             <label>orbit-byte-mode</label>
@@ -326,6 +372,10 @@
                             <input type="checkbox" name="orbit-reboot-with-mrw">
                             <label>reboot-with-mrw</label>
                         </div>
+                        <div class="field checkbox">
+                            <input type="checkbox" name="reboot-with-training">
+                            <label>reboot-with-training</label>
+                        </div>
                     </div>
 
                     <!-- Training Enable -->
@@ -342,7 +392,6 @@
                         <div class="field checkbox"><input type="checkbox" name="command-bus-training"><label>command-bus-training</label></div>
                         <div class="field checkbox"><input type="checkbox" name="ca-vref-training"><label>ca-vref-training</label></div>
                         <div class="field checkbox"><input type="checkbox" name="prbs-training"><label>prbs-training</label></div>
-                        <div class="field checkbox"><input type="checkbox" name="reboot-with-training"><label>reboot-with-training</label></div>
                     </div>
 
                     <!-- Power Management -->
@@ -405,6 +454,7 @@
                         <div class="field checkbox"><input type="checkbox" name="dfs-training"><label>dfs-training</label></div>
                         <div class="field checkbox"><input type="checkbox" name="periodic-training" id="periodic-training-cb" onchange="togglePeriodicTraining()"><label>periodic-training</label></div>
                         <div class="field checkbox"><input type="checkbox" name="temp-sensing" id="temp-sensing-cb" onchange="toggleTempSensing()"><label>temp-sensing</label></div>
+                        <div class="field checkbox"><input type="checkbox" name="generate-config"><label>generate ddr_config.h</label></div>
                     </div>
 
                     <!-- MRR (Auto-calculated) -->
@@ -424,10 +474,7 @@
             <button type="button" class="btn btn-secondary" onclick="document.getElementById('binFileInput').click()">Load Binary</button>
             <button type="button" class="btn btn-outline" onclick="saveJson()">Save JSON</button>
             <button type="button" class="btn btn-outline" onclick="loadJson()">Load JSON</button>
-            <label class="checkbox-inline">
-                <input type="checkbox" name="generate-config"> Generate ddr_config.h
-            </label>
-            <button type="button" class="btn btn-primary" onclick="generate()">Generate Binary & Header</button>
+            <button type="button" class="btn btn-primary" onclick="generate()">Generate Binary</button>
         </div>
     </form>
     <div id="status" class="status"></div>
@@ -497,6 +544,24 @@ function setFreqRatios() {
     document.getElementById('phy-freq-ratio').value = ratio;
 }
 
+function updateDensityOptions() {
+    const dramType = document.querySelector('select[name="dram-type"]').value;
+    const densitySelect = document.getElementById('orbit-config-density');
+    
+    const densities = dramType === 'lpddr4' 
+        ? [2, 3, 4, 6, 8, 12, 16]
+        : [2, 3, 4, 6, 8, 12, 16, 24, 32];
+    
+    densitySelect.innerHTML = '';
+    densities.forEach(d => {
+        const option = document.createElement('option');
+        option.value = d;
+        option.textContent = d;
+        if (d === 16) option.selected = true;
+        densitySelect.appendChild(option);
+    });
+}
+
 function updatePeriodsLabel() {
     const dramType = document.querySelector('select[name="dram-type"]').value;
     document.getElementById('periods-unit').textContent = dramType === 'lpddr4' ? 'tCK' : 'tWCK';
@@ -549,7 +614,12 @@ function handleTimingUnitChange(e) {
         'wck-1to4-upto', 'wck-always-on-from', 'wck-always-on-upto',
         'dfs-lvl-t-ck-0', 'dfs-lvl-t-ck-1', 'dfs-lvl-t-ck-2',
         'dram-tck', 'min-dram-tck',
-        'periods-0', 'periods-1', 'periods-2', 'periods-3'
+        'periods-0', 'periods-1', 'periods-2', 'periods-3',
+        // LPDDR4 timing options
+        'rpste-upto', 'wpste-upto',
+        // LPDDR5 timing options
+        'nt-odt-upto', 'bg-mode-upto', 'wck-hf-upto', 
+        'wck-pst1-upto', 'wck-pst2-upto', 'rdqs-pst1-upto', 'rdqs-pst2-upto'
     ];
     
     fieldsToConvert.forEach(name => {
@@ -726,6 +796,7 @@ function fillGuiFromAnalysis(data) {
         setFieldValue('min-dram-tck', data.basic.min_dram_tck);
         toggleDramOptions();
         updatePeriodsLabel();
+        updateDensityOptions();
         
         // Render periods dynamically based on binary
         if (data.basic.periods) {
@@ -937,7 +1008,14 @@ function saveJson() {
     const params = {};
     for (let [key, value] of formData.entries()) params[key] = value;
     const checkboxes = form.querySelectorAll('input[type="checkbox"]');
-    checkboxes.forEach(cb => params[cb.name] = cb.checked ? 'true' : 'false');
+    checkboxes.forEach(cb => params[cb.name] = cb.checked ? '1' : '0');
+    
+    // Add periods as space-separated string
+    const periodInputs = document.querySelectorAll('#periods-container input[name^="periods-"]');
+    if (periodInputs.length > 0) {
+        const periods = Array.from(periodInputs).map(input => input.value).join(' ');
+        params['periods'] = periods;
+    }
     
     const blob = new Blob([JSON.stringify(params, null, 2)], {type: 'application/json'});
     const url = URL.createObjectURL(blob);
@@ -1068,7 +1146,7 @@ async function generate() {
     const params = {};
     for (let [key, value] of formData.entries()) params[key] = value;
     const checkboxes = form.querySelectorAll('input[type="checkbox"]');
-    checkboxes.forEach(cb => params[cb.name] = cb.checked ? 'true' : 'false');
+    checkboxes.forEach(cb => params[cb.name] = cb.checked ? '1' : '0');
     
     // Add periods values (dynamically named inputs)
     params['periods'] = getPeriodsValues().join(' ');
@@ -1167,6 +1245,7 @@ function loadJson() {
             }
             toggleDramOptions();
             setFreqRatios();
+            updateDensityOptions();
             document.getElementById('status').className = 'status success';
             document.getElementById('status').innerHTML = 'Configuration loaded!';
             document.getElementById('status').style.display = 'block';
@@ -1186,6 +1265,7 @@ toggleTempSensing();
 toggleZqCalibration();
 toggleRankInterleaving();
 toggleDsmEn();
+updateDensityOptions();
 </script>
 </body>
 </html>

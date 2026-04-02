@@ -34,6 +34,15 @@ def safe_int(val, default=0):
     except (ValueError, TypeError):
         return default
 
+
+def is_checked(val):
+    """Convert checkbox value: supports '1', '0', 'true', 'false'."""
+    if val in ('1', 'true', True):
+        return True
+    if val in ('0', 'false', False):
+        return False
+    return False
+
 def generate_ddr_config_h(params):
     """Generate ddr_config.h with full template matching ddr_config.h.template."""
     dram_type = params.get('dram-type', 'lpddr4')
@@ -42,39 +51,39 @@ def generate_ddr_config_h(params):
     orbit_density = safe_int(params.get('orbit-config-density'), 16)
     dq_width = safe_int(params.get('dq-width'), 16)
     mrr_byte_lane = get_mrr_byte_lane(dq_width)
-    two_channel = params.get('two-channel', 'false') == 'true'
+    two_channel = is_checked(params.get('two-channel'))
     byte_mode = safe_int(params.get('orbit-byte-mode'), 0)
     mixed = safe_int(params.get('orbit-mixed'), 0)
     
-    rank_interleaving = 1 if params.get('orbit-rank-interleaving') == 'true' else 0
+    rank_interleaving = 1 if is_checked(params.get('orbit-rank-interleaving')) else 0
     num_rank = safe_int(params.get('orbit-num-rank'), 2)
-    reboot_with_mrw = 1 if params.get('orbit-reboot-with-mrw') == 'true' else 0
-    rfm_en = 1 if params.get('orbit-rfm-en') == 'true' else 0
-    dsm_en = 1 if params.get('orbit-dsm-en') == 'true' else 0
-    ca_odt = 1 if params.get('orbit-ca-odt') == 'true' else 0
+    reboot_with_mrw = 1 if is_checked(params.get('orbit-reboot-with-mrw')) else 0
+    rfm_en = 1 if is_checked(params.get('orbit-rfm-en')) else 0
+    dsm_en = 1 if is_checked(params.get('orbit-dsm-en')) else 0
+    ca_odt = 1 if is_checked(params.get('orbit-ca-odt')) else 0
     
-    eye_scan_rd_en = 1 if params.get('eye-scan-rd-en') == 'true' else 0
-    eye_scan_wr_en = 1 if params.get('eye-scan-wr-en') == 'true' else 0
-    eye_scan_prbs_rd_en = 1 if params.get('eye-scan-prbs-rd-en') == 'true' else 0
-    eye_scan_prbs_wr_en = 1 if params.get('eye-scan-prbs-wr-en') == 'true' else 0
-    phy_vref_trn_mode = 1 if params.get('phy-vref-trn-mode') == 'true' else 0
-    phy_duty_trn_mode = 1 if params.get('phy-duty-trn-mode') == 'true' else 0
-    dram_vref_trn_mode = 1 if params.get('dram-vref-trn-mode') == 'true' else 0
-    dram_duty_trn_mode = 1 if params.get('dram-duty-trn-mode') == 'true' else 0
-    command_bus_training = 1 if params.get('command-bus-training') == 'true' else 0
-    ca_vref_training = 1 if params.get('ca-vref-training') == 'true' else 0
-    prbs_training = 1 if params.get('prbs-training') == 'true' else 0
-    reboot_with_training = 1 if params.get('reboot-with-training') == 'true' else 0
+    eye_scan_rd_en = 1 if is_checked(params.get('eye-scan-rd-en')) else 0
+    eye_scan_wr_en = 1 if is_checked(params.get('eye-scan-wr-en')) else 0
+    eye_scan_prbs_rd_en = 1 if is_checked(params.get('eye-scan-prbs-rd-en')) else 0
+    eye_scan_prbs_wr_en = 1 if is_checked(params.get('eye-scan-prbs-wr-en')) else 0
+    phy_vref_trn_mode = 1 if is_checked(params.get('phy-vref-trn-mode')) else 0
+    phy_duty_trn_mode = 1 if is_checked(params.get('phy-duty-trn-mode')) else 0
+    dram_vref_trn_mode = 1 if is_checked(params.get('dram-vref-trn-mode')) else 0
+    dram_duty_trn_mode = 1 if is_checked(params.get('dram-duty-trn-mode')) else 0
+    command_bus_training = 1 if is_checked(params.get('command-bus-training')) else 0
+    ca_vref_training = 1 if is_checked(params.get('ca-vref-training')) else 0
+    prbs_training = 1 if is_checked(params.get('prbs-training')) else 0
+    reboot_with_training = 1 if is_checked(params.get('reboot-with-training')) else 0
     
-    regional_clock_gating = 1 if params.get('regional-clock-gating') == 'true' else 0
-    dram_clock_gating = 1 if params.get('dram-clock-gating') == 'true' else 0
-    phy_clock_gating = 1 if params.get('phy-clock-gating') == 'true' else 0
-    phy_low_power = 1 if params.get('phy-low-power') == 'true' else 0
+    regional_clock_gating = 1 if is_checked(params.get('regional-clock-gating')) else 0
+    dram_clock_gating = 1 if is_checked(params.get('dram-clock-gating')) else 0
+    phy_clock_gating = 1 if is_checked(params.get('phy-clock-gating')) else 0
+    phy_low_power = 1 if is_checked(params.get('phy-low-power')) else 0
     
     zq_calibration_period = safe_int(params.get('zq-calibration-period'), 48000)
-    periodic_training = 1 if params.get('periodic-training') == 'true' else 0
+    periodic_training = 1 if is_checked(params.get('periodic-training')) else 0
     periodic_training_period = safe_int(params.get('periodic-training-period'), 24000)
-    temp_sensing = 1 if params.get('temp-sensing') == 'true' else 0
+    temp_sensing = 1 if is_checked(params.get('temp-sensing')) else 0
     temp_sensing_period = safe_int(params.get('temp-sensing-period'), 32000)
     t_refiab = safe_int(params.get('t-refiab'), 3904000)
     t_refipb = safe_int(params.get('t-refipb'), 488000)
@@ -86,9 +95,9 @@ def generate_ddr_config_h(params):
     dfs_lvl_t_ck_1 = int(params.get('dfs-lvl-t-ck-1', 1631))
     dfs_lvl_t_ck_2 = int(params.get('dfs-lvl-t-ck-2', 2500))
     
-    dfs_training = 1 if params.get('dfs-training') == 'true' else 0
-    init_zq_calibration = 1 if params.get('init-zq-calibration') == 'true' else 0
-    zq_calibration = 1 if params.get('zq-calibration') == 'true' else 0
+    dfs_training = 1 if is_checked(params.get('dfs-training')) else 0
+    init_zq_calibration = 1 if is_checked(params.get('init-zq-calibration')) else 0
+    zq_calibration = 1 if is_checked(params.get('zq-calibration')) else 0
     
     if dram_type == 'lpddr5':
         dram_t_ck = '1256'
@@ -658,10 +667,16 @@ class DDRHandler(http.server.BaseHTTPRequestHandler):
                 wdqs = to_int(params.get('wdqs-ctrl-mode'))
                 if wdqs:
                     cmd.extend(['--wdqs-ctrl-mode', str(wdqs)])
-                if params.get('variable-trrd') == 'true':
+                if is_checked(params.get('variable-trrd')):
                     cmd.append('--variable-trrd')
-                if params.get('txsr-as-1st-ed') == 'true':
+                if is_checked(params.get('txsr-as-1st-ed')):
                     cmd.append('--txsr-as-1st-ed')
+                rpste = to_int(params.get('rpste-upto'))
+                if rpste is not None:
+                    cmd.extend(['--rpste-upto', str(rpste)])
+                wpste = to_int(params.get('wpste-upto'))
+                if wpste is not None:
+                    cmd.extend(['--wpste-upto', str(wpste)])
             else:
                 # LPDDR5 specific
                 wck_1to4 = to_int(params.get('wck-1to4-upto'))
@@ -673,9 +688,32 @@ class DDRHandler(http.server.BaseHTTPRequestHandler):
                 wck_upto = to_int(params.get('wck-always-on-upto'))
                 if wck_upto is not None:
                     cmd.extend(['--wck-always-on-upto', str(wck_upto)])
+                nt_odt = to_int(params.get('nt-odt-upto'))
+                if nt_odt is not None:
+                    cmd.extend(['--nt-odt-upto', str(nt_odt)])
+                if is_checked(params.get('enhanced-nt-odt')):
+                    cmd.append('--enhanced-nt-odt')
+                bg_mode = to_int(params.get('bg-mode-upto'))
+                if bg_mode is not None:
+                    cmd.extend(['--bg-mode-upto', str(bg_mode)])
+                wck_hf = to_int(params.get('wck-hf-upto'))
+                if wck_hf is not None:
+                    cmd.extend(['--wck-hf-upto', str(wck_hf)])
+                wck_pst1 = to_int(params.get('wck-pst1-upto'))
+                if wck_pst1 is not None:
+                    cmd.extend(['--wck-pst1-upto', str(wck_pst1)])
+                wck_pst2 = to_int(params.get('wck-pst2-upto'))
+                if wck_pst2 is not None:
+                    cmd.extend(['--wck-pst2-upto', str(wck_pst2)])
+                rdqs_pst1 = to_int(params.get('rdqs-pst1-upto'))
+                if rdqs_pst1 is not None:
+                    cmd.extend(['--rdqs-pst1-upto', str(rdqs_pst1)])
+                rdqs_pst2 = to_int(params.get('rdqs-pst2-upto'))
+                if rdqs_pst2 is not None:
+                    cmd.extend(['--rdqs-pst2-upto', str(rdqs_pst2)])
             
             # Orbit config
-            if params.get('two-channel') == 'true':
+            if is_checked(params.get('two-channel')):
                 cmd.append('--two-channel')
             orbit_density = to_int(params.get('orbit-config-density'))
             if orbit_density:
@@ -686,19 +724,19 @@ class DDRHandler(http.server.BaseHTTPRequestHandler):
             mixed = to_int(params.get('orbit-mixed'))
             if mixed is not None:
                 cmd.extend(['--orbit-mixed', str(mixed)])
-            if params.get('orbit-rank-interleaving') == 'true':
+            if is_checked(params.get('orbit-rank-interleaving')):
                 cmd.extend(['--orbit-rank-interleaving', '1'])
             num_rank = to_int(params.get('orbit-num-rank'))
             if num_rank:
                 cmd.extend(['--orbit-num-rank', str(num_rank)])
-            if params.get('orbit-reboot-with-mrw') == 'true':
+            if is_checked(params.get('orbit-reboot-with-mrw')):
                 cmd.extend(['--orbit-reboot-with-mrw', '1'])
-            if params.get('orbit-rfm-en') == 'true':
+            if is_checked(params.get('orbit-rfm-en')):
                 cmd.extend(['--orbit-rfm-en', '1'])
             # dsm-en only for LPDDR5
-            if dram_type == 'lpddr5' and params.get('orbit-dsm-en') == 'true':
+            if dram_type == 'lpddr5' and is_checked(params.get('orbit-dsm-en')):
                 cmd.extend(['--orbit-dsm-en', '1'])
-            if params.get('orbit-ca-odt') == 'true':
+            if is_checked(params.get('orbit-ca-odt')):
                 cmd.extend(['--orbit-ca-odt', '1'])
             # Always use Python implementation for full binary
             cmd.extend(['--orbit-config-use-python'])
@@ -721,7 +759,7 @@ class DDRHandler(http.server.BaseHTTPRequestHandler):
                 success = False
             
             # Generate ddr_config.h only if generate-config is enabled
-            if params.get('generate-config') == 'true':
+            if is_checked(params.get('generate-config')):
                 try:
                     config_h = generate_ddr_config_h(params)
                     with open('ddr_config.h', 'w') as f:
