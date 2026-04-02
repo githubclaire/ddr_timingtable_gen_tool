@@ -156,10 +156,15 @@
                         <label>cpipe-depth</label>
                         <input type="number" name="cpipe-depth" value="1">
                     </div>
-                    <div class="field">
-                        <label>dpipe-depth</label>
-                        <input type="number" name="dpipe-depth" value="1">
-                    </div>
+                        <div class="field">
+                            <label>two-channel</label>
+                        </div>
+                        <div class="field">
+                            <label>orbit-config-density (Gb)</label>
+                            <select name="orbit-config-density" id="density-select">
+                                <option value="16" selected>16</option>
+                            </select>
+                        </div>
                     <div class="field">
                         <label>omc-freq-ratio</label>
                         <input type="number" name="omc-freq-ratio" value="2" id="omc-freq-ratio">
@@ -419,6 +424,9 @@
             <button type="button" class="btn btn-secondary" onclick="document.getElementById('binFileInput').click()">Load Binary</button>
             <button type="button" class="btn btn-outline" onclick="saveJson()">Save JSON</button>
             <button type="button" class="btn btn-outline" onclick="loadJson()">Load JSON</button>
+            <label class="checkbox-inline">
+                <input type="checkbox" name="generate-config"> Generate ddr_config.h
+            </label>
             <button type="button" class="btn btn-primary" onclick="generate()">Generate Binary & Header</button>
         </div>
     </form>
@@ -453,31 +461,33 @@ function toggleDramOptions() {
     document.getElementById('lpddr4-options').style.display = dramType === 'lpddr4' ? 'block' : 'none';
     document.getElementById('lpddr5-options').style.display = dramType === 'lpddr5' ? 'block' : 'none';
     
-    // Update density validation based on DRAM type
-    updateDensityValidation();
+    // Update density dropdown based on DRAM type
+    updateDensityDropdown();
 }
 
-function updateDensityValidation() {
+function updateDensityDropdown() {
     const dramType = document.querySelector('select[name="dram-type"]').value;
-    const densityField = document.querySelector('input[name="orbit-config-density"]');
+    const densitySelect = document.getElementById('density-select');
     
     const validDensities = {
         'lpddr4': [2, 3, 4, 6, 8, 12, 16],
         'lpddr5': [1, 2, 3, 4, 6, 8, 12, 16, 24, 32]
     };
     
-    const valid = validDensities[dramType];
-    const validList = valid.join(', ');
+    const densities = validDensities[dramType];
+    const currentVal = parseInt(densitySelect.value) || 16;
     
-    // Set tooltip with valid densities
-    densityField.title = `Valid densities for ${dramType.toUpperCase()}: ${validList} Gb`;
-    
-    // Clamp current value to valid range
-    const currentVal = parseInt(densityField.value);
-    if (isNaN(currentVal) || !valid.includes(currentVal)) {
-        // Set to first valid value as default
-        densityField.value = valid[0];
-    }
+    // Clear and rebuild options
+    densitySelect.innerHTML = '';
+    densities.forEach(d => {
+        const option = document.createElement('option');
+        option.value = d;
+        option.textContent = d;
+        if (d === currentVal || (dramType === 'lpddr4' && currentVal > 16) || (dramType === 'lpddr5' && (currentVal === 24 || currentVal === 32))) {
+            option.selected = true;
+        }
+        densitySelect.appendChild(option);
+    });
 }
 
 function setFreqRatios() {
@@ -745,6 +755,7 @@ function fillGuiFromAnalysis(data) {
     if (data.orbit) {
         setCheckboxValue('two-channel', data.orbit.two_channel);
         setFieldValue('orbit-config-density', data.orbit.density);
+        updateDensityDropdown();
         setFieldValue('orbit-byte-mode', data.orbit.byte_mode);
         setFieldValue('orbit-mixed', data.orbit.mixed);
         setCheckboxValue('orbit-rank-interleaving', data.orbit.rank_interleaving);

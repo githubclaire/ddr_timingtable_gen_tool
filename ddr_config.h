@@ -3,8 +3,8 @@
 
 #include <stdint.h>
 
-#define DRAM_TYPE_LPDDR5
-#define DDR_TYPE 5
+#define DRAM_TYPE_LPDDR4
+#define DDR_TYPE 2
 
 #define OMC_REGISTER_BASE0_0   0x20000000
 #define OMC_REGISTER_BASE0_1   0x21000000

@@ -467,6 +467,7 @@ def analyze_binary_file(file_path, dram_type_override=None):
                 'speed_bin': '4266' if dram_type == 'lpddr4' else '6400',
                 'periods': ' '.join(map(str, periods)),
                 'min_dram_tck': 314,
+                'dram_tck': periods[0] if periods else 471,
             },
             
             'pipe': {
@@ -492,17 +493,13 @@ def analyze_binary_file(file_path, dram_type_override=None):
     # Read orbit config fields
     try:
         with open(file_path, 'rb') as f:
-            # Common fields - dfs_lvl_t_ck at different offsets for LPDDR4 vs LPDDR5
-            # LPDDR4: at 0x85e, 0x860, 0x862 (orbit config area at 0x800+)
-            # LPDDR5: at 0x062, 0x070, 0x072 (timing table area - absolute offsets)
+            # dfs_lvl_t_ck offsets differ by DRAM type
+            # LPDDR4: 0x85e, 0x860, 0x862 (orbit config area)
+            # LPDDR5: 0x864, 0x866, 0x868 (orbit config area)
             if is_lpddr5:
-                # Use absolute offsets (no orbit_offset base)
-                dfs_offsets = (0x62, 0x70, 0x72)
-                dfs_base = 0  # Absolute offsets
+                dfs_offsets = (0x64, 0x66, 0x68)  # 0x800+0x64, etc
             else:
-                # Use orbit config area offsets
                 dfs_offsets = (0x5e, 0x60, 0x62)
-                dfs_base = orbit_offset  # 0x800
             
             fields_to_read = [
                 ('density', 0x1c if dram_type == 'lpddr4' else 0x24, '<H'),
@@ -518,9 +515,8 @@ def analyze_binary_file(file_path, dram_type_override=None):
             
             orbit_data = {}
             for field_name, field_offset, fmt in fields_to_read:
-                # Use dfs_base for dfs fields, orbit_offset for others
-                base = dfs_base if 'dfs_lvl_t_ck' in field_name else orbit_offset
-                f.seek(base + field_offset)
+                # All fields use orbit_offset base (0x800)
+                f.seek(orbit_offset + field_offset)
                 bytes_read = f.read(struct.calcsize(fmt))
                 if bytes_read:
                     value = struct.unpack(fmt, bytes_read)[0]
@@ -619,10 +615,16 @@ class DDRHandler(http.server.BaseHTTPRequestHandler):
             cmd.extend(['--cpipe-depth', str(cpipe if cpipe else 1)])
             cmd.extend(['--dpipe-depth', str(dpipe if dpipe else 1)])
             
-            # Frequency ratios
+            # Frequency ratios - use DRAM-type-specific defaults
             dram_type = params.get('dram-type', 'lpddr4')
-            cmd.extend(['--omc-freq-ratio', str(params.get('omc-freq-ratio', 2))])
-            cmd.extend(['--phy-freq-ratio', str(params.get('phy-freq-ratio', 2))])
+            if dram_type == 'lpddr5':
+                default_omc_freq = 1
+                default_phy_freq = 1
+            else:
+                default_omc_freq = 2
+                default_phy_freq = 2
+            cmd.extend(['--omc-freq-ratio', str(params.get('omc-freq-ratio', default_omc_freq))])
+            cmd.extend(['--phy-freq-ratio', str(params.get('phy-freq-ratio', default_phy_freq))])
             
             # Timing params - convert to int
             if params.get('wire-length'):
@@ -718,14 +720,16 @@ class DDRHandler(http.server.BaseHTTPRequestHandler):
                 message.append(f"Error running gen_timing_params: {e}")
                 success = False
             
-            try:
-                config_h = generate_ddr_config_h(params)
-                with open('ddr_config.h', 'w') as f:
-                    f.write(config_h)
-                message.append("ddr_config.h generated successfully")
-            except Exception as e:
-                message.append(f"Error generating ddr_config.h: {e}")
-                success = False
+            # Generate ddr_config.h only if generate-config is enabled
+            if params.get('generate-config') == 'true':
+                try:
+                    config_h = generate_ddr_config_h(params)
+                    with open('ddr_config.h', 'w') as f:
+                        f.write(config_h)
+                    message.append("ddr_config.h generated successfully")
+                except Exception as e:
+                    message.append(f"Error generating ddr_config.h: {e}")
+                    success = False
             
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
