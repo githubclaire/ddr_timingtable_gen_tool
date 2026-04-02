@@ -228,12 +228,12 @@
                     </div>
                     <div class="field field-unit">
                         <label title="Max tCK (ps) to enable extended read post-amble">rpste-upto</label>
-                        <input type="number" name="rpste-upto" value="0" step="any">
+                        <input type="number" name="rpste-upto" value="625" step="any">
                         <span class="unit-label">ps</span>
                     </div>
                     <div class="field field-unit">
                         <label title="Max tCK (ps) to enable extended write post-amble">wpste-upto</label>
-                        <input type="number" name="wpste-upto" value="0" step="any">
+                        <input type="number" name="wpste-upto" value="625" step="any">
                         <span class="unit-label">ps</span>
                     </div>
                     <div class="field checkbox">
@@ -271,7 +271,7 @@
                     </div>
                     <div class="field field-unit">
                         <label title="Max tWCK (ps) to enable NT-ODT">nt-odt-upto</label>
-                        <input type="number" name="nt-odt-upto" value="0" step="any">
+                        <input type="number" name="nt-odt-upto" value="625" step="any">
                         <span class="unit-label">ps</span>
                     </div>
                     <div class="field field-unit">
@@ -286,22 +286,22 @@
                     </div>
                     <div class="field field-unit">
                         <label title="Max tWCK (ps) to set WCK PST as 4.5*tWCK">wck-pst1-upto</label>
-                        <input type="number" name="wck-pst1-upto" value="0" step="any">
+                        <input type="number" name="wck-pst1-upto" value="625" step="any">
                         <span class="unit-label">ps</span>
                     </div>
                     <div class="field field-unit">
                         <label title="Max tWCK (ps) to set WCK PST as 6.5*tWCK">wck-pst2-upto</label>
-                        <input type="number" name="wck-pst2-upto" value="0" step="any">
+                        <input type="number" name="wck-pst2-upto" value="625" step="any">
                         <span class="unit-label">ps</span>
                     </div>
                     <div class="field field-unit">
                         <label title="Max tWCK (ps) to set RDQS PST as 2.5*tWCK">rdqs-pst1-upto</label>
-                        <input type="number" name="rdqs-pst1-upto" value="0" step="any">
+                        <input type="number" name="rdqs-pst1-upto" value="625" step="any">
                         <span class="unit-label">ps</span>
                     </div>
                     <div class="field field-unit">
                         <label title="Max tWCK (ps) to set RDQS PST as 4.5*tWCK">rdqs-pst2-upto</label>
-                        <input type="number" name="rdqs-pst2-upto" value="0" step="any">
+                        <input type="number" name="rdqs-pst2-upto" value="625" step="any">
                         <span class="unit-label">ps</span>
                     </div>
                     <div class="field checkbox">
@@ -999,7 +999,7 @@ window.onclick = function(event) {
     if (event.target == modal) modal.style.display = 'none';
 }
 
-async function saveJson() {
+function saveJson() {
     const form = document.getElementById('paramsForm');
     const formData = new FormData(form);
     const params = {};
@@ -1014,32 +1014,8 @@ async function saveJson() {
         params['periods'] = periods;
     }
     
-    const jsonStr = JSON.stringify(params, null, 2);
-    
-    // Try File System Access API for native save dialog
-    if (window.showSaveFilePicker) {
-        try {
-            const handle = await window.showSaveFilePicker({
-                suggestedName: 'ddr_config.json',
-                types: [{
-                    description: 'JSON Files',
-                    accept: {'application/json': ['.json']}
-                }]
-            });
-            const writable = await handle.createWritable();
-            await writable.write(jsonStr);
-            await writable.close();
-            document.getElementById('status').className = 'status success';
-            document.getElementById('status').innerHTML = 'JSON saved!';
-            document.getElementById('status').style.display = 'block';
-            return;
-        } catch (e) {
-            if (e.name !== 'AbortError') console.error(e);
-        }
-    }
-    
-    // Fallback: blob download
-    const blob = new Blob([jsonStr], {type: 'application/json'});
+    // Blob download (works in all browsers)
+    const blob = new Blob([JSON.stringify(params, null, 2)], {type: 'application/json'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -1290,6 +1266,7 @@ toggleTempSensing();
 toggleZqCalibration();
 toggleRankInterleaving();
 toggleDsmEn();
+setFreqRatios();
 updateDensityOptions();
 </script>
 </body>
