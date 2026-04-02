@@ -101,7 +101,7 @@
                 <div class="section-content">
                     <div class="field">
                         <label title="DRAM memory type selection">DRAM Type</label>
-                        <select name="dram-type" onchange="toggleDramOptions(); setTimeout(function() { setFreqRatios(); updateDensityOptions(); updatePeriodsLabel(); updateDramTckDefault(); toggleDsmEn(); }, 0);">
+                        <select name="dram-type" onchange="toggleDramOptions(); requestAnimationFrame(function() { setFreqRatios(); updateDensityOptions(); updatePeriodsLabel(); updateDramTckDefault(); toggleDsmEn(); });">
                             <option value="lpddr4">LPDDR4</option>
                             <option value="lpddr5">LPDDR5</option>
                         </select>
