@@ -121,10 +121,7 @@
                     </div>
                     <div class="field">
                         <label title="Speed bin defining max frequency">Speed Bin</label>
-                        <select name="speed-bin" onchange="updateMinDramTck();">
-                            <option value="4266" selected>4266</option>
-                            <option value="6400">6400</option>
-                        </select>
+                        <input type="text" name="speed-bin" value="4266" onchange="updateMinDramTck();">
                     </div>
                     <div class="field">
                         <label title="Target tCK/tWCK periods in ps for timing table generation">Periods (<span id="periods-unit">tCK</span>)</label>
@@ -259,7 +256,7 @@
                 <div class="section-content">
                     <div class="field field-unit">
                         <label title="Max tWCK for WCK 1:4 mode (LPDDR5). Range: 625-2500ps (400-1600MHz)">wck-1to4-upto</label>
-                        <input type="number" name="wck-1to4-upto" value="625" step="any">
+                        <input type="number" name="wck-1to4-upto" value="2500" step="any">
                         <span class="unit-label">ps</span>
                     </div>
                     <div class="field field-unit">
@@ -289,22 +286,22 @@
                     </div>
                     <div class="field field-unit">
                         <label title="Max tWCK (ps) to set WCK PST as 4.5*tWCK">wck-pst1-upto</label>
-                        <input type="number" name="wck-pst1-upto" value="625" step="any">
+                        <input type="number" name="wck-pst1-upto" value="1250" step="any">
                         <span class="unit-label">ps</span>
                     </div>
                     <div class="field field-unit">
                         <label title="Max tWCK (ps) to set WCK PST as 6.5*tWCK">wck-pst2-upto</label>
-                        <input type="number" name="wck-pst2-upto" value="1250" step="any">
+                        <input type="number" name="wck-pst2-upto" value="625" step="any">
                         <span class="unit-label">ps</span>
                     </div>
                     <div class="field field-unit">
                         <label title="Max tWCK (ps) to set RDQS PST as 2.5*tWCK">rdqs-pst1-upto</label>
-                        <input type="number" name="rdqs-pst1-upto" value="625" step="any">
+                        <input type="number" name="rdqs-pst1-upto" value="1250" step="any">
                         <span class="unit-label">ps</span>
                     </div>
                     <div class="field field-unit">
                         <label title="Max tWCK (ps) to set RDQS PST as 4.5*tWCK">rdqs-pst2-upto</label>
-                        <input type="number" name="rdqs-pst2-upto" value="1250" step="any">
+                        <input type="number" name="rdqs-pst2-upto" value="625" step="any">
                         <span class="unit-label">ps</span>
                     </div>
                     <div class="field checkbox">
@@ -566,13 +563,18 @@ function updateMrrByteLane() {
 function updateSpeedBin() {
     const dramType = document.querySelector('select[name="dram-type"]').value;
     const speedBin = dramType === 'lpddr4' ? '4266' : '6400';
-    document.querySelector('select[name="speed-bin"]').value = speedBin;
+    const speedBinField = document.querySelector('input[name="speed-bin"]') || document.querySelector('select[name="speed-bin"]');
+    if (speedBinField) speedBinField.value = speedBin;
+    updateMinDramTck();
 }
 
 function updateMinDramTck() {
-    const speedBin = parseInt(document.querySelector('select[name="speed-bin"]').value);
-    const minTck = Math.round(2000000 / speedBin);
-    document.querySelector('input[name="min-dram-tck"]').value = minTck;
+    const speedBinField = document.querySelector('input[name="speed-bin"]') || document.querySelector('select[name="speed-bin"]');
+    const speedBin = parseInt(speedBinField.value);
+    if (!isNaN(speedBin) && speedBin > 0) {
+        const minTck = Math.round(2000000 / speedBin);
+        document.querySelector('input[name="min-dram-tck"]').value = minTck;
+    }
 }
 
 function updatePeriodsFromDefaults() {
