@@ -261,7 +261,7 @@
                     </div>
                     <div class="field field-unit">
                         <label title="Min tWCK for WCK always-on mode (LPDDR5). Range: 0-1000ps">wck-always-on-from</label>
-                        <input type="number" name="wck-always-on-from" value="0" step="any">
+                        <input type="number" name="wck-always-on-from" value="10000" step="any">
                         <span class="unit-label">ps</span>
                     </div>
                     <div class="field field-unit">
@@ -500,31 +500,6 @@ function toggleDramOptions() {
     const dramType = document.querySelector('select[name="dram-type"]').value;
     document.getElementById('lpddr4-options').style.display = dramType === 'lpddr4' ? 'block' : 'none';
     document.getElementById('lpddr5-options').style.display = dramType === 'lpddr5' ? 'block' : 'none';
-}
-
-function updateDensityDropdown() {
-    const dramType = document.querySelector('select[name="dram-type"]').value;
-    const densitySelect = document.getElementById('density-select');
-    
-    const validDensities = {
-        'lpddr4': [2, 3, 4, 6, 8, 12, 16],
-        'lpddr5': [1, 2, 3, 4, 6, 8, 12, 16, 24, 32]
-    };
-    
-    const densities = validDensities[dramType];
-    const currentVal = parseInt(densitySelect.value) || 16;
-    
-    // Clear and rebuild options
-    densitySelect.innerHTML = '';
-    densities.forEach(d => {
-        const option = document.createElement('option');
-        option.value = d;
-        option.textContent = d;
-        if (d === currentVal || (dramType === 'lpddr4' && currentVal > 16) || (dramType === 'lpddr5' && (currentVal === 24 || currentVal === 32))) {
-            option.selected = true;
-        }
-        densitySelect.appendChild(option);
-    });
 }
 
 function setFreqRatios() {
@@ -820,7 +795,6 @@ function fillGuiFromAnalysis(data) {
     if (data.orbit) {
         setCheckboxValue('two-channel', data.orbit.two_channel);
         setFieldValue('orbit-config-density', data.orbit.density);
-        updateDensityDropdown();
         setFieldValue('orbit-byte-mode', data.orbit.byte_mode);
         setFieldValue('orbit-mixed', data.orbit.mixed);
         setCheckboxValue('orbit-rank-interleaving', data.orbit.rank_interleaving);
