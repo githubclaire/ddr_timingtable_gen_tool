@@ -153,23 +153,23 @@
                 </div>
                 <div class="section-content">
                     <div class="field">
-                        <label>cpipe-depth</label>
+                        <label title="Command pipe depth (auto-set based on DDR type)">cpipe-depth</label>
                         <input type="number" name="cpipe-depth" value="1" readonly>
                     </div>
                     <div class="field">
-                        <label>dpipe-depth</label>
+                        <label title="Data pipe depth (auto-set based on DDR type)">dpipe-depth</label>
                         <input type="number" name="dpipe-depth" value="1" readonly>
                     </div>
                     <div class="field">
-                        <label>omc-freq-ratio</label>
+                        <label title="OMC frequency ratio (auto-set: LPDDR4=2, LPDDR5=1)">omc-freq-ratio</label>
                         <input type="number" name="omc-freq-ratio" value="2" id="omc-freq-ratio" readonly>
                     </div>
                     <div class="field">
-                        <label>phy-freq-ratio</label>
+                        <label title="PHY frequency ratio (auto-set: LPDDR4=2, LPDDR5=1)">phy-freq-ratio</label>
                         <input type="number" name="phy-freq-ratio" value="2" id="phy-freq-ratio" readonly>
                     </div>
                     <div class="field field-unit">
-                        <label>wire-length</label>
+                        <label title="Wire length in mil (milli-inch), not ps">wire-length</label>
                         <input type="number" name="wire-length" value="10" step="0.1">
                         <span class="unit-label">mil</span>
                     </div>
@@ -323,16 +323,16 @@
                         <div class="subsection-title">Basic/Geometry</div>
                         <div class="field checkbox">
                             <input type="checkbox" name="two-channel">
-                            <label>two-channel</label>
+                            <label title="Enable dual channel mode">two-channel</label>
                         </div>
                         <div class="field">
-                            <label>orbit-config-density (Gb)</label>
+                            <label title="DRAM density in Gb">orbit-config-density (Gb)</label>
                             <select name="orbit-config-density" id="orbit-config-density">
                                 <option value="16" selected>16</option>
                             </select>
                         </div>
                         <div class="field">
-                            <label>orbit-byte-mode</label>
+                            <label title="Byte mode: x16 (0) or x8 (1)">orbit-byte-mode</label>
                             <select name="orbit-byte-mode">
                                 <option value="0" selected>x16</option>
                                 <option value="1">x8</option>
@@ -352,10 +352,10 @@
                         <div class="subsection-title">Mode Control</div>
                         <div class="field checkbox hidden" id="orbit-rank-interleaving-field">
                             <input type="checkbox" name="orbit-rank-interleaving" id="orbit-rank-interleaving-cb" checked>
-                            <label>rank-interleaving</label>
+                            <label title="Enable rank interleaving">rank-interleaving</label>
                         </div>
                         <div class="field">
-                            <label>orbit-num-rank</label>
+                            <label title="Number of ranks (1 or 2)">orbit-num-rank</label>
                             <select name="orbit-num-rank" id="orbit-num-rank-select" onchange="toggleRankInterleaving()">
                                 <option value="1">1</option>
                                 <option value="2" selected>2</option>
@@ -363,57 +363,57 @@
                         </div>
                         <div class="field checkbox">
                             <input type="checkbox" name="orbit-reboot-with-mrw">
-                            <label>reboot-with-mrw</label>
+                            <label title="Reboot with MRW (Mode Register Write)">reboot-with-mrw</label>
                         </div>
                         <div class="field checkbox">
                             <input type="checkbox" name="reboot-with-training">
-                            <label>reboot-with-training</label>
+                            <label title="Reboot with training">reboot-with-training</label>
                         </div>
                     </div>
 
                     <!-- Training Enable -->
                     <div class="subsection">
                         <div class="subsection-title">Training Enable</div>
-                        <div class="field checkbox"><input type="checkbox" name="eye-scan-rd-en"><label>eye-scan-rd-en</label></div>
-                        <div class="field checkbox"><input type="checkbox" name="eye-scan-wr-en"><label>eye-scan-wr-en</label></div>
-                        <div class="field checkbox"><input type="checkbox" name="eye-scan-prbs-rd-en"><label>eye-scan-prbs-rd-en</label></div>
-                        <div class="field checkbox"><input type="checkbox" name="eye-scan-prbs-wr-en"><label>eye-scan-prbs-wr-en</label></div>
-                        <div class="field checkbox"><input type="checkbox" name="phy-vref-trn-mode"><label>phy-vref-trn-mode</label></div>
-                        <div class="field checkbox"><input type="checkbox" name="phy-duty-trn-mode"><label>phy-duty-trn-mode</label></div>
-                        <div class="field checkbox"><input type="checkbox" name="dram-vref-trn-mode"><label>dram-vref-trn-mode</label></div>
-                        <div class="field checkbox"><input type="checkbox" name="dram-duty-trn-mode"><label>dram-duty-trn-mode</label></div>
-                        <div class="field checkbox"><input type="checkbox" name="command-bus-training"><label>command-bus-training</label></div>
-                        <div class="field checkbox"><input type="checkbox" name="ca-vref-training"><label>ca-vref-training</label></div>
-                        <div class="field checkbox"><input type="checkbox" name="prbs-training"><label>prbs-training</label></div>
+                        <div class="field checkbox"><input type="checkbox" name="eye-scan-rd-en"><label title="Eye scan read enable">eye-scan-rd-en</label></div>
+                        <div class="field checkbox"><input type="checkbox" name="eye-scan-wr-en"><label title="Eye scan write enable">eye-scan-wr-en</label></div>
+                        <div class="field checkbox"><input type="checkbox" name="eye-scan-prbs-rd-en"><label title="Eye scan PRBS read enable">eye-scan-prbs-rd-en</label></div>
+                        <div class="field checkbox"><input type="checkbox" name="eye-scan-prbs-wr-en"><label title="Eye scan PRBS write enable">eye-scan-prbs-wr-en</label></div>
+                        <div class="field checkbox"><input type="checkbox" name="phy-vref-trn-mode"><label title="PHY Vref training mode">phy-vref-trn-mode</label></div>
+                        <div class="field checkbox"><input type="checkbox" name="phy-duty-trn-mode"><label title="PHY duty training mode">phy-duty-trn-mode</label></div>
+                        <div class="field checkbox"><input type="checkbox" name="dram-vref-trn-mode"><label title="DRAM Vref training mode">dram-vref-trn-mode</label></div>
+                        <div class="field checkbox"><input type="checkbox" name="dram-duty-trn-mode"><label title="DRAM duty training mode">dram-duty-trn-mode</label></div>
+                        <div class="field checkbox"><input type="checkbox" name="command-bus-training"><label title="Command bus training enable">command-bus-training</label></div>
+                        <div class="field checkbox"><input type="checkbox" name="ca-vref-training"><label title="CA Vref training enable">ca-vref-training</label></div>
+                        <div class="field checkbox"><input type="checkbox" name="prbs-training"><label title="PRBS training enable">prbs-training</label></div>
                     </div>
 
                     <!-- Power Management -->
                     <div class="subsection">
                         <div class="subsection-title">Power Management</div>
-                        <div class="field checkbox"><input type="checkbox" name="regional-clock-gating" checked><label>regional-clock-gating</label></div>
-                        <div class="field checkbox"><input type="checkbox" name="dram-clock-gating" checked><label>dram-clock-gating</label></div>
-                        <div class="field checkbox"><input type="checkbox" name="phy-clock-gating"><label>phy-clock-gating</label></div>
-                        <div class="field checkbox"><input type="checkbox" name="phy-low-power"><label>phy-low-power</label></div>
+                        <div class="field checkbox"><input type="checkbox" name="regional-clock-gating" checked><label title="Regional clock gating enable">regional-clock-gating</label></div>
+                        <div class="field checkbox"><input type="checkbox" name="dram-clock-gating" checked><label title="DRAM clock gating enable">dram-clock-gating</label></div>
+                        <div class="field checkbox"><input type="checkbox" name="phy-clock-gating"><label title="PHY clock gating enable">phy-clock-gating</label></div>
+                        <div class="field checkbox"><input type="checkbox" name="phy-low-power"><label title="PHY low power mode">phy-low-power</label></div>
                     </div>
 
                     <!-- Timing Intervals -->
                     <div class="subsection">
                         <div class="subsection-title">Timing Intervals</div>
                         <div class="field hidden" id="zq-calibration-period-field">
-                            <label>zq-calibration-period</label>
+                            <label title="ZQ calibration period in tCK">zq-calibration-period</label>
                             <input type="number" name="zq-calibration-period" value="48000">
                         </div>
                         <div class="field hidden" id="periodic-training-period-field">
-                            <label>periodic-training-period</label>
+                            <label title="Periodic training period in tCK">periodic-training-period</label>
                             <input type="number" name="periodic-training-period" value="24000">
                         </div>
                         <div class="field hidden" id="temp-sensing-period-field">
-                            <label>temp-sensing-period</label>
+                            <label title="Temperature sensing period in tCK">temp-sensing-period</label>
                             <input type="number" name="temp-sensing-period" value="32000">
                         </div>
-                        <div class="field"><label>t-refiab</label><input type="number" name="t-refiab" value="3904000"></div>
-                        <div class="field"><label>t-refipb</label><input type="number" name="t-refipb" value="488000"></div>
-                        <div class="field"><label>t-zqcal</label><input type="number" name="t-zqcal" value="1000000"></div>
+                        <div class="field"><label title="Average refresh interval in tCK">t-refiab</label><input type="number" name="t-refiab" value="3904000"></div>
+                        <div class="field"><label title="Per-bank refresh interval in tCK">t-refipb</label><input type="number" name="t-refipb" value="488000"></div>
+                        <div class="field"><label title="ZQ calibration timeout in tCK">t-zqcal</label><input type="number" name="t-zqcal" value="1000000"></div>
                     </div>
 
                     <!-- DFS Timing -->
