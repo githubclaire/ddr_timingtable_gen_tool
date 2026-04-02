@@ -101,7 +101,7 @@
                 <div class="section-content">
                     <div class="field">
                         <label title="DRAM memory type selection">DRAM Type</label>
-                        <select name="dram-type" onchange="toggleDramOptions(); requestAnimationFrame(function() { setFreqRatios(); updateDensityOptions(); updatePeriodsLabel(); updateDramTckDefault(); toggleDsmEn(); });">
+                        <select name="dram-type" onchange="toggleDramOptions(); setFreqRatios(); updateDensityOptions(); updatePeriodsLabel(); updateDramTckDefault(); toggleDsmEn();">
                             <option value="lpddr4">LPDDR4</option>
                             <option value="lpddr5">LPDDR5</option>
                         </select>
@@ -500,9 +500,6 @@ function toggleDramOptions() {
     const dramType = document.querySelector('select[name="dram-type"]').value;
     document.getElementById('lpddr4-options').style.display = dramType === 'lpddr4' ? 'block' : 'none';
     document.getElementById('lpddr5-options').style.display = dramType === 'lpddr5' ? 'block' : 'none';
-    
-    // Update density dropdown based on DRAM type
-    updateDensityDropdown();
 }
 
 function updateDensityDropdown() {
