@@ -118,3 +118,32 @@ SUCCESS: Timing table matches C implementation! (compared 1392 bytes)
 - [x] C9: LPDDR5 params in backend
 - [x] D1-D3: Common updates (toggle, load/JSON)
 - [x] E1-E2: Test - binaries match reference
+
+---
+
+## Additional Fixes (2026-04-02)
+
+### H. Save JSON - Choose Path
+- Added File System Access API (showSaveFilePicker) with blob fallback
+- Allows user to choose save location in modern browsers
+
+### I. Button Sequence
+- Reordered: Save JSON | Load JSON | Load Binary | Generate Binary
+
+### J. orbit-config-density Dynamic Adjustment
+- Preserve current value if valid for new DDR type
+- Otherwise use highest valid value
+
+### K. Remove zq-bg-mode, Auto-calculate
+- Removed zq-bg-mode dropdown from LPDDR5 options
+- Auto-calculated zq_bg_mode based on bg_mode_upto >= min_dram_tck
+
+### L. Field Sequence Adjustment
+- LPDDR4: Numbers first, then checkboxes
+- LPDDR5: Numbers first, then checkboxes
+
+### Test Results
+```
+LPDDR4: SUCCESS - Timing table matches C implementation! (1182 bytes)
+LPDDR5: SUCCESS - Timing table matches C implementation! (1392 bytes)
+```

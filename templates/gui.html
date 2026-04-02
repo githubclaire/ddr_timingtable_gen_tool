@@ -226,14 +226,6 @@
                         <label>wdqs-ctrl-mode</label>
                         <input type="number" name="wdqs-ctrl-mode" value="1">
                     </div>
-                    <div class="field checkbox">
-                        <input type="checkbox" name="variable-trrd">
-                        <label>variable-trrd</label>
-                    </div>
-                    <div class="field checkbox">
-                        <input type="checkbox" name="txsr-as-1st-ed" checked>
-                        <label>txsr-as-1st-ed</label>
-                    </div>
                     <div class="field field-unit">
                         <label title="Max tCK (ps) to enable extended read post-amble">rpste-upto</label>
                         <input type="number" name="rpste-upto" value="0" step="any">
@@ -243,6 +235,14 @@
                         <label title="Max tCK (ps) to enable extended write post-amble">wpste-upto</label>
                         <input type="number" name="wpste-upto" value="0" step="any">
                         <span class="unit-label">ps</span>
+                    </div>
+                    <div class="field checkbox">
+                        <input type="checkbox" name="variable-trrd">
+                        <label>variable-trrd</label>
+                    </div>
+                    <div class="field checkbox">
+                        <input type="checkbox" name="txsr-as-1st-ed" checked>
+                        <label>txsr-as-1st-ed</label>
                     </div>
                 </div>
             </div>
@@ -269,21 +269,10 @@
                         <input type="number" name="wck-always-on-upto" value="314" step="any">
                         <span class="unit-label">ps</span>
                     </div>
-                    <div class="field">
-                        <label>zq-bg-mode</label>
-                        <select name="zq-bg-mode">
-                            <option value="0">Disable (0)</option>
-                            <option value="1" selected>Enable (1)</option>
-                        </select>
-                    </div>
                     <div class="field field-unit">
                         <label title="Max tWCK (ps) to enable NT-ODT">nt-odt-upto</label>
                         <input type="number" name="nt-odt-upto" value="0" step="any">
                         <span class="unit-label">ps</span>
-                    </div>
-                    <div class="field checkbox">
-                        <input type="checkbox" name="enhanced-nt-odt">
-                        <label>enhanced-nt-odt</label>
                     </div>
                     <div class="field field-unit">
                         <label title="Max tWCK (ps) to enable bank-group mode">bg-mode-upto</label>
@@ -314,6 +303,10 @@
                         <label title="Max tWCK (ps) to set RDQS PST as 4.5*tWCK">rdqs-pst2-upto</label>
                         <input type="number" name="rdqs-pst2-upto" value="0" step="any">
                         <span class="unit-label">ps</span>
+                    </div>
+                    <div class="field checkbox">
+                        <input type="checkbox" name="enhanced-nt-odt">
+                        <label>enhanced-nt-odt</label>
                     </div>
                 </div>
             </div>
@@ -471,9 +464,9 @@
 
         <div class="buttons">
             <input type="file" id="binFileInput" accept=".bin" style="display:none">
-            <button type="button" class="btn btn-secondary" onclick="document.getElementById('binFileInput').click()">Load Binary</button>
             <button type="button" class="btn btn-outline" onclick="saveJson()">Save JSON</button>
             <button type="button" class="btn btn-outline" onclick="loadJson()">Load JSON</button>
+            <button type="button" class="btn btn-secondary" onclick="document.getElementById('binFileInput').click()">Load Binary</button>
             <button type="button" class="btn btn-primary" onclick="generate()">Generate Binary</button>
         </div>
     </form>
@@ -547,17 +540,21 @@ function setFreqRatios() {
 function updateDensityOptions() {
     const dramType = document.querySelector('select[name="dram-type"]').value;
     const densitySelect = document.getElementById('orbit-config-density');
+    const currentValue = parseInt(densitySelect.value);
     
     const densities = dramType === 'lpddr4' 
         ? [2, 3, 4, 6, 8, 12, 16]
         : [2, 3, 4, 6, 8, 12, 16, 24, 32];
+    
+    const isValid = densities.includes(currentValue);
     
     densitySelect.innerHTML = '';
     densities.forEach(d => {
         const option = document.createElement('option');
         option.value = d;
         option.textContent = d;
-        if (d === 16) option.selected = true;
+        if (isValid && d === currentValue) option.selected = true;
+        else if (!isValid && d === densities[densities.length - 1]) option.selected = true;
         densitySelect.appendChild(option);
     });
 }
@@ -1002,7 +999,7 @@ window.onclick = function(event) {
     if (event.target == modal) modal.style.display = 'none';
 }
 
-function saveJson() {
+async function saveJson() {
     const form = document.getElementById('paramsForm');
     const formData = new FormData(form);
     const params = {};
@@ -1017,12 +1014,40 @@ function saveJson() {
         params['periods'] = periods;
     }
     
-    const blob = new Blob([JSON.stringify(params, null, 2)], {type: 'application/json'});
+    const jsonStr = JSON.stringify(params, null, 2);
+    
+    // Try File System Access API for native save dialog
+    if (window.showSaveFilePicker) {
+        try {
+            const handle = await window.showSaveFilePicker({
+                suggestedName: 'ddr_config.json',
+                types: [{
+                    description: 'JSON Files',
+                    accept: {'application/json': ['.json']}
+                }]
+            });
+            const writable = await handle.createWritable();
+            await writable.write(jsonStr);
+            await writable.close();
+            document.getElementById('status').className = 'status success';
+            document.getElementById('status').innerHTML = 'JSON saved!';
+            document.getElementById('status').style.display = 'block';
+            return;
+        } catch (e) {
+            if (e.name !== 'AbortError') console.error(e);
+        }
+    }
+    
+    // Fallback: blob download
+    const blob = new Blob([jsonStr], {type: 'application/json'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = 'ddr_config.json';
     a.click();
+    document.getElementById('status').className = 'status success';
+    document.getElementById('status').innerHTML = 'JSON saved!';
+    document.getElementById('status').style.display = 'block';
 }
 
 function validateForm() {

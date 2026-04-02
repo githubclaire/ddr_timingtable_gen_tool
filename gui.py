@@ -104,7 +104,9 @@ def generate_ddr_config_h(params):
         dram_type_macro = '5'
         omc_freq_ratio = 1
         phy_freq_ratio = 1
-        zq_bg_mode = int(params.get('zq-bg-mode', 1))
+        min_dram_tck = safe_int(params.get('min-dram-tck'), 1256)
+        bg_mode_upto = safe_int(params.get('bg-mode-upto'), 0)
+        zq_bg_mode = 1 if bg_mode_upto >= min_dram_tck else 0
     else:
         dram_t_ck = '471'
         dram_type_macro = '2'
