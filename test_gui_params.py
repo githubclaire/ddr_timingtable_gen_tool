@@ -1871,6 +1871,480 @@ def test_dual_channel():
 
 # ============================================================================
 
+def test_parse_offset_comparison():
+    """Test that GUI-parsed values match raw binary values at correct offsets."""
+    print("\n=== Testing Parameter Offset Parsing ===")
+    
+    import struct
+    results = []
+    
+    # Test binaries with known values
+    test_binaries = [
+        ('ddr_timing_table.lpddr4.dual.ref.bin', 'lpddr4', 7864),
+        ('ddr_timing_table.lpddr5.dual.ref.bin', 'lpddr5', 7872),
+    ]
+    
+    for bin_file, expected_dram, expected_size in test_binaries:
+        if not os.path.exists(bin_file):
+            print(f"  SKIP: {bin_file} not found")
+            continue
+            
+        print(f"\n  Testing: {bin_file}")
+        
+        # Analyze via GUI
+        an_result = analyze_binary(bin_file)
+        if not an_result.get('success'):
+            print(f"    ERROR: GUI analyze failed - {an_result.get('message')}")
+            results.append((bin_file, False, "GUI analyze failed"))
+            continue
+        
+        data = an_result['data']
+        
+        # Read binary directly
+        with open(bin_file, 'rb') as f:
+            binary_data = f.read()
+        
+        is_lpddr5 = (expected_dram == 'lpddr5')
+        orbit_offset = 0x800
+        
+        mismatches = []
+        
+        # Check 1: cpipe_depth at offset 0x14 (struct offset 20)
+        gui_cpipe = data['pipe'].get('cpipe_depth', 0)
+        bin_cpipe = struct.unpack('<H', binary_data[orbit_offset + 0x14:orbit_offset + 0x16])[0]
+        if gui_cpipe != bin_cpipe:
+            mismatches.append(f"cpipe_depth: GUI={gui_cpipe}, Binary@0x814={bin_cpipe}")
+        
+        # Check 2: dpipe_depth at offset 0x16 (struct offset 22)
+        gui_dpipe = data['pipe'].get('dpipe_depth', 0)
+        bin_dpipe = struct.unpack('<H', binary_data[orbit_offset + 0x16:orbit_offset + 0x18])[0]
+        if gui_dpipe != bin_dpipe:
+            mismatches.append(f"dpipe_depth: GUI={gui_dpipe}, Binary@0x816={bin_dpipe}")
+        
+        # Check 3: omc_freq_ratio at offset 0x14 (struct offset 14)
+        gui_omc = data['pipe'].get('omc_freq_ratio', 0)
+        bin_omc = struct.unpack('<H', binary_data[orbit_offset + 0x14:orbit_offset + 0x16])[0]
+        if gui_omc != bin_omc:
+            mismatches.append(f"omc_freq_ratio: GUI={gui_omc}, Binary@0x814={bin_omc}")
+        
+        # Check 4: phy_freq_ratio at offset 0x12 (struct offset 12)
+        gui_phy = data['pipe'].get('phy_freq_ratio', 0)
+        bin_phy = struct.unpack('<H', binary_data[orbit_offset + 0x12:orbit_offset + 0x14])[0]
+        if gui_phy != bin_phy:
+            mismatches.append(f"phy_freq_ratio: GUI={gui_phy}, Binary@0x812={bin_phy}")
+        
+        # Check 5: density
+        gui_density = data['orbit'].get('density', 0)
+        density_offset = 0x1c if not is_lpddr5 else 0x24
+        bin_density = struct.unpack('<H', binary_data[orbit_offset + density_offset:orbit_offset + density_offset + 2])[0]
+        if gui_density != bin_density:
+            mismatches.append(f"density: GUI={gui_density}, Binary@{density_offset:#x}={bin_density}")
+        
+        # Check 6: rank_interleaving at offset 0x1e
+        gui_rank_int = data['orbit'].get('rank_interleaving', 0)
+        bin_rank_int = struct.unpack('<H', binary_data[orbit_offset + 0x1e:orbit_offset + 0x20])[0]
+        if gui_rank_int != bin_rank_int:
+            mismatches.append(f"rank_interleaving: GUI={gui_rank_int}, Binary@0x81e={bin_rank_int}")
+        
+        # Check 7: num_rank at offset 0x20
+        gui_num_rank = data['orbit'].get('num_rank', 0)
+        bin_num_rank = struct.unpack('<H', binary_data[orbit_offset + 0x20:orbit_offset + 0x22])[0]
+        if gui_num_rank != bin_num_rank:
+            mismatches.append(f"num_rank: GUI={gui_num_rank}, Binary@0x820={bin_num_rank}")
+        
+        # Check 8: density_code
+        gui_density_code = data['orbit'].get('density_code', 0)
+        dc_offset = 0x78 if not is_lpddr5 else 0x80
+        bin_density_code = struct.unpack('<I', binary_data[orbit_offset + dc_offset:orbit_offset + dc_offset + 4])[0]
+        if gui_density_code != bin_density_code:
+            mismatches.append(f"density_code: GUI={gui_density_code}, Binary@{dc_offset:#x}={bin_density_code}")
+        
+        # Check 9: timing features (from timing table at offset 0)
+        entry_size = 188
+        gui_write_odt = data['timing'].get('write_odt_upto', 0)
+        gui_read_dbi = data['timing'].get('read_dbi_upto', 0)
+        gui_write_dbi = data['timing'].get('write_dbi_upto', 0)
+        
+        # Parse from binary timing table
+        bin_write_odt = 0
+        bin_read_dbi = 0
+        bin_write_dbi = 0
+        for i in range(8):
+            offset = i * entry_size
+            if offset + 188 > len(binary_data):
+                break
+            t_ck = struct.unpack('<I', binary_data[offset+4:offset+8])[0]
+            if t_ck == 0 or t_ck > 10000:
+                continue
+            if binary_data[offset + 158] and t_ck > bin_write_odt:
+                bin_write_odt = t_ck
+            if binary_data[offset + 161] and t_ck > bin_read_dbi:
+                bin_read_dbi = t_ck
+            if binary_data[offset + 160] and t_ck > bin_write_dbi:
+                bin_write_dbi = t_ck
+        
+        if gui_write_odt != bin_write_odt:
+            mismatches.append(f"write_odt_upto: GUI={gui_write_odt}, Binary={bin_write_odt}")
+        if gui_read_dbi != bin_read_dbi:
+            mismatches.append(f"read_dbi_upto: GUI={gui_read_dbi}, Binary={bin_read_dbi}")
+        if gui_write_dbi != bin_write_dbi:
+            mismatches.append(f"write_dbi_upto: GUI={gui_write_dbi}, Binary={bin_write_dbi}")
+        
+        if mismatches:
+            print(f"    FAIL: {len(mismatches)} mismatches:")
+            for m in mismatches:
+                print(f"      - {m}")
+            results.append((bin_file, False, "; ".join(mismatches)))
+        else:
+            print(f"    PASS: All params match")
+            results.append((bin_file, True, "OK"))
+    
+    passed = sum(1 for _, ok, _ in results if ok)
+    print(f"\nOffset Comparison Tests: {passed}/{len(results)} passed")
+    return results
+
+
+# ============================================================================
+
+def test_orbit_params_full_cycle():
+    """Test: generate bin → load bin → compare orbit params"""
+    print("\n=== Testing Orbit Params Full Cycle ===")
+    results = []
+    
+    test_configs = [
+        ('lpddr4', 'rank_int_1_num_rank_2', {
+            'dram-type': 'lpddr4',
+            'orbit-config-density': '4',
+            'periods': '471 938 1631 2500',
+            'cpipe-depth': '1',
+            'dpipe-depth': '1',
+            'orbit-rank-interleaving': 'true',
+            'orbit-num-rank': '2',
+            'orbit-config-use-python': 'true',
+        }, {'rank_interleaving': 1, 'num_rank': 2}),
+        
+        ('lpddr4', 'rank_int_0_num_rank_1', {
+            'dram-type': 'lpddr4',
+            'orbit-config-density': '4',
+            'periods': '471 938 1631 2500',
+            'cpipe-depth': '1',
+            'dpipe-depth': '1',
+            'orbit-rank-interleaving': 'false',
+            'orbit-num-rank': '1',
+            'orbit-config-use-python': 'true',
+        }, {'rank_interleaving': 0, 'num_rank': 1}),
+        
+        ('lpddr4', 'byte_mode_1', {
+            'dram-type': 'lpddr4',
+            'orbit-config-density': '4',
+            'periods': '471 938 1631 2500',
+            'cpipe-depth': '1',
+            'dpipe-depth': '1',
+            'orbit-byte-mode': '1',
+            'orbit-config-use-python': 'true',
+        }, {'byte_mode': 1}),
+        
+        ('lpddr4', 'mixed_1', {
+            'dram-type': 'lpddr4',
+            'orbit-config-density': '4',
+            'periods': '471 938 1631 2500',
+            'cpipe-depth': '1',
+            'dpipe-depth': '1',
+            'orbit-mixed': '1',
+            'orbit-config-use-python': 'true',
+        }, {'mixed': 1}),
+        
+        ('lpddr4', 'rfm_en_1', {
+            'dram-type': 'lpddr4',
+            'orbit-config-density': '4',
+            'periods': '471 938 1631 2500',
+            'cpipe-depth': '1',
+            'dpipe-depth': '1',
+            'orbit-rfm-en': 'true',
+            'orbit-config-use-python': 'true',
+        }, {'rfm_en': 1}),
+        
+        ('lpddr4', 'reboot_mrw_1', {
+            'dram-type': 'lpddr4',
+            'orbit-config-density': '4',
+            'periods': '471 938 1631 2500',
+            'cpipe-depth': '1',
+            'dpipe-depth': '1',
+            'orbit-reboot-with-mrw': 'true',
+            'orbit-config-use-python': 'true',
+        }, {'reboot_with_mrw': 1}),
+        
+        ('lpddr5', 'dsm_en_1', {
+            'dram-type': 'lpddr5',
+            'orbit-config-density': '4',
+            'periods': '314 418 556 2500',
+            'cpipe-depth': '1',
+            'dpipe-depth': '1',
+            'orbit-dsm-en': 'true',
+            'orbit-config-use-python': 'true',
+        }, {'dsm_en': 1}),
+        
+        ('lpddr5', 'ca_odt_1', {
+            'dram-type': 'lpddr5',
+            'orbit-config-density': '4',
+            'periods': '314 418 556 2500',
+            'cpipe-depth': '1',
+            'dpipe-depth': '1',
+            'orbit-ca-odt': 'true',
+            'orbit-config-use-python': 'true',
+        }, {'ca_odt': 1}),
+        
+        ('lpddr4', 'dual_channel', {
+            'dram-type': 'lpddr4',
+            'orbit-config-density': '4',
+            'periods': '471 938 1631 2500',
+            'cpipe-depth': '1',
+            'dpipe-depth': '1',
+            'two-channel': 'true',
+            'orbit-config-use-python': 'true',
+        }, {'two_channel': 1}),
+        
+        ('lpddr5', 'dual_channel', {
+            'dram-type': 'lpddr5',
+            'orbit-config-density': '4',
+            'periods': '314 418 556 2500',
+            'cpipe-depth': '1',
+            'dpipe-depth': '1',
+            'two-channel': 'true',
+            'orbit-config-use-python': 'true',
+        }, {'two_channel': 1}),
+    ]
+    
+    for dram_type, desc, params, expected in test_configs:
+        # Generate
+        gen_result = generate_binary(params)
+        if not gen_result.get('success'):
+            print(f"  FAIL: {desc} - generate failed: {gen_result.get('message')}")
+            results.append((desc, False, f"generate failed: {gen_result.get('message')}"))
+            continue
+        
+        # Load
+        an_result = analyze_binary('ddr_timing_table.bin')
+        if not an_result.get('success'):
+            print(f"  FAIL: {desc} - analyze failed: {an_result.get('message')}")
+            results.append((desc, False, f"analyze failed: {an_result.get('message')}"))
+            continue
+        
+        # Compare
+        mismatches = []
+        for key, exp_val in expected.items():
+            actual = an_result['data']['orbit'].get(key)
+            if actual != exp_val:
+                mismatches.append(f"{key}: expected={exp_val}, actual={actual}")
+        
+        if mismatches:
+            print(f"  FAIL: {desc} - {', '.join(mismatches)}")
+            results.append((desc, False, "; ".join(mismatches)))
+        else:
+            print(f"  PASS: {desc}")
+            results.append((desc, True, "OK"))
+    
+    passed = sum(1 for _, ok, _ in results if ok)
+    print(f"\nOrbit Params Full Cycle: {passed}/{len(results)} passed")
+    return results
+
+
+# ============================================================================
+
+def test_timing_params_full_cycle():
+    """Test: generate bin → load bin → compare timing params"""
+    print("\n=== Testing Timing Params Full Cycle ===")
+    results = []
+    
+    test_configs = [
+        ('lpddr4', 'write_odt_1250', {
+            'dram-type': 'lpddr4',
+            'orbit-config-density': '4',
+            'periods': '471 938 1631 2500',
+            'cpipe-depth': '1',
+            'dpipe-depth': '1',
+            'write-odt-upto': '1250',
+            'orbit-config-use-python': 'true',
+        }, {'write_odt_upto': 1250}),
+        
+        ('lpddr4', 'read_dbi_10000', {
+            'dram-type': 'lpddr4',
+            'orbit-config-density': '4',
+            'periods': '471 938 1631 2500',
+            'cpipe-depth': '1',
+            'dpipe-depth': '1',
+            'read-dbi-upto': '10000',
+            'orbit-config-use-python': 'true',
+        }, {'read_dbi_upto': 10000}),
+        
+        ('lpddr4', 'write_dbi_10000', {
+            'dram-type': 'lpddr4',
+            'orbit-config-density': '4',
+            'periods': '471 938 1631 2500',
+            'cpipe-depth': '1',
+            'dpipe-depth': '1',
+            'write-dbi-upto': '10000',
+            'orbit-config-use-python': 'true',
+        }, {'write_dbi_upto': 10000}),
+        
+        ('lpddr4', 'write_odt_2500', {
+            'dram-type': 'lpddr4',
+            'orbit-config-density': '4',
+            'periods': '471 938 1631 2500',
+            'cpipe-depth': '1',
+            'dpipe-depth': '1',
+            'write-odt-upto': '2500',
+            'orbit-config-use-python': 'true',
+        }, {'write_odt_upto': 2500}),
+        
+        ('lpddr5', 'write_lecc_625', {
+            'dram-type': 'lpddr5',
+            'orbit-config-density': '4',
+            'periods': '314 418 556 2500',
+            'cpipe-depth': '1',
+            'dpipe-depth': '1',
+            'write-lecc-upto': '625',
+            'orbit-config-use-python': 'true',
+        }, {'write_lecc_upto': 625}),
+        
+        ('lpddr5', 'read_lecc_625', {
+            'dram-type': 'lpddr5',
+            'orbit-config-density': '4',
+            'periods': '314 418 556 2500',
+            'cpipe-depth': '1',
+            'dpipe-depth': '1',
+            'read-lecc-upto': '625',
+            'orbit-config-use-python': 'true',
+        }, {'read_lecc_upto': 625}),
+    ]
+    
+    for dram_type, desc, params, expected in test_configs:
+        # Generate
+        gen_result = generate_binary(params)
+        if not gen_result.get('success'):
+            print(f"  FAIL: {desc} - generate failed: {gen_result.get('message')}")
+            results.append((desc, False, f"generate failed: {gen_result.get('message')}"))
+            continue
+        
+        # Load
+        an_result = analyze_binary('ddr_timing_table.bin')
+        if not an_result.get('success'):
+            print(f"  FAIL: {desc} - analyze failed: {an_result.get('message')}")
+            results.append((desc, False, f"analyze failed: {an_result.get('message')}"))
+            continue
+        
+        # Compare
+        mismatches = []
+        for key, exp_val in expected.items():
+            actual = an_result['data']['timing'].get(key)
+            if actual != exp_val:
+                mismatches.append(f"{key}: expected={exp_val}, actual={actual}")
+        
+        if mismatches:
+            print(f"  FAIL: {desc} - {', '.join(mismatches)}")
+            results.append((desc, False, "; ".join(mismatches)))
+        else:
+            print(f"  PASS: {desc}")
+            results.append((desc, True, "OK"))
+    
+    passed = sum(1 for _, ok, _ in results if ok)
+    print(f"\nTiming Params Full Cycle: {passed}/{len(results)} passed")
+    return results
+
+
+# ============================================================================
+
+def test_lpddr5_bin_generation():
+    """Test: LPDDR5 binary generation produces valid timing entries"""
+    print("\n=== Testing LPDDR5 Binary Generation ===")
+    import struct
+    results = []
+    
+    test_configs = [
+        ('lpddr5_single', {
+            'dram-type': 'lpddr5',
+            'orbit-config-density': '4',
+            'periods': '314 418 556 2500',
+            'cpipe-depth': '1',
+            'dpipe-depth': '1',
+            'orbit-config-use-python': 'true',
+        }, '314 418 556 2500', 0),
+        
+        ('lpddr5_dual', {
+            'dram-type': 'lpddr5',
+            'orbit-config-density': '4',
+            'periods': '314 418 556 2500',
+            'cpipe-depth': '1',
+            'dpipe-depth': '1',
+            'two-channel': 'true',
+            'orbit-config-use-python': 'true',
+        }, '314 418 556 2500', 1),
+    ]
+    
+    for desc, params, expected_periods, expected_two_ch in test_configs:
+        # Generate
+        gen_result = generate_binary(params)
+        if not gen_result.get('success'):
+            print(f"  FAIL: {desc} - generate failed: {gen_result.get('message')}")
+            results.append((desc, False, f"generate failed"))
+            continue
+        
+        # Load
+        an_result = analyze_binary('ddr_timing_table.bin')
+        if not an_result.get('success'):
+            print(f"  FAIL: {desc} - analyze failed")
+            results.append((desc, False, f"analyze failed"))
+            continue
+        
+        # Check periods
+        actual_periods = an_result['data']['basic'].get('periods', '')
+        two_ch = an_result['data'].get('two_channel', 0)
+        
+        mismatches = []
+        if actual_periods != expected_periods:
+            mismatches.append(f"periods: expected={expected_periods}, actual={actual_periods}")
+        if two_ch != expected_two_ch:
+            mismatches.append(f"two_channel: expected={expected_two_ch}, actual={two_ch}")
+        
+        # Check binary directly for valid timing entries
+        try:
+            with open('ddr_timing_table.bin', 'rb') as f:
+                data = f.read()
+            
+            entry_size = 0x128
+            valid_t_ck_values = []
+            for i in range(8):
+                offset = i * entry_size
+                if offset + 8 > len(data):
+                    break
+                t_ck = struct.unpack('<I', data[offset+4:offset+8])[0]
+                if 300 <= t_ck <= 5000:
+                    valid_t_ck_values.append(t_ck)
+            
+            # Check LECC flags are valid (0 or 1, not garbage like 144)
+            for i in range(min(4, len(valid_t_ck_values))):
+                offset = i * entry_size
+                write_lecc = data[offset + 180]
+                read_lecc = data[offset + 179]
+                if write_lecc > 1 or read_lecc > 1:
+                    mismatches.append(f"LECC flags invalid at entry {i}: write={write_lecc}, read={read_lecc}")
+        except Exception as e:
+            mismatches.append(f"binary check error: {e}")
+        
+        if mismatches:
+            print(f"  FAIL: {desc} - {', '.join(mismatches)}")
+            results.append((desc, False, "; ".join(mismatches)))
+        else:
+            print(f"  PASS: {desc}")
+            results.append((desc, True, "OK"))
+    
+    passed = sum(1 for _, ok, _ in results if ok)
+    print(f"\nLPDDR5 Binary Generation: {passed}/{len(results)} passed")
+    return results
+
+
+# ============================================================================
+
 def main():
     print("=== DDR GUI Test Suite ===")
     
@@ -1898,6 +2372,10 @@ def main():
     gui_cli_results = test_gui_vs_cli()
     random_param_results = test_random_param_comparison()
     dual_channel_results = test_dual_channel()
+    offset_comp_results = test_parse_offset_comparison()
+    orbit_cycle_results = test_orbit_params_full_cycle()
+    timing_cycle_results = test_timing_params_full_cycle()
+    lpddr5_gen_results = test_lpddr5_bin_generation()
     
     # Summary
     print("\n" + "="*50)
@@ -1957,6 +2435,26 @@ def main():
     for desc, ok, msg in dual_channel_results:
         if not ok:
             print(f"FAIL: Dual channel test {desc}: {msg}")
+            all_ok = False
+    
+    for desc, ok, msg in offset_comp_results:
+        if not ok:
+            print(f"FAIL: Offset comparison test {desc}: {msg}")
+            all_ok = False
+    
+    for desc, ok, msg in orbit_cycle_results:
+        if not ok:
+            print(f"FAIL: Orbit full cycle test {desc}: {msg}")
+            all_ok = False
+    
+    for desc, ok, msg in timing_cycle_results:
+        if not ok:
+            print(f"FAIL: Timing full cycle test {desc}: {msg}")
+            all_ok = False
+    
+    for desc, ok, msg in lpddr5_gen_results:
+        if not ok:
+            print(f"FAIL: LPDDR5 generation test {desc}: {msg}")
             all_ok = False
     
     if all_ok:

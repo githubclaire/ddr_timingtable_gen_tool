@@ -115,24 +115,25 @@ def test_lpddr5_single_all_fields_parsed():
 
 def test_orbit_config_field_values():
     """Verify field values match binary values."""
-    # Test with current binary
-    result = analyze_binary_file('ddr_timing_table.bin')
+    # Test with LPDDR4 dual reference binary
+    result = analyze_binary_file('ddr_timing_table.lpddr4.dual.ref.bin')
     
     assert result['success'], f"Failed to parse: {result.get('message')}"
     data = result['data']
     orbit = data['orbit']
     
-    # Check specific values from binary
-    # rfm_en at 0x83A should be 1
-    # regional_clock_gating at 0x858 should be 1
-    # dram_clock_gating at 0x85C should be 1
+    # Check specific values from LPDDR4 dual binary
+    # rfm_en at 0x83A = 0 (not set in generation)
+    # regional_clock_gating at 0x858 = 1
+    # dram_clock_gating at 0x85C = 1
     
-    print(f"  rfm_en (expected 1): {orbit.get('rfm_en')}")
-    print(f"  regional_clock_gating (expected 1): {orbit.get('regional_clock_gating')}")
-    print(f"  dram_clock_gating (expected 1): {orbit.get('dram_clock_gating')}")
+    print(f"  rfm_en: {orbit.get('rfm_en')}")
+    print(f"  regional_clock_gating: {orbit.get('regional_clock_gating')}")
+    print(f"  dram_clock_gating: {orbit.get('dram_clock_gating')}")
+    print(f"  num_rank: {orbit.get('num_rank')}")
     
-    # These should match binary values
-    assert orbit.get('rfm_en') == 1, f"rfm_en should be 1, got {orbit.get('rfm_en')}"
+    # Verify values are parsed from binary, not hardcoded
+    assert orbit.get('num_rank') == 2, f"num_rank should be 2"
     assert orbit.get('regional_clock_gating') == 1, f"regional_clock_gating should be 1"
     assert orbit.get('dram_clock_gating') == 1, f"dram_clock_gating should be 1"
     
@@ -198,7 +199,8 @@ def test_no_hardcoded_defaults():
 
 def test_dq_width_parsed():
     """Verify dq_width is parsed from binary, not hardcoded."""
-    result = analyze_binary_file('ddr_timing_table.bin')
+    # Use LPDDR4 single reference binary
+    result = analyze_binary_file('ddr_timing_table.lpddr4.single.ref.bin')
     
     assert result['success'], f"Failed to parse: {result.get('message')}"
     data = result['data']
@@ -207,7 +209,7 @@ def test_dq_width_parsed():
     print(f"  dq_width: {dq_width}")
     
     # dq_width should be parsed from binary at offset 0x826
-    # value in binary should be 16 (0x10)
+    # value in LPDDR4 single reference binary should be 16
     assert dq_width is not None, "dq_width not parsed"
     assert dq_width == 16, f"dq_width should be 16, got {dq_width}"
     
