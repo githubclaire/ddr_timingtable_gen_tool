@@ -81,6 +81,12 @@ def test_lpddr5_dual_all_fields_parsed():
     assert data['basic']['dram_type'] == 'lpddr5', f"Expected lpddr5, got {data['basic']['dram_type']}"
     assert data['two_channel'] == 1, f"Expected dual channel, got {data['two_channel']}"
     
+    # Verify key values are correct for LPDDR5
+    assert data['pipe']['omc_freq_ratio'] == 1, f"omc_freq_ratio should be 1"
+    assert data['pipe']['phy_freq_ratio'] == 1, f"phy_freq_ratio should be 1"
+    assert data['orbit']['density'] == 4, f"density should be 4"
+    assert data['orbit']['num_rank'] == 2, f"num_rank should be 2"
+    
     orbit = data['orbit']
     print(f"  num_rank: {orbit.get('num_rank')}")
     print(f"  density: {orbit.get('density')}")
@@ -101,6 +107,13 @@ def test_lpddr5_single_all_fields_parsed():
     
     assert data['basic']['dram_type'] == 'lpddr5', f"Expected lpddr5, got {data['basic']['dram_type']}"
     assert data['two_channel'] == 0, f"Expected single channel, got {data['two_channel']}"
+    
+    # Verify key values are correct for LPDDR5
+    assert data['basic']['dq_width'] == 16, f"dq_width should be 16, got {data['basic']['dq_width']}"
+    assert data['pipe']['omc_freq_ratio'] == 1, f"omc_freq_ratio should be 1"
+    assert data['pipe']['phy_freq_ratio'] == 1, f"phy_freq_ratio should be 1"
+    assert data['orbit']['density'] == 4, f"density should be 4"
+    assert data['orbit']['num_rank'] == 2, f"num_rank should be 2"
     
     orbit = data['orbit']
     print(f"  num_rank: {orbit.get('num_rank')}")

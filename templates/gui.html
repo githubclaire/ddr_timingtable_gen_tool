@@ -28,6 +28,7 @@
         .field input, .field select { padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
         .field input:focus, .field select:focus { outline: none; border-color: #3498db; }
         .field.checkbox { flex-direction: row; align-items: center; }
+        .lpddr5-only { display: none; }
         .field.checkbox label { margin-bottom: 0; margin-left: 8px; cursor: pointer; }
         .field.checkbox input { width: auto; cursor: pointer; }
         
@@ -202,12 +203,12 @@
                         <input type="number" name="write-dbi-upto" value="10000" step="any">
                         <span class="unit-label">ps</span>
                     </div>
-                    <div class="field field-unit">
+                    <div class="field field-unit lpddr5-only">
                         <label title="Max ps for read ECC. Range: 500-2500ps (400-2000MHz)">read-lecc-upto</label>
                         <input type="number" name="read-lecc-upto" value="625" step="any">
                         <span class="unit-label">ps</span>
                     </div>
-                    <div class="field field-unit">
+                    <div class="field field-unit lpddr5-only">
                         <label title="Max ps for write ECC. Range: 500-2500ps (400-2000MHz)">write-lecc-upto</label>
                         <input type="number" name="write-lecc-upto" value="625" step="any">
                         <span class="unit-label">ps</span>
@@ -499,6 +500,12 @@ function toggleDramOptions() {
     const dramType = document.querySelector('select[name="dram-type"]').value;
     document.getElementById('lpddr4-options').style.display = dramType === 'lpddr4' ? 'block' : 'none';
     document.getElementById('lpddr5-options').style.display = dramType === 'lpddr5' ? 'block' : 'none';
+    
+    // Show/hide LECC fields based on DRAM type (only LPDDR5 supports ECC)
+    const leccFields = document.querySelectorAll('.lpddr5-only');
+    leccFields.forEach(field => {
+        field.style.display = dramType === 'lpddr5' ? 'flex' : 'none';
+    });
 }
 
 function setFreqRatios() {

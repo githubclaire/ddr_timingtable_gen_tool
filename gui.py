@@ -501,76 +501,136 @@ def analyze_binary_file(file_path, dram_type_override=None):
             # dfs_lvl_t_ck offsets differ by DRAM type
             # LPDDR4: 0x85e, 0x860, 0x862 (orbit config area)
             # LPDDR5: 0x864, 0x866, 0x868 (orbit config area)
-            lp5_shift = 0x0C if is_lpddr5 else 0x00
-            
+            # LPDDR5 struct has different offsets than LPDDR4
+            # Get offsets dynamically based on dram type
             if is_lpddr5:
-                dfs_offsets = (0x64, 0x66, 0x68)  # 0x800+0x64, etc
+                # LPDDR5: use correct struct offsets
+                dfs_offsets = (0x6E, 0x70, 0x72)
+                fields_to_read = [
+                    # Pipe config (LPDDR5 specific offsets)
+                    ('phy_freq_ratio', 0x14, '<H'),
+                    ('omc_freq_ratio', 0x16, '<H'),
+                    ('cpipe_depth', 0x1C, '<H'),
+                    ('dpipe_depth', 0x1E, '<H'),
+                    
+                    # Basic geometry
+                    ('density', 0x24, '<H'),
+                    ('rank_interleaving', 0x26, '<H'),
+                    ('num_rank', 0x28, '<H'),
+                    ('ctrl_dq_width', 0x2C, '<H'),
+                    ('dq_width', 0x2E, '<H'),
+                    
+                    # Mode control
+                    ('reboot_with_mrw', 0x2A, '<H'),
+                    ('rfm_en', 0x46, '<H'),
+                    ('dsm_en', 0x48, '<H'),
+                    ('ca_odt', 0x52, '<H'),
+                    
+                    # Training enable
+                    ('eye_scan_rd_en', 0x4A, '<H'),
+                    ('eye_scan_wr_en', 0x4C, '<H'),
+                    ('eye_scan_prbs_rd_en', 0x4E, '<H'),
+                    ('eye_scan_prbs_wr_en', 0x50, '<H'),
+                    ('init_zq_calibration', 0x56, '<H'),
+                    ('command_bus_training', 0x72, '<H'),
+                    ('ca_vref_training', 0x74, '<H'),
+                    ('prbs_training', 0x76, '<H'),
+                    ('reboot_with_training', 0x78, '<H'),
+                    ('dfs_training', 0x7A, '<H'),
+                    ('phy_vref_trn_mode', 0x7E, '<H'),
+                    ('phy_duty_trn_mode', 0x80, '<H'),
+                    ('dram_vref_trn_mode', 0x82, '<H'),
+                    ('dram_duty_trn_mode', 0x84, '<H'),
+                    
+                    # Power management
+                    ('regional_clock_gating', 0x64, '<H'),
+                    ('phy_clock_gating', 0x66, '<H'),
+                    ('dram_clock_gating', 0x68, '<H'),
+                    
+                    # Timing features
+                    ('temp_sensing', 0x58, '<H'),
+                    ('zq_calibration', 0x5A, '<H'),
+                    ('periodic_training', 0x5C, '<H'),
+                    ('periodic_training_period', 0x5E, '<H'),
+                    
+                    # DFS timing
+                    ('dfs_lvl_t_ck_0', dfs_offsets[0], '<H'),
+                    ('dfs_lvl_t_ck_1', dfs_offsets[1], '<H'),
+                    ('dfs_lvl_t_ck_2', dfs_offsets[2], '<H'),
+                    
+                    # Late fields (LPDDR5 specific offsets after chip config)
+                    ('density_code', 0x88, '<I'),
+                    ('zq_calibration_period', 0xEC, '<I'),
+                    ('temp_sensing_period', 0xF4, '<I'),
+                    ('t_refipb', 0xF8, '<I'),
+                    ('t_refiab', 0xFC, '<I'),
+                    ('t_zqcal', 0x100, '<I'),
+                    ('mrr_byte_lane', 0x108, '<I'),
+                ]
             else:
+                # LPDDR4: use LPDDR4 offsets
                 dfs_offsets = (0x5e, 0x60, 0x62)
-            
-            # All fields with struct offsets for LPDDR4
-            # LPDDR5 uses struct offset + 0x0C shift
-            fields_to_read = [
-                # Basic geometry
-                ('density', 0x1c + lp5_shift, '<H'),
-                ('density_code', 0x78 + lp5_shift, '<I'),
-                ('rank_interleaving', 0x1e + lp5_shift, '<H'),
-                ('num_rank', 0x20 + lp5_shift, '<H'),
-                ('ctrl_dq_width', 0x24 + lp5_shift, '<H'),
-                ('dq_width', 0x26 + lp5_shift, '<H'),
-                
-                # Pipe config
-                ('phy_freq_ratio', 0x0c, '<H'),
-                ('omc_freq_ratio', 0x0e, '<H'),
-                ('cpipe_depth', 0x14, '<H'),
-                ('dpipe_depth', 0x16, '<H'),
-                
-                # Mode control
-                ('reboot_with_mrw', 0x22 + lp5_shift, '<H'),
-                ('rfm_en', 0x3a + lp5_shift, '<H'),
-                ('dsm_en', 0x3c + lp5_shift, '<H'),
-                ('ca_odt', 0x46 + lp5_shift, '<H'),
-                
-                # Training enable
-                ('eye_scan_rd_en', 0x3e + lp5_shift, '<H'),
-                ('eye_scan_wr_en', 0x40 + lp5_shift, '<H'),
-                ('eye_scan_prbs_rd_en', 0x42 + lp5_shift, '<H'),
-                ('eye_scan_prbs_wr_en', 0x44 + lp5_shift, '<H'),
-                ('init_zq_calibration', 0x4a + lp5_shift, '<H'),
-                ('command_bus_training', 0x66 + lp5_shift, '<H'),
-                ('ca_vref_training', 0x68 + lp5_shift, '<H'),
-                ('prbs_training', 0x6a + lp5_shift, '<H'),
-                ('reboot_with_training', 0x6c + lp5_shift, '<H'),
-                ('dfs_training', 0x6e + lp5_shift, '<H'),
-                ('phy_vref_trn_mode', 0x72 + lp5_shift, '<H'),
-                ('phy_duty_trn_mode', 0x74 + lp5_shift, '<H'),
-                ('dram_vref_trn_mode', 0x76 + lp5_shift, '<H'),
-                ('dram_duty_trn_mode', 0x78 + lp5_shift, '<H'),
-                
-                # Power management
-                ('regional_clock_gating', 0x58 + lp5_shift, '<H'),
-                ('phy_clock_gating', 0x5a + lp5_shift, '<H'),
-                ('dram_clock_gating', 0x5c + lp5_shift, '<H'),
-                
-                # Timing features
-                ('temp_sensing', 0x4c + lp5_shift, '<H'),
-                ('zq_calibration', 0x4e + lp5_shift, '<H'),
-                ('periodic_training', 0x50 + lp5_shift, '<H'),
-                ('periodic_training_period', 0x52 + lp5_shift, '<H'),
-                
-                # DFS timing
-                ('dfs_lvl_t_ck_0', dfs_offsets[0], '<H'),
-                ('dfs_lvl_t_ck_1', dfs_offsets[1], '<H'),
-                ('dfs_lvl_t_ck_2', dfs_offsets[2], '<H'),
-                
-                # Late fields (after chip config)
-                ('zq_calibration_period', 0xe4, '<I'),
-                ('temp_sensing_period', 0xec, '<I'),
-                ('t_refipb', 0xf0, '<I'),
-                ('t_refiab', 0xf4, '<I'),
-                ('t_zqcal', 0xf8, '<I'),
-                ('mrr_byte_lane', 0x100, '<I'),
-            ]
+                fields_to_read = [
+                    # Pipe config
+                    ('phy_freq_ratio', 0x0c, '<H'),
+                    ('omc_freq_ratio', 0x0e, '<H'),
+                    ('cpipe_depth', 0x14, '<H'),
+                    ('dpipe_depth', 0x16, '<H'),
+                    
+                    # Basic geometry
+                    ('density', 0x1c, '<H'),
+                    ('rank_interleaving', 0x1e, '<H'),
+                    ('num_rank', 0x20, '<H'),
+                    ('ctrl_dq_width', 0x24, '<H'),
+                    ('dq_width', 0x26, '<H'),
+                    
+                    # Mode control
+                    ('reboot_with_mrw', 0x22, '<H'),
+                    ('rfm_en', 0x3a, '<H'),
+                    ('dsm_en', 0x3c, '<H'),
+                    ('ca_odt', 0x46, '<H'),
+                    
+                    # Training enable
+                    ('eye_scan_rd_en', 0x3e, '<H'),
+                    ('eye_scan_wr_en', 0x40, '<H'),
+                    ('eye_scan_prbs_rd_en', 0x42, '<H'),
+                    ('eye_scan_prbs_wr_en', 0x44, '<H'),
+                    ('init_zq_calibration', 0x4a, '<H'),
+                    ('command_bus_training', 0x66, '<H'),
+                    ('ca_vref_training', 0x68, '<H'),
+                    ('prbs_training', 0x6a, '<H'),
+                    ('reboot_with_training', 0x6c, '<H'),
+                    ('dfs_training', 0x6e, '<H'),
+                    ('phy_vref_trn_mode', 0x72, '<H'),
+                    ('phy_duty_trn_mode', 0x74, '<H'),
+                    ('dram_vref_trn_mode', 0x76, '<H'),
+                    ('dram_duty_trn_mode', 0x78, '<H'),
+                    
+                    # Power management
+                    ('regional_clock_gating', 0x58, '<H'),
+                    ('phy_clock_gating', 0x5a, '<H'),
+                    ('dram_clock_gating', 0x5c, '<H'),
+                    
+                    # Timing features
+                    ('temp_sensing', 0x4c, '<H'),
+                    ('zq_calibration', 0x4e, '<H'),
+                    ('periodic_training', 0x50, '<H'),
+                    ('periodic_training_period', 0x52, '<H'),
+                    
+                    # DFS timing
+                    ('dfs_lvl_t_ck_0', dfs_offsets[0], '<H'),
+                    ('dfs_lvl_t_ck_1', dfs_offsets[1], '<H'),
+                    ('dfs_lvl_t_ck_2', dfs_offsets[2], '<H'),
+                    
+                    # Late fields
+                    ('density_code', 0x78, '<I'),
+                    ('zq_calibration_period', 0xe4, '<I'),
+                    ('temp_sensing_period', 0xec, '<I'),
+                    ('t_refipb', 0xf0, '<I'),
+                    ('t_refiab', 0xf4, '<I'),
+                    ('t_zqcal', 0xf8, '<I'),
+                    ('mrr_byte_lane', 0x100, '<I'),
+                ]
             
             for field_name, field_offset, fmt in fields_to_read:
                 # All fields use orbit_offset base (0x800)
