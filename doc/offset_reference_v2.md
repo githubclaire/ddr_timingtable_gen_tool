@@ -172,115 +172,143 @@ To calculate timing feature "upto" values:
 
 ## Orbit Config (Offset 0x0800)
 
-### LPDDR4 Offsets (DDR_TYPE=2)
+### LPDDR4 Offsets - Single Channel (DDR_TYPE=2, 2 OMC/PHY)
 
-| Field | Struct Offset | File Offset | Size | Type |
-|-------|---------------|-------------|------|------|
-| dram_boot | 0x00 | 0x800 | 1 | uint8 |
-| ch_intr_size | 0x01 | 0x801 | 1 | uint8 |
-| bg_intr_size | 0x02 | 0x802 | 1 | uint8 |
-| fsp_op | 0x03 | 0x803 | 1 | uint8 |
-| fsp_wr | 0x04 | 0x804 | 1 | uint8 |
-| dq_vref_byte0 | 0x05 | 0x805 | 2 | uint8[2] |
-| dq_vref_byte1 | 0x07 | 0x807 | 2 | uint8[2] |
-| ca_vref | 0x09 | 0x809 | 2 | uint8[2] |
-| **phy_freq_ratio** | **0x0C** | **0x80C** | **2** | **uint16** |
-| **omc_freq_ratio** | **0x0E** | **0x80E** | **2** | **uint16** |
-| int_cpipe_depth | 0x10 | 0x810 | 2 | uint16 |
-| int_dpipe_depth | 0x12 | 0x812 | 2 | uint16 |
-| **cpipe_depth** | **0x14** | **0x814** | **2** | **uint16** |
-| **dpipe_depth** | **0x16** | **0x816** | **2** | **uint16** |
-| reboot | 0x18 | 0x818 | 2 | uint16 |
-| reqq_depth | 0x1A | 0x81A | 2 | uint16 |
-| **density** | **0x1C** | **0x81C** | **2** | **uint16** |
-| **rank_interleaving** | **0x1E** | **0x81E** | **2** | **uint16** |
-| **num_rank** | **0x20** | **0x820** | **2** | **uint16** |
-| reboot_with_mrw | 0x22 | 0x822 | 2 | uint16 |
-| ctrl_dq_width | 0x24 | 0x824 | 2 | uint16 |
-| dq_width | 0x26 | 0x826 | 2 | uint16 |
-| use_dfi_train_if | 0x28 | 0x828 | 2 | uint16 |
-| phy_ind_mode_en | 0x2A | 0x82A | 2 | uint16 |
-| phy_low_power | 0x2C | 0x82C | 2 | uint16 |
-| phy_idle_cnt_th | 0x2E | 0x82E | 2 | uint16 |
-| lp_wakeup | 0x30 | 0x830 | 6 | uint16[3] |
-| half_dq_en | 0x36 | 0x836 | 2 | uint16 |
-| lpddr4_rpre | 0x38 | 0x838 | 2 | uint16 |
-| rfm_en | 0x3A | 0x83A | 2 | uint16 |
-| dsm_en | 0x3C | 0x83C | 2 | uint16 |
-| eye_scan_rd_en | 0x3E | 0x83E | 2 | uint16 |
-| eye_scan_wr_en | 0x40 | 0x840 | 2 | uint16 |
-| eye_scan_prbs_rd_en | 0x42 | 0x842 | 2 | uint16 |
-| eye_scan_prbs_wr_en | 0x44 | 0x844 | 2 | uint16 |
-| ca_odt | 0x46 | 0x846 | 2 | uint16 |
-| phy_odt | 0x48 | 0x848 | 2 | uint16 |
-| init_zq_calibration | 0x4A | 0x84A | 2 | uint16 |
-| temp_sensing | 0x4C | 0x84C | 2 | uint16 |
-| zq_calibration | 0x4E | 0x84E | 2 | uint16 |
-| periodic_training | 0x50 | 0x850 | 2 | uint16 |
-| periodic_training_period | 0x52 | 0x852 | 2 | uint16 |
-| dynamic_power_down | 0x54 | 0x854 | 2 | uint16 |
-| dynamic_self_refresh | 0x56 | 0x856 | 2 | uint16 |
-| regional_clock_gating | 0x58 | 0x858 | 2 | uint16 |
-| phy_clock_gating | 0x5A | 0x85A | 2 | uint16 |
-| dram_clock_gating | 0x5C | 0x85C | 2 | uint16 |
-| dfs_lvl_t_ck[0] | 0x5E | 0x85E | 2 | uint16 |
-| dfs_lvl_t_ck[1] | 0x60 | 0x860 | 2 | uint16 |
-| dfs_lvl_t_ck[2] | 0x62 | 0x862 | 2 | uint16 |
-| num_of_region | 0x64 | 0x864 | 2 | uint16 |
-| command_bus_training | 0x66 | 0x866 | 2 | uint16 |
-| ca_vref_training | 0x68 | 0x868 | 2 | uint16 |
-| prbs_training | 0x6A | 0x86A | 2 | uint16 |
-| reboot_with_training | 0x6C | 0x86C | 2 | uint16 |
-| dfs_training | 0x6E | 0x86E | 2 | uint16 |
-| phy_vref_trn_mode | 0x72 | 0x872 | 2 | uint16 |
-| phy_duty_trn_mode | 0x74 | 0x874 | 2 | uint16 |
-| dram_vref_trn_mode | 0x76 | 0x876 | 2 | uint16 |
-| dram_duty_trn_mode | 0x78 | 0x878 | 2 | uint16 |
-| **density_code** | **0x78** | **0x878** | **4** | **uint32** |
-| rclk_t_ck | 0x7C | 0x87C | 4 | uint32 |
-| boot_t_ck | 0x80 | 0x880 | 4 | uint32 |
-| boot_t_ck_low | 0x84 | 0x884 | 4 | uint32 |
-| dram_t_ck | 0x88 | 0x888 | 4 | uint32 |
-| prev_dram_t_ck | 0x8C | 0x88C | 4 | uint32 |
-| chip[0] | 0x90 | 0x890 | 20 | chip_config |
-| chip[1] | 0xA4 | 0x8A4 | 20 | chip_config |
-| num_of_ch | 0xB8 | 0x8B8 | 8 | uint32[2] |
-| base_addr | 0xC0 | 0x8C0 | 4 | uint32 |
-| base_addr_id[0] | 0xC4 | 0x8C4 | 4 | uint32 |
-| base_addr_id[1] | 0xC8 | 0x8C8 | 4 | uint32 |
-| base_addr_id[2] | 0xCC | 0x8CC | 4 | uint32 |
-| base_addr_id[3] | 0xD0 | 0x8D0 | 4 | uint32 |
-| phy_base_addr | 0xD4 | 0x8D4 | 4 | uint32 |
-| phy_base_addr_id[0] | 0xD8 | 0x8D8 | 4 | uint32 |
-| phy_base_addr_id[1] | 0xDC | 0x8DC | 4 | uint32 |
-| phy_base_addr_id[2] | 0xE0 | 0x8E0 | 4 | uint32 |
-| phy_base_addr_id[3] | 0xE4 | 0x8E4 | 4 | uint32 |
+| Field | Struct Offset | File Offset | Size | Type | Notes |
+|-------|---------------|-------------|------|------|-------|
+| dram_boot | 0x00 | 0x800 | 1 | uint8 | |
+| ch_intr_size | 0x01 | 0x801 | 1 | uint8 | |
+| bg_intr_size | 0x02 | 0x802 | 1 | uint8 | |
+| fsp_op | 0x03 | 0x803 | 1 | uint8 | |
+| fsp_wr | 0x04 | 0x804 | 1 | uint8 | |
+| dq_vref_byte0 | 0x05 | 0x805 | 2 | uint8[2] | |
+| dq_vref_byte1 | 0x07 | 0x807 | 2 | uint8[2] | |
+| ca_vref | 0x09 | 0x809 | 2 | uint8[2] | |
+| **phy_freq_ratio** | **0x0C** | **0x80C** | **2** | **uint16** | |
+| **omc_freq_ratio** | **0x0E** | **0x80E** | **2** | **uint16** | |
+| int_cpipe_depth | 0x10 | 0x810 | 2 | uint16 | |
+| int_dpipe_depth | 0x12 | 0x812 | 2 | uint16 | |
+| **cpipe_depth** | **0x14** | **0x814** | **2** | **uint16** | |
+| **dpipe_depth** | **0x16** | **0x816** | **2** | **uint16** | |
+| reboot | 0x18 | 0x818 | 2 | uint16 | |
+| reqq_depth | 0x1A | 0x81A | 2 | uint16 | |
+| **density** | **0x1C** | **0x81C** | **2** | **uint16** | |
+| **rank_interleaving** | **0x1E** | **0x81E** | **2** | **uint16** | |
+| **num_rank** | **0x20** | **0x820** | **2** | **uint16** | |
+| reboot_with_mrw | 0x22 | 0x822 | 2 | uint16 | |
+| ctrl_dq_width | 0x24 | 0x824 | 2 | uint16 | |
+| dq_width | 0x26 | 0x826 | 2 | uint16 | |
+| use_dfi_train_if | 0x28 | 0x828 | 2 | uint16 | |
+| phy_ind_mode_en | 0x2A | 0x82A | 2 | uint16 | |
+| phy_low_power | 0x2C | 0x82C | 2 | uint16 | |
+| phy_idle_cnt_th | 0x2E | 0x82E | 2 | uint16 | |
+| lp_wakeup | 0x30 | 0x830 | 6 | uint16[3] | |
+| half_dq_en | 0x36 | 0x836 | 2 | uint16 | |
+| lpddr4_rpre | 0x38 | 0x838 | 2 | uint16 | |
+| rfm_en | 0x3A | 0x83A | 2 | uint16 | |
+| dsm_en | 0x3C | 0x83C | 2 | uint16 | |
+| eye_scan_rd_en | 0x3E | 0x83E | 2 | uint16 | |
+| eye_scan_wr_en | 0x40 | 0x840 | 2 | uint16 | |
+| eye_scan_prbs_rd_en | 0x42 | 0x842 | 2 | uint16 | |
+| eye_scan_prbs_wr_en | 0x44 | 0x844 | 2 | uint16 | |
+| ca_odt | 0x46 | 0x846 | 2 | uint16 | |
+| phy_odt | 0x48 | 0x848 | 2 | uint16 | |
+| init_zq_calibration | 0x4A | 0x84A | 2 | uint16 | |
+| temp_sensing | 0x4C | 0x84C | 2 | uint16 | |
+| zq_calibration | 0x4E | 0x84E | 2 | uint16 | |
+| periodic_training | 0x50 | 0x850 | 2 | uint16 | |
+| periodic_training_period | 0x52 | 0x852 | 2 | uint16 | |
+| dynamic_power_down | 0x54 | 0x854 | 2 | uint16 | |
+| dynamic_self_refresh | 0x56 | 0x856 | 2 | uint16 | |
+| regional_clock_gating | 0x58 | 0x858 | 2 | uint16 | |
+| phy_clock_gating | 0x5A | 0x85A | 2 | uint16 | |
+| dram_clock_gating | 0x5C | 0x85C | 2 | uint16 | |
+| dfs_lvl_t_ck[0] | 0x5E | 0x85E | 2 | uint16 | |
+| dfs_lvl_t_ck[1] | 0x60 | 0x860 | 2 | uint16 | |
+| dfs_lvl_t_ck[2] | 0x62 | 0x862 | 2 | uint16 | |
+| num_of_region | 0x64 | 0x864 | 2 | uint16 | |
+| command_bus_training | 0x66 | 0x866 | 2 | uint16 | |
+| ca_vref_training | 0x68 | 0x868 | 2 | uint16 | |
+| prbs_training | 0x6A | 0x86A | 2 | uint16 | |
+| reboot_with_training | 0x6C | 0x86C | 2 | uint16 | |
+| dfs_training | 0x6E | 0x86E | 2 | uint16 | |
+| phy_vref_trn_mode | 0x72 | 0x872 | 2 | uint16 | |
+| phy_duty_trn_mode | 0x74 | 0x874 | 2 | uint16 | |
+| dram_vref_trn_mode | 0x76 | 0x876 | 2 | uint16 | |
+| dram_duty_trn_mode | 0x78 | 0x878 | 2 | uint16 | |
+| **density_code** | **0x78** | **0x878** | **4** | **uint32** | |
+| rclk_t_ck | 0x7C | 0x87C | 4 | uint32 | |
+| boot_t_ck | 0x80 | 0x880 | 4 | uint32 | |
+| boot_t_ck_low | 0x84 | 0x884 | 4 | uint32 | |
+| dram_t_ck | 0x88 | 0x888 | 4 | uint32 | |
+| prev_dram_t_ck | 0x8C | 0x88C | 4 | uint32 | |
+| chip[0] | 0x90 | 0x890 | 20 | chip_config | |
+| chip[1] | 0xA4 | 0x8A4 | 20 | chip_config | |
+| num_of_ch | 0xB8 | 0x8B8 | 8 | uint32[2] | |
+| base_addr | 0xC0 | 0x8C0 | 4 | uint32 | |
+| base_addr_id[0] | 0xC4 | 0x8C4 | 4 | uint32 | Valid (0x51120000) |
+| base_addr_id[1] | 0xC8 | 0x8C8 | 4 | uint32 | Valid (0x51130000) |
+| phy_base_addr | 0xCC | 0x8CC | 4 | uint32 | |
+| phy_base_addr_id[0] | 0xD0 | 0x8D0 | 4 | uint32 | Valid (0x51160000) |
+| phy_base_addr_id[1] | 0xD4 | 0x8D4 | 4 | uint32 | Valid (0x51170000) |
 
-### LPDDR5 Offsets (DDR_TYPE=5)
+### LPDDR4 Offsets - Dual Channel (DDR_TYPE=2, 4 OMC/PHY)
+
+| Field | Struct Offset | File Offset | Size | Type | Notes |
+|-------|---------------|-------------|------|------|-------|
+| ... (same fields as single channel up to prev_dram_t_ck) ... |
+| chip[0] | 0x90 | 0x890 | 20 | chip_config | |
+| chip[1] | 0xA4 | 0x8A4 | 20 | chip_config | |
+| num_of_ch | 0xB8 | 0x8B8 | 8 | uint32[2] | |
+| base_addr | 0xC0 | 0x8C0 | 4 | uint32 | |
+| base_addr_id[0] | 0xC4 | 0x8C4 | 4 | uint32 | Valid (0x51120000) |
+| base_addr_id[1] | 0xC8 | 0x8C8 | 4 | uint32 | Valid (0x51130000) |
+| base_addr_id[2] | 0xCC | 0x8CC | 4 | uint32 | Valid (0x51140000) |
+| base_addr_id[3] | 0xD0 | 0x8D0 | 4 | uint32 | Valid (0x51150000) |
+| phy_base_addr | 0xD4 | 0x8D4 | 4 | uint32 | |
+| phy_base_addr_id[0] | 0xD8 | 0x8D8 | 4 | uint32 | Valid (0x51160000) |
+| phy_base_addr_id[1] | 0xDC | 0x8DC | 4 | uint32 | Valid (0x51170000) |
+| phy_base_addr_id[2] | 0xE0 | 0x8E0 | 4 | uint32 | Valid (0x51180000) |
+| phy_base_addr_id[3] | 0xE4 | 0x8E4 | 4 | uint32 | Valid (0x51190000) |
+
+### LPDDR5 Offsets - Single Channel (DDR_TYPE=5)
 
 The LPDDR5 struct has additional fields at the beginning (9 bytes for lp5_mr* and zq_bg_mode).
 
-| Field | Struct Offset | File Offset | Size | Type |
-|-------|---------------|-------------|------|------|
-| lp5_mr2 | 0x0D | 0x80D | 1 | uint8 |
-| lp5_mr3 | 0x0E | 0x80E | 1 | uint8 |
-| lp5_mr10 | 0x0F | 0x80F | 1 | uint8 |
-| lp5_mr11 | 0x10 | 0x810 | 1 | uint8 |
-| lp5_mr12 | 0x11 | 0x811 | 1 | uint8 |
-| lp5_mr16 | 0x12 | 0x812 | 1 | uint8 |
-| lp5_mr17 | 0x13 | 0x813 | 1 | uint8 |
-| lp5_mr18 | 0x14 | 0x814 | 1 | uint8 |
-| zq_bg_mode | 0x15 | 0x815 | 1 | uint8 |
-| **phy_freq_ratio** | **0x0C** | **0x80C** | **2** | **uint16** |
-| **omc_freq_ratio** | **0x0E** | **0x80E** | **2** | **uint16** |
-| ... (rest similar to LPDDR4, but shifted by 9 bytes) ... |
-| **density** | **0x24** | **0x824** | **2** | **uint16** |
-| **rank_interleaving** | **0x1E** | **0x81E** | **2** | **uint16** |
-| **num_rank** | **0x20** | **0x820** | **2** | **uint16** |
-| **density_code** | **0x80** | **0x880** | **4** | **uint32** |
-| dfs_lvl_t_ck[0] | 0x64 | 0x864 | 2 | uint16 |
-| dfs_lvl_t_ck[1] | 0x66 | 0x866 | 2 | uint16 |
-| dfs_lvl_t_ck[2] | 0x68 | 0x868 | 2 | uint16 |
+| Field | Struct Offset | File Offset | Size | Type | Notes |
+|-------|---------------|-------------|------|------|-------|
+| lp5_mr2 | 0x0D | 0x80D | 1 | uint8 | |
+| lp5_mr3 | 0x0E | 0x80E | 1 | uint8 | |
+| lp5_mr10 | 0x0F | 0x80F | 1 | uint8 | |
+| lp5_mr11 | 0x10 | 0x810 | 1 | uint8 | |
+| lp5_mr12 | 0x11 | 0x811 | 1 | uint8 | |
+| lp5_mr16 | 0x12 | 0x812 | 1 | uint8 | |
+| lp5_mr17 | 0x13 | 0x813 | 1 | uint8 | |
+| lp5_mr18 | 0x14 | 0x814 | 1 | uint8 | |
+| zq_bg_mode | 0x15 | 0x815 | 1 | uint8 | |
+| ... (fields up to dfs_lvl_t_ck[2]) ... |
+| **base_addr** | **0xC8** | **0x8C8** | **4** | **uint32** | 9-byte shift from LP4 |
+| base_addr_id[0] | 0xCC | 0x8CC | 4 | uint32 | Single: [0,1] valid |
+| base_addr_id[1] | 0xD0 | 0x8D0 | 4 | uint32 | Single: [0,1] valid |
+| **phy_base_addr** | **0xD4** | **0x8D4** | **4** | **uint32** | |
+| phy_base_addr_id[0] | 0xD8 | 0x8D8 | 4 | uint32 | Single: [0,1] valid |
+| phy_base_addr_id[1] | 0xDC | 0x8DC | 4 | uint32 | Single: [0,1] valid |
+
+### LPDDR5 Offsets - Dual Channel (DDR_TYPE=5)
+
+| Field | Struct Offset | File Offset | Size | Type | Notes |
+|-------|---------------|-------------|------|------|-------|
+| ... (same header fields as single) ... |
+| **base_addr** | **0xC8** | **0x8C8** | **4** | **uint32** | |
+| base_addr_id[0] | 0xCC | 0x8CC | 4 | uint32 | Dual: [0-3] all valid |
+| base_addr_id[1] | 0xD0 | 0x8D0 | 4 | uint32 | Dual: unique value |
+| base_addr_id[2] | 0xD4 | 0x8D4 | 4 | uint32 | Dual: unique value |
+| base_addr_id[3] | 0xD8 | 0x8D8 | 4 | uint32 | Dual: unique value |
+| **phy_base_addr** | **0xDC** | **0x8DC** | **4** | **uint32** | |
+| phy_base_addr_id[0] | 0xE0 | 0x8E0 | 4 | uint32 | Dual: [0-3] all valid |
+| phy_base_addr_id[1] | 0xE4 | 0x8E4 | 4 | uint32 | Dual: unique value |
+| phy_base_addr_id[2] | 0xE8 | 0x8E8 | 4 | uint32 | Dual: unique value |
+| phy_base_addr_id[3] | 0xEC | 0x8EC | 4 | uint32 | Dual: unique value |
 
 ---
 
@@ -305,17 +333,14 @@ The dual channel has larger arrays to accommodate 4 OMC/PHY controllers vs 2:
 |-------|------------------------|----------------------|
 | base_addr_id[0] | 0x51120000 | 0x51120000 |
 | base_addr_id[1] | 0x51130000 | 0x51130000 |
-| base_addr_id[2] | **0x00000000** (not used) | **0x51140000** (unique) |
-| base_addr_id[3] | **0x00000000** (not used) | **0x51150000** (unique) |
+| base_addr_id[2] | N/A (not present) | **0x51140000** (unique) |
+| base_addr_id[3] | N/A (not present) | **0x51150000** (unique) |
 | phy_base_addr_id[0] | **0x51160000** | **0x51160000** |
 | phy_base_addr_id[1] | **0x51170000** | **0x51170000** |
-| phy_base_addr_id[2] | 0x00000000 | **0x51180000** |
-| phy_base_addr_id[3] | 0x00000000 | **0x51190000** |
+| phy_base_addr_id[2] | N/A (not present) | **0x51180000** |
+| phy_base_addr_id[3] | N/A (not present) | **0x51190000** |
 
-**Note**: After the fix, single channel now correctly has:
-- `phy_base_addr_id[0] = 0x51160000` (was 0x00000000)
-- `phy_base_addr_id[1] = 0x51170000` (was 0x00000000)
-- `base_addr_id[2,3] = 0` (was incorrectly set to 0x51160000)
+**Note**: Single channel struct only contains 2 elements each for base_addr_id and phy_base_addr_id (no gaps).
 
 ### Structural Differences (from orbit_config.py)
 
@@ -339,44 +364,7 @@ NUM_OF_PHY = 4
 
 The dual channel mode can be detected by:
 1. **Primary**: File size >= 7860 bytes indicates dual channel
-2. **Backup**: Check `phy_base_addr_id[2]` at file offset 0x8E0 - non-zero indicates dual channel
-3. **Backup**: Two_ch flag at offset 0x830 (lp_wakeup[1]): value > 0 indicates dual
-
-**Note**: After the fix, single channel has `phy_base_addr_id[0]=0x51160000` and `phy_base_addr_id[1]=0x51170000`, making `phy_base_addr_id[2]` (offset 0x8E0) the reliable indicator for dual channel detection.
-
----
-
-## GUI Parsing Reference
-
-### Current GUI Implementation (gui.py)
-
-| Param | Current Offset | Status |
-|-------|-----------------|--------|
-| density | 0x1c (LP4) / 0x24 (LP5) | ✅ Correct |
-| density_code | Not parsed | ❌ Hardcoded |
-| cpipe_depth | 0x30 | ❌ Wrong (should be 0x14) |
-| dpipe_depth | 0x32 | ❌ Wrong (should be 0x16) |
-| rank_interleaving | 0x3a | ❌ Wrong (should be 0x1e) |
-| num_rank | 0x3c | ❌ Wrong (should be 0x20) |
-| dfs_lvl_t_ck | 0x5e/0x60/0x62 | ✅ Correct |
-| omc_freq_ratio | Hardcoded | ❌ Not parsed |
-| phy_freq_ratio | Hardcoded | ❌ Not parsed |
-| write_odt_upto | Hardcoded | ❌ Not parsed |
-| read_dbi_upto | Hardcoded | ❌ Not parsed |
-| write_dbi_upto | Hardcoded | ❌ Not parsed |
-| read_lecc_upto | Hardcoded 0 | ✅ Fixed |
-| write_lecc_upto | Hardcoded 0 | ✅ Fixed |
-
----
-
-## File Size Reference
-
-| Configuration | Size (bytes) |
-|---------------|---------------|
-| LPDDR4 Single | 5096 |
-| LPDDR5 Single | 5104 |
-| LPDDR4 Dual | 7864 |
-| LPDDR5 Dual | 7872 |
+2. **Backup**: Check file size or struct length - dual channel has more OMC/PHY entries
 
 ---
 
