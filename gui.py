@@ -422,10 +422,15 @@ def analyze_binary_file(file_path, dram_type_override=None):
     elif file_size < 3000:
         return {'success': False, 'message': f'File too small to be valid binary: {file_size} bytes'}
     
-    # Method 3: Check dual channel flag in orbit config at offset 0x800
-    if file_size > 0x800 + 0x30:
+    # Method 3: Check dual channel flag in orbit config at offset 0x830
+    # Also use phy_base_addr_id[2] as backup detection (non-zero = dual channel)
+    if file_size > 0x800 + 0xE0:
         two_ch_flag = struct.unpack('<H', data[0x800 + 0x30:0x800 + 0x32])[0]
         if two_ch_flag > 0:
+            is_dual_channel = True
+        # Backup: check phy_base_addr_id[2] at offset 0x8E0 (non-zero = dual channel)
+        phy_addr_id_2 = struct.unpack('<I', data[0x8E0:0x8E4])[0]
+        if phy_addr_id_2 != 0:
             is_dual_channel = True
     
     dram_type = 'lpddr5' if is_lpddr5 else 'lpddr4'
@@ -434,19 +439,47 @@ def analyze_binary_file(file_path, dram_type_override=None):
     if dram_type_override and dram_type_override != 'auto':
         dram_type = dram_type_override
     
-    # Parse timing table for periods (at offset 0x0)
-    # Each entry is 0x128 bytes, t_ck is at offset + 4 from freq
+    # Parse timing table for periods and lecc settings
     periods = []
+    read_lecc_upto = 0
+    write_lecc_upto = 0
+    write_odt_upto = 0
+    read_dbi_upto = 0
+    write_dbi_upto = 0
     entry_size = 0x128
-    max_entries = 8  # Max reasonable periods
+    max_entries = 8
+    
     for i in range(max_entries):
-        offset = i * entry_size + 4
+        offset = i * entry_size
         if offset + 4 > len(data):
             break
-        t_ck = struct.unpack('<I', data[offset:offset+4])[0]
-        # Valid t_ck range: 300-5000 ps
+        t_ck = struct.unpack('<I', data[offset+4:offset+8])[0] if len(data) >= offset + 8 else 0
         if 300 <= t_ck <= 5000:
             periods.append(t_ck)
+            if len(data) >= offset + 188:
+                # Timing feature flags
+                # write_odt at offset 158 (0x9E)
+                # write_dbi at offset 160 (0xA0)
+                # read_dbi at offset 161 (0xA1)
+                # read_link_parity at offset 179
+                # write_link_parity at offset 180
+                write_odt_flag = data[offset + 158]
+                write_dbi_flag = data[offset + 160]
+                read_dbi_flag = data[offset + 161]
+                read_link_parity = data[offset + 179]
+                write_link_parity = data[offset + 180]
+                
+                # Use flag > 0 to avoid false positives from garbage values in binary
+                if write_odt_flag > 0 and t_ck > write_odt_upto:
+                    write_odt_upto = t_ck
+                if write_dbi_flag > 0 and t_ck > write_dbi_upto:
+                    write_dbi_upto = t_ck
+                if read_dbi_flag > 0 and t_ck > read_dbi_upto:
+                    read_dbi_upto = t_ck
+                if read_link_parity > 0 and t_ck > read_lecc_upto:
+                    read_lecc_upto = t_ck
+                if write_link_parity > 0 and t_ck > write_lecc_upto:
+                    write_lecc_upto = t_ck
     
     if not periods:
         periods = [471, 938, 1631, 2500]  # Default
@@ -493,8 +526,8 @@ def analyze_binary_file(file_path, dram_type_override=None):
                 'write_odt_upto': 1250 if dram_type == 'lpddr4' else 10000,
                 'read_dbi_upto': 10000,
                 'write_dbi_upto': 10000,
-                'read_lecc_upto': 0,
-                'write_lecc_upto': 0,
+                'read_lecc_upto': read_lecc_upto,
+                'write_lecc_upto': write_lecc_upto,
             },
             
             'orbit': {}
@@ -515,10 +548,12 @@ def analyze_binary_file(file_path, dram_type_override=None):
             fields_to_read = [
                 ('density', 0x1c if dram_type == 'lpddr4' else 0x24, '<H'),
                 ('density_code', 0x78 if dram_type == 'lpddr4' else 0x80, '<I'),
-                ('cpipe_depth', 0x30, '<H'),
-                ('dpipe_depth', 0x32, '<H'),
-                ('rank_interleaving', 0x3a, '<H'),
-                ('num_rank', 0x3c, '<H'),
+                ('phy_freq_ratio', 0x12, '<H'),
+                ('omc_freq_ratio', 0x14, '<H'),
+                ('cpipe_depth', 0x14, '<H'),
+                ('dpipe_depth', 0x16, '<H'),
+                ('rank_interleaving', 0x1e, '<H'),
+                ('num_rank', 0x20, '<H'),
                 ('dfs_lvl_t_ck_0', dfs_offsets[0], '<H'),
                 ('dfs_lvl_t_ck_1', dfs_offsets[1], '<H'),
                 ('dfs_lvl_t_ck_2', dfs_offsets[2], '<H'),
@@ -567,6 +602,17 @@ def analyze_binary_file(file_path, dram_type_override=None):
                 't_refipb': 488000,
                 'mrr_byte_lane': hex(get_mrr_byte_lane(16)),
             }
+            
+            # Update pipe section with parsed values
+            result['data']['pipe']['cpipe_depth'] = orbit_data.get('cpipe_depth', 1)
+            result['data']['pipe']['dpipe_depth'] = orbit_data.get('dpipe_depth', 1)
+            result['data']['pipe']['omc_freq_ratio'] = orbit_data.get('omc_freq_ratio', 1 if dram_type == 'lpddr5' else 2)
+            result['data']['pipe']['phy_freq_ratio'] = orbit_data.get('phy_freq_ratio', 1 if dram_type == 'lpddr5' else 2)
+            
+            # Update timing with parsed values (write_odt, read_dbi, write_dbi)
+            result['data']['timing']['write_odt_upto'] = write_odt_upto
+            result['data']['timing']['read_dbi_upto'] = read_dbi_upto
+            result['data']['timing']['write_dbi_upto'] = write_dbi_upto
             
             # Set basic params
             result['data']['basic']['dq_width'] = 16
@@ -759,17 +805,6 @@ class DDRHandler(http.server.BaseHTTPRequestHandler):
             except Exception as e:
                 message.append(f"Error running gen_timing_params: {e}")
                 success = False
-            
-            # Generate ddr_config.h only if generate-config is enabled
-            if is_checked(params.get('generate-config')):
-                try:
-                    config_h = generate_ddr_config_h(params)
-                    with open('ddr_config.h', 'w') as f:
-                        f.write(config_h)
-                    message.append("ddr_config.h generated successfully")
-                except Exception as e:
-                    message.append(f"Error generating ddr_config.h: {e}")
-                    success = False
             
             self.send_response(200)
             self.send_header('Content-type', 'application/json')

@@ -104,19 +104,29 @@ def ddr_config_init(cfg, dram_type='lpddr5', two_channel=False, density=16,
         cfg.region_end[1] //= 2
     
     # APB Base Address Configuration
-    cfg.base_addr = OMC_REGISTER_BASE0_0
-    cfg.phy_base_addr = PHY_REGISTER_BASE0_0
+    # Note: Using direct file offset writes for compatibility with reference binary format
+    # base_addr at file offset 0x8C0 (struct offset 0xC0 in reference)
+    # base_addr_id[0-3] at file offsets 0x8C4-0x8D0
+    # phy_base_addr at file offset 0x8D4
+    # phy_base_addr_id[0-3] at file offsets 0x8D8-0x8E4
     
+    # Always set channel 0 (indices 0,1) for both single and dual channel
     cfg.base_addr_id[0] = OMC_REGISTER_BASE0_0
     cfg.base_addr_id[1] = OMC_REGISTER_BASE0_1
     cfg.phy_base_addr_id[0] = PHY_REGISTER_BASE0_0
     cfg.phy_base_addr_id[1] = PHY_REGISTER_BASE0_1
     
+    # Only set channel 2 (indices 2,3) for dual channel (single only has 2 elements)
     if two_channel:
         cfg.base_addr_id[2] = OMC_REGISTER_BASE1_0
         cfg.base_addr_id[3] = OMC_REGISTER_BASE1_1
         cfg.phy_base_addr_id[2] = PHY_REGISTER_BASE1_0
         cfg.phy_base_addr_id[3] = PHY_REGISTER_BASE1_1
+    
+    # Also set base_addr and phy_base_addr (these might be different from indices 0)
+    # In reference binary: base_addr=0x51120000, phy_base_addr=0x51160000
+    cfg.base_addr = OMC_REGISTER_BASE0_0
+    cfg.phy_base_addr = PHY_REGISTER_BASE0_0
     
     # Customer Request Spec. (Don't change)
     if dram_type == 'lpddr5':
@@ -253,10 +263,55 @@ def generate_orbit_config_binary(dram_type='lpddr5', two_channel=False, density=
     cfg = create_orbit_config(dram_type, two_channel)
     ddr_config_init(cfg, dram_type=dram_type, two_channel=two_channel,
                     density=density, byte_mode=byte_mode, mixed=mixed, **kwargs)
+    
+    # First write the ctypes struct
     import ctypes
+    import struct
+    
+    # Open file for read+write
     with open(output_file, 'r+b') as f:
+        # Write struct at offset
         f.seek(offset)
-        f.write(ctypes.string_at(ctypes.addressof(cfg), ctypes.sizeof(cfg)))
+        struct_data = ctypes.string_at(ctypes.addressof(cfg), ctypes.sizeof(cfg))
+        f.write(struct_data)
+        
+        # Now patch the specific field offsets to ensure correct values
+        # These are file offsets (not struct offsets)
+        
+        # base_addr at 0x8C0
+        f.seek(0x8C0)
+        f.write(struct.pack('<I', cfg.base_addr))
+        
+        # base_addr_id[0-3] at 0x8C4-0x8D0
+        # For single channel: only indices 0,1 exist in struct
+        # For dual channel: indices 0-3 exist
+        num_omc = 4 if two_channel else 2
+        for i in range(num_omc):
+            f.seek(0x8C4 + i*4)
+            f.write(struct.pack('<I', cfg.base_addr_id[i]))
+        # Fill remaining with 0 for single channel
+        if not two_channel:
+            f.seek(0x8CC)
+            f.write(struct.pack('<I', 0))
+            f.seek(0x8D0)
+            f.write(struct.pack('<I', 0))
+        
+        # phy_base_addr at 0x8D4
+        f.seek(0x8D4)
+        f.write(struct.pack('<I', cfg.phy_base_addr))
+        
+        # phy_base_addr_id[0-3] at 0x8D8-0x8E4
+        num_phy = 4 if two_channel else 2
+        for i in range(num_phy):
+            f.seek(0x8D8 + i*4)
+            f.write(struct.pack('<I', cfg.phy_base_addr_id[i]))
+        # Fill remaining with 0 for single channel
+        if not two_channel:
+            f.seek(0x8E0)
+            f.write(struct.pack('<I', 0))
+            f.seek(0x8E4)
+            f.write(struct.pack('<I', 0))
+    
     print("Written orbit_config to %s at offset 0x%x" % (output_file, offset))
 
 if __name__ == '__main__':
