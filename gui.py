@@ -43,339 +43,6 @@ def is_checked(val):
         return False
     return False
 
-def generate_ddr_config_h(params):
-    """Generate ddr_config.h with full template matching ddr_config.h.template."""
-    dram_type = params.get('dram-type', 'lpddr4')
-    cpipe_depth = safe_int(params.get('cpipe-depth'), 1)
-    dpipe_depth = safe_int(params.get('dpipe-depth'), 1)
-    orbit_density = safe_int(params.get('orbit-config-density'), 16)
-    dq_width = safe_int(params.get('dq-width'), 16)
-    mrr_byte_lane = get_mrr_byte_lane(dq_width)
-    two_channel = is_checked(params.get('two-channel'))
-    byte_mode = safe_int(params.get('orbit-byte-mode'), 0)
-    mixed = safe_int(params.get('orbit-mixed'), 0)
-    
-    rank_interleaving = 1 if is_checked(params.get('orbit-rank-interleaving')) else 0
-    num_rank = safe_int(params.get('orbit-num-rank'), 2)
-    reboot_with_mrw = 1 if is_checked(params.get('orbit-reboot-with-mrw')) else 0
-    rfm_en = 1 if is_checked(params.get('orbit-rfm-en')) else 0
-    dsm_en = 1 if is_checked(params.get('orbit-dsm-en')) else 0
-    ca_odt = 1 if is_checked(params.get('orbit-ca-odt')) else 0
-    
-    eye_scan_rd_en = 1 if is_checked(params.get('eye-scan-rd-en')) else 0
-    eye_scan_wr_en = 1 if is_checked(params.get('eye-scan-wr-en')) else 0
-    eye_scan_prbs_rd_en = 1 if is_checked(params.get('eye-scan-prbs-rd-en')) else 0
-    eye_scan_prbs_wr_en = 1 if is_checked(params.get('eye-scan-prbs-wr-en')) else 0
-    phy_vref_trn_mode = 1 if is_checked(params.get('phy-vref-trn-mode')) else 0
-    phy_duty_trn_mode = 1 if is_checked(params.get('phy-duty-trn-mode')) else 0
-    dram_vref_trn_mode = 1 if is_checked(params.get('dram-vref-trn-mode')) else 0
-    dram_duty_trn_mode = 1 if is_checked(params.get('dram-duty-trn-mode')) else 0
-    command_bus_training = 1 if is_checked(params.get('command-bus-training')) else 0
-    ca_vref_training = 1 if is_checked(params.get('ca-vref-training')) else 0
-    prbs_training = 1 if is_checked(params.get('prbs-training')) else 0
-    reboot_with_training = 1 if is_checked(params.get('reboot-with-training')) else 0
-    
-    regional_clock_gating = 1 if is_checked(params.get('regional-clock-gating')) else 0
-    dram_clock_gating = 1 if is_checked(params.get('dram-clock-gating')) else 0
-    phy_clock_gating = 1 if is_checked(params.get('phy-clock-gating')) else 0
-    phy_low_power = 1 if is_checked(params.get('phy-low-power')) else 0
-    
-    zq_calibration_period = safe_int(params.get('zq-calibration-period'), 48000)
-    periodic_training = 1 if is_checked(params.get('periodic-training')) else 0
-    periodic_training_period = safe_int(params.get('periodic-training-period'), 24000)
-    temp_sensing = 1 if is_checked(params.get('temp-sensing')) else 0
-    temp_sensing_period = safe_int(params.get('temp-sensing-period'), 32000)
-    t_refiab = safe_int(params.get('t-refiab'), 3904000)
-    t_refipb = safe_int(params.get('t-refipb'), 488000)
-    t_zqcal = safe_int(params.get('t-zqcal'), 1000000)
-    
-    dfs_lvl_t_ck_0 = safe_int(params.get('dfs-lvl-t-ck-0'), 938)
-    dfs_lvl_t_ck_1 = safe_int(params.get('dfs-lvl-t-ck-1'), 1631)
-    dfs_lvl_t_ck_2 = safe_int(params.get('dfs-lvl-t-ck-2'), 2500)
-    dfs_lvl_t_ck_1 = int(params.get('dfs-lvl-t-ck-1', 1631))
-    dfs_lvl_t_ck_2 = int(params.get('dfs-lvl-t-ck-2', 2500))
-    
-    dfs_training = 1 if is_checked(params.get('dfs-training')) else 0
-    init_zq_calibration = 1 if is_checked(params.get('init-zq-calibration')) else 0
-    zq_calibration = 1 if is_checked(params.get('zq-calibration')) else 0
-    
-    if dram_type == 'lpddr5':
-        dram_t_ck = '1256'
-        dram_type_macro = '5'
-        omc_freq_ratio = 1
-        phy_freq_ratio = 1
-        min_dram_tck = safe_int(params.get('min-dram-tck'), 1256)
-        bg_mode_upto = safe_int(params.get('bg-mode-upto'), 0)
-        zq_bg_mode = 1 if bg_mode_upto >= min_dram_tck else 0
-    else:
-        dram_t_ck = '471'
-        dram_type_macro = '2'
-        omc_freq_ratio = 2
-        phy_freq_ratio = 2
-        zq_bg_mode = 0
-    
-    content = f'''#ifndef __DDR_CONFIG__
-#define __DDR_CONFIG__
-
-#include <stdint.h>
-
-'''
-    if dram_type == 'lpddr5':
-        content += '#define DRAM_TYPE_LPDDR5\n'
-    else:
-        content += '#define DRAM_TYPE_LPDDR4\n'
-    content += f'#define DDR_TYPE {dram_type_macro}\n'
-    content += '''
-#define OMC_REGISTER_BASE0_0   0x20000000
-#define OMC_REGISTER_BASE0_1   0x21000000
-#define PHY_REGISTER_BASE0_0   0x10000000
-#define PHY_REGISTER_BASE0_1   0x11000000
-
-#define DRAM0_BASE  0x80000000
-#define DRAM0_SIZE  0x40000000
-#define DRAM1_BASE  0x100000000
-#define DRAM1_SIZE  0x40000000
-
-#define BY_MC  0
-#define DDR_TWO_CHANNEL {'1' if two_channel else '0'}
-#define ORBIT_DENSITY {orbit_density}
-#define CPIPE_DEPTH {cpipe_depth}
-#define DPIPE_DEPTH {dpipe_depth}
-#define MRR_BYTE_LANE {hex(mrr_byte_lane)}
-
-struct orbit_config;
-struct chip_config;
-struct train_result_t;
-struct prbs_result_t;
-
-static void ddr_config_init(struct orbit_config *omc_config);
-
-void orbit_update_chips(struct orbit_config *cfg, uint8_t byte_mode, uint8_t mixed) {{
-  int i;
-  int density = cfg->density;
-
-  for (i=0; i<cfg->num_rank; i++) {{
-    if (i==1 && mixed) density *= 2;
-    cfg->chip[i].num_col = 10;
-    cfg->chip[i].num_bg  = 0;
-#ifdef DRAM_TYPE_LPDDR4
-      cfg->chip[i].num_bank = 3;
-      switch (density) {{
-        case 2:
-          cfg->chip[i].num_row = 14 + ((byte_mode == 1) ? 1: 0);
-          break;
-        case 3:
-        case 4:
-          cfg->chip[i].num_row = 15 + ((byte_mode == 1) ? 1: 0);
-          break;
-        case 6:
-        case 8:
-          cfg->chip[i].num_row = 16 + ((byte_mode == 1) ? 1: 0);
-          break;
-        case 12:
-        case 16:
-          cfg->chip[i].num_row = 17 + ((byte_mode == 1) ? 1: 0);
-          break;
-      }}
-#endif
-#ifdef DRAM_TYPE_LPDDR5
-      cfg->chip[i].num_bank = 4;
-      switch (density) {{
-        case 2:
-          cfg->chip[i].num_row = 13 + ((byte_mode == 1) ? 1: 0);
-          break;
-        case 3:
-        case 4:
-          cfg->chip[i].num_row = 14 + ((byte_mode == 1) ? 1 : 0);
-          break;
-        case 6:
-        case 8:
-          cfg->chip[i].num_row = 15 + ((byte_mode == 1) ? 1 : 0);
-          break;
-        case 12:
-        case 16:
-          cfg->chip[i].num_row = 16 + ((byte_mode == 1) ? 1 : 0);
-          break;
-        case 24:
-        case 32:
-          cfg->chip[i].num_row = 17 + ((byte_mode == 1) ? 1 : 0);
-          break;
-      }}
-#endif
-  }}
-}}
-
-static unsigned int get_density_code(unsigned int density) {{
-  switch (density) {{
-    case 1: return 0;
-    case 2: return 1;
-    case 3: return 2;
-    case 4: return 3;
-    case 6: return 4;
-    case 8: return 5;
-    case 12: return 6;
-    case 16: return 7;
-    case 24: return 8;
-    case 32: return 9;
-    default: return 0;
-  }}
-}}
-
-static void ddr_config_init(struct orbit_config *omc_config)
-{{
-  memset(omc_config, 0, sizeof(struct orbit_config));
-
-  omc_config->reboot = 0;
-  omc_config->rclk_t_ck = 41666;
-  omc_config->boot_t_ck = 20000;
-  omc_config->boot_t_ck_low = 83333;
-#ifdef DRAM_TYPE_LPDDR5
-  omc_config->dram_t_ck = {dram_t_ck};
-#else
-  omc_config->dram_t_ck = {dram_t_ck};
-#endif
-  omc_config->density = ORBIT_DENSITY;
-  omc_config->density_code = get_density_code(omc_config->density);
-
-  omc_config->num_of_region = 2;
-  omc_config->region_start[0] = (DRAM0_BASE);
-  omc_config->region_end[0]   = (DRAM0_BASE + DRAM0_SIZE - 1);
-  omc_config->num_of_ch[0] = 2;
-  omc_config->region_start[1] = (DRAM1_BASE);
-  omc_config->region_end[1]   = (DRAM1_BASE + DRAM1_SIZE - 1);
-  omc_config->num_of_ch[1] = 2;
-
-#if (DDR_TWO_CHANNEL)
-  omc_config->region_start[0] /= 2;
-  omc_config->region_end[0]   /= 2;
-  omc_config->region_start[1] /= 2;
-  omc_config->region_end[1]   /= 2;
-#endif
-
-  omc_config->base_addr = (uintptr_t)OMC_REGISTER_BASE0_0;
-  omc_config->phy_base_addr = (uintptr_t)PHY_REGISTER_BASE0_0;
-
-  omc_config->base_addr_id[0] = (uintptr_t)OMC_REGISTER_BASE0_0;
-  omc_config->base_addr_id[1] = (uintptr_t)OMC_REGISTER_BASE0_1;
-  omc_config->phy_base_addr_id[0] = (uintptr_t)PHY_REGISTER_BASE0_0 ;
-  omc_config->phy_base_addr_id[1] = (uintptr_t)PHY_REGISTER_BASE0_1 ;
-#if DDR_TWO_CHANNEL
-  omc_config->base_addr_id[2] = (uintptr_t)OMC_REGISTER_BASE1_0;
-  omc_config->base_addr_id[3] = (uintptr_t)OMC_REGISTER_BASE1_1;
-  omc_config->phy_base_addr_id[2] = (uintptr_t)PHY_REGISTER_BASE1_0 ;
-  omc_config->phy_base_addr_id[3] = (uintptr_t)PHY_REGISTER_BASE1_1 ;
-#endif
-
-#ifdef DRAM_TYPE_LPDDR5
-  omc_config->phy_freq_ratio = 1;
-  omc_config->omc_freq_ratio = 1;
-#else
-  omc_config->phy_freq_ratio = 2;
-  omc_config->omc_freq_ratio = 2;
-#endif
-  omc_config->int_cpipe_depth = {cpipe_depth};
-  omc_config->int_dpipe_depth = {dpipe_depth};
-  omc_config->cpipe_depth = 0 + omc_config->int_cpipe_depth;
-  omc_config->dpipe_depth = 0 + omc_config->int_dpipe_depth;
-  omc_config->dram_boot = BY_MC;
-  omc_config->reqq_depth = 40;
-  omc_config->ctrl_dq_width = {dq_width};
-  omc_config->dq_width = {dq_width};
-  omc_config->ch_intr_size = CH_256;
-  omc_config->mrr_byte_lane = {hex(mrr_byte_lane)};
-  omc_config->byte_lane_inversion = 0;
-  omc_config->chip[0].size = omc_config->density*omc_config->ctrl_dq_width/omc_config->dq_width;
-  omc_config->chip[1].size = omc_config->density*omc_config->ctrl_dq_width/omc_config->dq_width;
-  omc_config->fsp_op = 0;
-  omc_config->fsp_wr = 0;
-
-  omc_config->rank_interleaving = {rank_interleaving};
-  omc_config->num_rank = {num_rank};
-  omc_config->reboot_with_mrw = {reboot_with_mrw};
-
-  omc_config->rfm_en = {rfm_en};
-  omc_config->dsm_en = {dsm_en};
-  omc_config->ca_odt = {ca_odt};
-#ifdef DRAM_TYPE_LPDDR5
-  omc_config->zq_bg_mode = {zq_bg_mode};
-#else
-  if (omc_config->dram_t_ck > 937) {{
-    omc_config->lpddr4_rpre = 1;
-  }} else {{
-    omc_config->lpddr4_rpre = 0;
-  }}
-#endif
-
-  omc_config->phy_ind_mode_en = 0;
-
-  omc_config->eye_scan_rd_en        = {eye_scan_rd_en};
-  omc_config->eye_scan_wr_en        = {eye_scan_wr_en};
-  omc_config->eye_scan_prbs_rd_en   = {eye_scan_prbs_rd_en};
-  omc_config->eye_scan_prbs_wr_en   = {eye_scan_prbs_wr_en};      
-  omc_config->phy_vref_trn_mode     = {phy_vref_trn_mode};
-  omc_config->phy_duty_trn_mode     = {phy_duty_trn_mode};
-  omc_config->dram_vref_trn_mode    = {dram_vref_trn_mode};
-  omc_config->dram_duty_trn_mode    = {dram_duty_trn_mode};
-  omc_config->command_bus_training  = {command_bus_training};
-  omc_config->ca_vref_training      = {ca_vref_training};
-  omc_config->prbs_training         = {prbs_training};
-  omc_config->reboot_with_training  = {reboot_with_training};
-  omc_config->init_zq_calibration   = {init_zq_calibration};
-  omc_config->zq_calibration        = {zq_calibration};
-  omc_config->zq_calibration_period = {zq_calibration_period};
-  omc_config->dfs_training         = {dfs_training};
-
-  omc_config->periodic_training = {periodic_training};
-  omc_config->periodic_training_period = {periodic_training_period};
-
-#ifdef DRAM_TYPE_LPDDR5
-  omc_config->dfs_lvl_t_ck[0] = {dfs_lvl_t_ck_0};
-  omc_config->dfs_lvl_t_ck[1] = {dfs_lvl_t_ck_1};
-  omc_config->dfs_lvl_t_ck[2] = {dfs_lvl_t_ck_2};
-#else
-  omc_config->dfs_lvl_t_ck[0] = {dfs_lvl_t_ck_0};
-  omc_config->dfs_lvl_t_ck[1] = {dfs_lvl_t_ck_1};
-  omc_config->dfs_lvl_t_ck[2] = {dfs_lvl_t_ck_2};
-#endif
-
-  omc_config->temp_sensing = {temp_sensing};
-  omc_config->temp_sensing_period = {temp_sensing_period};
-  omc_config->dynamic_self_refresh = 0;
-  omc_config->dynamic_self_refresh_threshold = 0;
-  omc_config->dynamic_power_down = 0;
-  omc_config->dynamic_power_down_threshold = 0;
-  omc_config->regional_clock_gating = {regional_clock_gating};
-  omc_config->dram_clock_gating = {dram_clock_gating};
-  omc_config->phy_clock_gating = {phy_clock_gating};
-  omc_config->phy_low_power = {phy_low_power};
-  omc_config->phy_idle_cnt_th = 0;
-#ifdef DRAM_TYPE_LPDDR5
-  omc_config->bg_intr_size = PAGE_SIZE_8;
-#else
-  omc_config->bg_intr_size = BG_NOINT;
-#endif
-  omc_config->t_refiab = {t_refiab};
-  omc_config->t_refipb = {t_refipb};
-  omc_config->t_zqcal = {t_zqcal};
-#ifdef DRAM_TYPE_LPDDR5
-  omc_config->link_err_cnt_th = 5;
-#else
-  omc_config->link_err_cnt_th = 0;
-#endif
-
-  omc_config->tctrlupd_interval = 0;
-  omc_config->lp_wakeup[0] = 4;
-  omc_config->lp_wakeup[1] = 4;
-  omc_config->lp_wakeup[2] = 4;
-  omc_config->half_dq_en = 0;
-
-  orbit_update_chips(omc_config, {byte_mode}, {mixed});
-}}
-
-#endif
-'''
-    return content
-
 
 def analyze_binary_file(file_path, dram_type_override=None):
     """Analyze binary file with optional DRAM type override."""
@@ -404,7 +71,14 @@ def analyze_binary_file(file_path, dram_type_override=None):
         elif t_ck_at_04 == 471:
             is_lpddr5 = False  # Explicit LPDDR4 marker
     
-    # Method 2: File size thresholds (fallback)
+    # Method 2: Check LPDDR5 marker at offset 0x813 (zq_bg_mode)
+    # LPDDR5 has zq_bg_mode at this position, LPDDR4 has different content
+    if file_size > 0x813 and not is_lpddr5:
+        zq_bg_mode = data[0x813]
+        if zq_bg_mode == 1:
+            is_lpddr5 = True
+    
+    # Method 3: File size thresholds (fallback)
     # LPDDR4 single: 5096, LPDDR5 single: 5104
     # LPDDR4 dual: 7864, LPDDR5 dual: 7872
     # Use tighter thresholds: >= 7860 = dual channel
@@ -504,103 +178,116 @@ def analyze_binary_file(file_path, dram_type_override=None):
             # LPDDR5 struct has different offsets than LPDDR4
             # Get offsets dynamically based on dram type
             if is_lpddr5:
-                # LPDDR5: use correct struct offsets
-                dfs_offsets = (0x6E, 0x70, 0x72)
+                # LPDDR5: use correct struct offsets (has 9-byte lp5 header: lp5_mr2-18 + zq_bg_mode)
+                # Correct offsets from C struct analysis
+                dfs_offsets = (0x63, 0x65, 0x67)
                 fields_to_read = [
-                    # Pipe config (LPDDR5 specific offsets)
+                    # Pipe config (LPDDR5 struct starts at offset 0x14)
                     ('phy_freq_ratio', 0x14, '<H'),
                     ('omc_freq_ratio', 0x16, '<H'),
-                    ('cpipe_depth', 0x1C, '<H'),
-                    ('dpipe_depth', 0x1E, '<H'),
+                    ('cpipe_depth', 0x18, '<H'),
+                    ('dpipe_depth', 0x1a, '<H'),
                     
                     # Basic geometry
                     ('density', 0x24, '<H'),
-                    ('rank_interleaving', 0x26, '<H'),
+                    ('rank_interleaving', 0x22, '<H'),
                     ('num_rank', 0x28, '<H'),
-                    ('ctrl_dq_width', 0x2C, '<H'),
-                    ('dq_width', 0x2E, '<H'),
+                    ('ctrl_dq_width', 0x2a, '<H'),
+                    ('dq_width', 0x2c, '<H'),
                     
                     # Mode control
-                    ('reboot_with_mrw', 0x2A, '<H'),
-                    ('rfm_en', 0x46, '<H'),
-                    ('dsm_en', 0x48, '<H'),
-                    ('ca_odt', 0x52, '<H'),
+                    ('reboot_with_mrw', 0x26, '<H'),
+                    ('rfm_en', 0x3c, '<H'),
+                    ('dsm_en', 0x3e, '<H'),
+                    ('ca_odt', 0x48, '<H'),
                     
                     # Training enable
-                    ('eye_scan_rd_en', 0x4A, '<H'),
-                    ('eye_scan_wr_en', 0x4C, '<H'),
-                    ('eye_scan_prbs_rd_en', 0x4E, '<H'),
-                    ('eye_scan_prbs_wr_en', 0x50, '<H'),
-                    ('init_zq_calibration', 0x56, '<H'),
-                    ('command_bus_training', 0x72, '<H'),
-                    ('ca_vref_training', 0x74, '<H'),
-                    ('prbs_training', 0x76, '<H'),
-                    ('reboot_with_training', 0x78, '<H'),
-                    ('dfs_training', 0x7A, '<H'),
-                    ('phy_vref_trn_mode', 0x7E, '<H'),
-                    ('phy_duty_trn_mode', 0x80, '<H'),
-                    ('dram_vref_trn_mode', 0x82, '<H'),
-                    ('dram_duty_trn_mode', 0x84, '<H'),
+                    ('eye_scan_rd_en', 0x40, '<H'),
+                    ('eye_scan_wr_en', 0x42, '<H'),
+                    ('eye_scan_prbs_rd_en', 0x44, '<H'),
+                    ('eye_scan_prbs_wr_en', 0x46, '<H'),
+                    ('init_zq_calibration', 0x4c, '<H'),
+                    ('command_bus_training', 0x75, '<H'),
+                    ('ca_vref_training', 0x77, '<H'),
+                    ('prbs_training', 0x79, '<H'),
+                    ('reboot_with_training', 0x7b, '<H'),
+                    ('dfs_training', 0x7d, '<H'),
+                    ('phy_vref_trn_mode', 0x81, '<H'),
+                    ('phy_duty_trn_mode', 0x83, '<H'),
+                    ('dram_vref_trn_mode', 0x85, '<H'),
+                    ('dram_duty_trn_mode', 0x87, '<H'),
                     
                     # Power management
-                    ('regional_clock_gating', 0x64, '<H'),
-                    ('phy_clock_gating', 0x66, '<H'),
-                    ('dram_clock_gating', 0x68, '<H'),
+                    ('regional_clock_gating', 0x5a, '<H'),
+                    ('phy_clock_gating', 0x5c, '<H'),
+                    ('dram_clock_gating', 0x5e, '<H'),
+                    
+                    # Dynamic power management
+                    ('phy_low_power', 0x30, '<H'),
+                    ('phy_idle_cnt_th', 0x32, '<H'),
+                    ('dynamic_power_down', 0x56, '<H'),
+                    ('dynamic_self_refresh', 0x58, '<H'),
+                    ('dynamic_power_down_threshold', 0xe0, '<I'),
+                    ('dynamic_self_refresh_threshold', 0xdc, '<I'),
                     
                     # Timing features
-                    ('temp_sensing', 0x58, '<H'),
-                    ('zq_calibration', 0x5A, '<H'),
-                    ('periodic_training', 0x5C, '<H'),
-                    ('periodic_training_period', 0x5E, '<H'),
+                    ('temp_sensing', 0x4e, '<H'),
+                    ('zq_calibration', 0x50, '<H'),
+                    ('periodic_training', 0x52, '<H'),
+                    ('periodic_training_period', 0x54, '<H'),
                     
                     # DFS timing
                     ('dfs_lvl_t_ck_0', dfs_offsets[0], '<H'),
                     ('dfs_lvl_t_ck_1', dfs_offsets[1], '<H'),
                     ('dfs_lvl_t_ck_2', dfs_offsets[2], '<H'),
                     
-                    # Late fields (LPDDR5 specific offsets after chip config)
-                    ('density_code', 0x88, '<I'),
-                    ('zq_calibration_period', 0xEC, '<I'),
-                    ('temp_sensing_period', 0xF4, '<I'),
-                    ('t_refipb', 0xF8, '<I'),
-                    ('t_refiab', 0xFC, '<I'),
-                    ('t_zqcal', 0x100, '<I'),
-                    ('mrr_byte_lane', 0x108, '<I'),
+                    # Late fields - using ctypes struct offsets for LPDDR5
+                    # ctypes struct offsets (LP5 has lp5 header: lp5_mr2-18 + zq_bg_mode)
+                    # LP5 Single: zq=0xEC, temp=0xF4, t_refipb=0xF8, t_refiab=0xFC, t_zq=0x100, mrr=0x108
+                    # LP5 Dual: zq=0xFC, temp=0x104, t_refipb=0x108, t_refiab=0x10C, t_zq=0x110, mrr=0x118
+                    ('density_code', 0xA5 + (0x10 if is_dual_channel else 0), '<I'),
+                    ('zq_calibration_period', 0xFC if is_dual_channel else 0xEC, '<I'),
+                    ('temp_sensing_period', 0x104 if is_dual_channel else 0xF4, '<I'),
+                    ('t_refipb', 0x108 if is_dual_channel else 0xF8, '<I'),
+                    ('t_refiab', 0x10C if is_dual_channel else 0xFC, '<I'),
+                    ('t_zqcal', 0x110 if is_dual_channel else 0x100, '<I'),
+                    ('mrr_byte_lane', 0x118 if is_dual_channel else 0x108, '<H'),
                 ]
             else:
-                # LPDDR4: use LPDDR4 offsets
-                dfs_offsets = (0x5e, 0x60, 0x62)
+                # LPDDR4: use LPDDR4 struct offsets (no lp5 header)
+                # Correct offsets from binary verification
+                dfs_offsets = (0x5E, 0x60, 0x62)
                 fields_to_read = [
                     # Pipe config
-                    ('phy_freq_ratio', 0x0c, '<H'),
-                    ('omc_freq_ratio', 0x0e, '<H'),
+                    ('phy_freq_ratio', 0x0C, '<H'),
+                    ('omc_freq_ratio', 0x0E, '<H'),
                     ('cpipe_depth', 0x14, '<H'),
                     ('dpipe_depth', 0x16, '<H'),
                     
                     # Basic geometry
-                    ('density', 0x1c, '<H'),
-                    ('rank_interleaving', 0x1e, '<H'),
+                    ('density', 0x1C, '<H'),
+                    ('rank_interleaving', 0x1E, '<H'),
                     ('num_rank', 0x20, '<H'),
                     ('ctrl_dq_width', 0x24, '<H'),
-                    ('dq_width', 0x26, '<H'),
+                    ('dq_width', 0x24, '<H'),
                     
                     # Mode control
                     ('reboot_with_mrw', 0x22, '<H'),
-                    ('rfm_en', 0x3a, '<H'),
-                    ('dsm_en', 0x3c, '<H'),
+                    ('rfm_en', 0x3A, '<H'),
+                    ('dsm_en', 0x3C, '<H'),
                     ('ca_odt', 0x46, '<H'),
                     
                     # Training enable
-                    ('eye_scan_rd_en', 0x3e, '<H'),
+                    ('eye_scan_rd_en', 0x3E, '<H'),
                     ('eye_scan_wr_en', 0x40, '<H'),
                     ('eye_scan_prbs_rd_en', 0x42, '<H'),
                     ('eye_scan_prbs_wr_en', 0x44, '<H'),
-                    ('init_zq_calibration', 0x4a, '<H'),
+                    ('init_zq_calibration', 0x4A, '<H'),
                     ('command_bus_training', 0x66, '<H'),
                     ('ca_vref_training', 0x68, '<H'),
-                    ('prbs_training', 0x6a, '<H'),
-                    ('reboot_with_training', 0x6c, '<H'),
-                    ('dfs_training', 0x6e, '<H'),
+                    ('prbs_training', 0x6A, '<H'),
+                    ('reboot_with_training', 0x6C, '<H'),
+                    ('dfs_training', 0x6E, '<H'),
                     ('phy_vref_trn_mode', 0x72, '<H'),
                     ('phy_duty_trn_mode', 0x74, '<H'),
                     ('dram_vref_trn_mode', 0x76, '<H'),
@@ -608,12 +295,20 @@ def analyze_binary_file(file_path, dram_type_override=None):
                     
                     # Power management
                     ('regional_clock_gating', 0x58, '<H'),
-                    ('phy_clock_gating', 0x5a, '<H'),
-                    ('dram_clock_gating', 0x5c, '<H'),
+                    ('phy_clock_gating', 0x5A, '<H'),
+                    ('dram_clock_gating', 0x5C, '<H'),
+                    
+                    # Dynamic power management
+                    ('phy_low_power', 0x2C, '<H'),
+                    ('phy_idle_cnt_th', 0x2E, '<H'),
+                    ('dynamic_power_down', 0x54, '<H'),
+                    ('dynamic_self_refresh', 0x56, '<H'),
+                    ('dynamic_power_down_threshold', 0xDC, '<I'),
+                    ('dynamic_self_refresh_threshold', 0xD8, '<I'),
                     
                     # Timing features
-                    ('temp_sensing', 0x4c, '<H'),
-                    ('zq_calibration', 0x4e, '<H'),
+                    ('temp_sensing', 0x4C, '<H'),
+                    ('zq_calibration', 0x4E, '<H'),
                     ('periodic_training', 0x50, '<H'),
                     ('periodic_training_period', 0x52, '<H'),
                     
@@ -622,14 +317,40 @@ def analyze_binary_file(file_path, dram_type_override=None):
                     ('dfs_lvl_t_ck_1', dfs_offsets[1], '<H'),
                     ('dfs_lvl_t_ck_2', dfs_offsets[2], '<H'),
                     
-                    # Late fields
-                    ('density_code', 0x78, '<I'),
-                    ('zq_calibration_period', 0xe4, '<I'),
-                    ('temp_sensing_period', 0xec, '<I'),
-                    ('t_refipb', 0xf0, '<I'),
-                    ('t_refiab', 0xf4, '<I'),
-                    ('t_zqcal', 0xf8, '<I'),
-                    ('mrr_byte_lane', 0x100, '<I'),
+                    # Late fields - using ctypes struct offsets
+                    # These are STRUCT offsets (relative to 0x800 orbit config start)
+                    # Correct ctypes struct offsets:
+                    # LP4 Single: zq=0xE3, temp=0xEB, t_refipb=0xEF, t_refiab=0xF3, t_zq=0xF7, mrr=0xFF
+                    # LP4 Dual: zq=0xF3, temp=0xFB, t_refipb=0xFF, t_refiab=0x103, t_zq=0x107, mrr=0x10F
+                    # ctypes struct offsets (LP4: no lp5 header, LP5: has lp5 header)
+                    # LP4 Single: zq=0xE4, temp=0xEC, t_refipb=0xF0, t_refiab=0xF4, t_zq=0xF8, mrr=0x100
+                    # LP4 Dual: zq=0xF4, temp=0xFC, t_refipb=0x100, t_refiab=0x104, t_zq=0x108, mrr=0x110
+                    # LP5 Single: zq=0xEC, temp=0xF4, t_refipb=0xF8, t_refiab=0xFC, t_zq=0x100, mrr=0x108
+                    # LP5 Dual: zq=0xFC, temp=0x104, t_refipb=0x108, t_refiab=0x10C, t_zq=0x110, mrr=0x118
+                    ('zq_calibration_period', 
+                     0xFC if (is_lpddr5 and is_dual_channel) else 
+                     0xEC if is_lpddr5 else
+                     0xF4 if is_dual_channel else 0xE4, '<I'),
+                    ('temp_sensing_period', 
+                     0x104 if (is_lpddr5 and is_dual_channel) else
+                     0xF4 if is_lpddr5 else
+                     0xFC if is_dual_channel else 0xEC, '<I'),
+                    ('t_refipb', 
+                     0x108 if (is_lpddr5 and is_dual_channel) else
+                     0xF8 if is_lpddr5 else
+                     0x100 if is_dual_channel else 0xF0, '<I'),
+                    ('t_refiab', 
+                     0x10C if (is_lpddr5 and is_dual_channel) else
+                     0xFC if is_lpddr5 else
+                     0x104 if is_dual_channel else 0xF4, '<I'),
+                    ('t_zqcal', 
+                     0x110 if (is_lpddr5 and is_dual_channel) else
+                     0x100 if is_lpddr5 else
+                     0x108 if is_dual_channel else 0xF8, '<I'),
+                    ('mrr_byte_lane', 
+                     0x118 if (is_lpddr5 and is_dual_channel) else
+                     0x108 if is_lpddr5 else
+                     0x110 if is_dual_channel else 0x100, '<H'),
                 ]
             
             for field_name, field_offset, fmt in fields_to_read:
@@ -724,12 +445,18 @@ def analyze_binary_file(file_path, dram_type_override=None):
         'zq_calibration': orbit_data.get('zq_calibration', 0),
         'periodic_training': orbit_data.get('periodic_training', 0),
         'periodic_training_period': orbit_data.get('periodic_training_period', 0),
-        'zq_calibration_period': orbit_data.get('zq_calibration_period', 48000),
+        'zq_calibration_period': orbit_data.get('zq_calibration_period') or 48000,
         'temp_sensing_period': orbit_data.get('temp_sensing_period', 32000),
         't_refiab': orbit_data.get('t_refiab', 3904000),
         't_refipb': orbit_data.get('t_refipb', 488000),
         't_zqcal': orbit_data.get('t_zqcal', 1000000),
         'mrr_byte_lane': hex(orbit_data.get('mrr_byte_lane', 0x55)),
+        'phy_low_power': orbit_data.get('phy_low_power', 0),
+        'phy_idle_cnt_th': orbit_data.get('phy_idle_cnt_th', 0),
+        'dynamic_power_down': orbit_data.get('dynamic_power_down', 0),
+        'dynamic_self_refresh': orbit_data.get('dynamic_self_refresh', 0),
+        'dynamic_power_down_threshold': orbit_data.get('dynamic_power_down_threshold', 0),
+        'dynamic_self_refresh_threshold': orbit_data.get('dynamic_self_refresh_threshold', 0),
     }
     
     return result
@@ -897,6 +624,45 @@ class DDRHandler(http.server.BaseHTTPRequestHandler):
                 cmd.extend(['--orbit-dsm-en', '1'])
             if is_checked(params.get('orbit-ca-odt')):
                 cmd.extend(['--orbit-ca-odt', '1'])
+            
+            # Dynamic power management parameters
+            if is_checked(params.get('dynamic-power-down')):
+                cmd.extend(['--orbit-dynamic-power-down', '1'])
+                dyn_pwr_th = to_int(params.get('dynamic-power-down-threshold'))
+                if dyn_pwr_th is not None:
+                    cmd.extend(['--orbit-dynamic-power-down-threshold', str(dyn_pwr_th)])
+            if is_checked(params.get('dynamic-self-refresh')):
+                cmd.extend(['--orbit-dynamic-self-refresh', '1'])
+                dyn_sr_th = to_int(params.get('dynamic-self-refresh-threshold'))
+                if dyn_sr_th is not None:
+                    cmd.extend(['--orbit-dynamic-self-refresh-threshold', str(dyn_sr_th)])
+            
+            # Timing interval parameters
+            if is_checked(params.get('periodic-training')):
+                cmd.extend(['--orbit-periodic-training', '1'])
+                pt_period = to_int(params.get('periodic-training-period'))
+                if pt_period is not None:
+                    cmd.extend(['--orbit-periodic-training-period', str(pt_period)])
+            if is_checked(params.get('temp-sensing')):
+                cmd.extend(['--orbit-temp-sensing', '1'])
+                ts_period = to_int(params.get('temp-sensing-period'))
+                if ts_period is not None:
+                    cmd.extend(['--orbit-temp-sensing-period', str(ts_period)])
+            
+            # Timing values
+            zq_cal = to_int(params.get('zq-calibration-period'))
+            if zq_cal is not None:
+                cmd.extend(['--orbit-zq-calibration-period', str(zq_cal)])
+            t_refiab = to_int(params.get('t-refiab'))
+            if t_refiab is not None:
+                cmd.extend(['--orbit-t-refiab', str(t_refiab)])
+            t_refipb = to_int(params.get('t-refipb'))
+            if t_refipb is not None:
+                cmd.extend(['--orbit-t-refipb', str(t_refipb)])
+            t_zqcal = to_int(params.get('t-zqcal'))
+            if t_zqcal is not None:
+                cmd.extend(['--orbit-t-zqcal', str(t_zqcal)])
+            
             # Always use Python implementation for full binary
             cmd.extend(['--orbit-config-use-python'])
             

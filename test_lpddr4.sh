@@ -42,13 +42,13 @@ $SRC_DIR/gen_timing_params --dram-type lpddr4 --phy-name sphy-v9r8 --speed-bin 4
 echo "5. Comparing Python vs C binaries (single channel)..."
 python -c "
 import sys
-# Compare timing table section (first 0x800 bytes)
-TIMING_SIZE = 0x800
+# Compare full binary (timing table + orbit config)
+# Full size should be around 0x800+ orbit_size
 with open('ddr_timing_table.bin', 'rb') as f1, open('ddr_timing_table.c.bin', 'rb') as f2:
     data1 = f1.read()
     data2 = f2.read()
     # Compare up to the smaller size
-    compare_size = min(len(data1), len(data2), TIMING_SIZE)
+    compare_size = min(len(data1), len(data2))
     if compare_size < 100:
         print('Size too small:', len(data1), 'vs', len(data2))
         sys.exit(1)
@@ -67,7 +67,7 @@ with open('ddr_timing_table.bin', 'rb') as f1, open('ddr_timing_table.c.bin', 'r
         print('C     :', ' '.join('%02x' % data2[j] for j in range(start, end)))
         sys.exit(1)
     else:
-        print('SUCCESS: Timing table matches C implementation! (compared ' + str(compare_size) + ' bytes)')
+        print('SUCCESS: Full binary matches C implementation! (compared ' + str(compare_size) + ' bytes)')
 " 2>&1
 
 echo "6. Generate C reference binary (dual channel)..."

@@ -205,12 +205,12 @@
                     </div>
                     <div class="field field-unit lpddr5-only">
                         <label title="Max ps for read ECC. Range: 500-2500ps (400-2000MHz)">read-lecc-upto</label>
-                        <input type="number" name="read-lecc-upto" value="625" step="any">
+                        <input type="number" name="read-lecc-upto" value="0" step="any">
                         <span class="unit-label">ps</span>
                     </div>
                     <div class="field field-unit lpddr5-only">
                         <label title="Max ps for write ECC. Range: 500-2500ps (400-2000MHz)">write-lecc-upto</label>
-                        <input type="number" name="write-lecc-upto" value="625" step="any">
+                        <input type="number" name="write-lecc-upto" value="0" step="any">
                         <span class="unit-label">ps</span>
                     </div>
                 </div>
@@ -394,7 +394,21 @@
                         <div class="field checkbox"><input type="checkbox" name="regional-clock-gating" checked><label title="Regional clock gating enable">regional-clock-gating</label></div>
                         <div class="field checkbox"><input type="checkbox" name="dram-clock-gating" checked><label title="DRAM clock gating enable">dram-clock-gating</label></div>
                         <div class="field checkbox"><input type="checkbox" name="phy-clock-gating"><label title="PHY clock gating enable">phy-clock-gating</label></div>
-                        <div class="field checkbox"><input type="checkbox" name="phy-low-power"><label title="PHY low power mode">phy-low-power</label></div>
+                        <div class="field checkbox"><input type="checkbox" name="phy-low-power" id="phy-low-power-cb" onchange="togglePhyLowPower()"><label title="PHY low power mode">phy-low-power</label></div>
+                        <div class="field hidden" id="phy-idle-cnt-th-field">
+                            <label title="PHY idle counter threshold">phy-idle-cnt-th</label>
+                            <input type="number" name="phy-idle-cnt-th" value="0">
+                        </div>
+                        <div class="field checkbox"><input type="checkbox" name="dynamic-power-down" id="dynamic-power-down-cb" onchange="toggleDynamicPowerDown()"><label title="Dynamic power down">dynamic-power-down</label></div>
+                        <div class="field checkbox"><input type="checkbox" name="dynamic-self-refresh" id="dynamic-self-refresh-cb" onchange="toggleDynamicSelfRefresh()"><label title="Dynamic self refresh">dynamic-self-refresh</label></div>
+                        <div class="field hidden" id="dynamic-power-down-threshold-field">
+                            <label title="Dynamic power down threshold (cycles)">dynamic-power-down-threshold</label>
+                            <input type="number" name="dynamic-power-down-threshold" value="0">
+                        </div>
+                        <div class="field hidden" id="dynamic-self-refresh-threshold-field">
+                            <label title="Dynamic self refresh threshold (cycles)">dynamic-self-refresh-threshold</label>
+                            <input type="number" name="dynamic-self-refresh-threshold" value="0">
+                        </div>
                     </div>
 
                     <!-- Timing Intervals -->
@@ -749,6 +763,30 @@ function toggleDsmEn() {
     }
 }
 
+function togglePhyLowPower() {
+    const cb = document.getElementById('phy-low-power-cb');
+    const field = document.getElementById('phy-idle-cnt-th-field');
+    if (field) {
+        field.classList.toggle('hidden', !cb.checked);
+    }
+}
+
+function toggleDynamicPowerDown() {
+    const cb = document.getElementById('dynamic-power-down-cb');
+    const field = document.getElementById('dynamic-power-down-threshold-field');
+    if (field) {
+        field.classList.toggle('hidden', !cb.checked);
+    }
+}
+
+function toggleDynamicSelfRefresh() {
+    const cb = document.getElementById('dynamic-self-refresh-cb');
+    const field = document.getElementById('dynamic-self-refresh-threshold-field');
+    if (field) {
+        field.classList.toggle('hidden', !cb.checked);
+    }
+}
+
 // File input handling
 document.getElementById('binFileInput').addEventListener('change', function(e) {
     if (this.files.length > 0) {
@@ -852,6 +890,14 @@ function fillGuiFromAnalysis(data) {
         setCheckboxValue('dram-clock-gating', data.orbit.dram_clock_gating);
         setCheckboxValue('phy-clock-gating', data.orbit.phy_clock_gating);
         
+        // Dynamic power management
+        setCheckboxValue('phy-low-power', data.orbit.phy_low_power);
+        setFieldValue('phy-idle-cnt-th', data.orbit.phy_idle_cnt_th);
+        setCheckboxValue('dynamic-power-down', data.orbit.dynamic_power_down);
+        setCheckboxValue('dynamic-self-refresh', data.orbit.dynamic_self_refresh);
+        setFieldValue('dynamic-power-down-threshold', data.orbit.dynamic_power_down_threshold);
+        setFieldValue('dynamic-self-refresh-threshold', data.orbit.dynamic_self_refresh_threshold);
+        
         // Timing intervals
         setFieldValue('zq-calibration-period', data.orbit.zq_calibration_period);
         setFieldValue('t-refiab', data.orbit.t_refiab);
@@ -893,7 +939,7 @@ async function generate() {
     
     const checkboxes = form.querySelectorAll('input[type="checkbox"]');
     checkboxes.forEach(cb => {
-        if (!cb.checked) params[cb.name] = 'false';
+        params[cb.name] = cb.checked ? '1' : '0';
     });
     
     // ============================================================
@@ -1077,17 +1123,17 @@ function validateForm() {
 
 function validateTimingRanges() {
     const dramType = document.querySelector('select[name="dram-type"]').value;
+    const timingUnit = document.querySelector('input[name="timing-unit"]:checked').value;
+    const isMhz = timingUnit === 'MHz';
     const errors = [];
     
-    // Valid ranges for timing fields
+    // Valid ranges for timing fields (in ps)
     const timingRanges = {
         'dram-tck': { min: 300, max: 5000 },
         'min-dram-tck': { min: 200, max: 3000 },
         'write-odt-upto': { min: 1250, max: 10000, lpddr4_max: 1250 },
         'read-dbi-upto': { min: 1000, max: 10000 },
         'write-dbi-upto': { min: 1000, max: 10000 },
-        'read-lecc-upto': { min: 500, max: 2500 },
-        'write-lecc-upto': { min: 500, max: 2500 },
     };
     
     // Add LPDDR5-specific fields
@@ -1100,7 +1146,12 @@ function validateTimingRanges() {
         const field = document.querySelector(`[name="${fieldName}"]`);
         if (!field || !field.value) continue;
         
-        const val = parseInt(field.value);
+        // Skip LECC validation (no range limits)
+        if (fieldName === 'read-lecc-upto' || fieldName === 'write-lecc-upto') {
+            continue;
+        }
+        
+        let val = parseInt(field.value);
         if (isNaN(val)) continue;
         
         let min = range.min;
@@ -1111,9 +1162,16 @@ function validateTimingRanges() {
             max = range.lpddr4_max;
         }
         
+        // Convert MHz to ps for validation
+        if (isMhz && val > 0 && (fieldName.includes('-upto') || fieldName.includes('-from') || fieldName === 'dram-tck' || fieldName === 'min-dram-tck')) {
+            val = Math.round(1000000 / val);
+        }
+        
         if (val < min || val > max) {
             errors.push(`${fieldName}: ${val} (valid: ${min}-${max}ps)`);
             field.style.borderColor = 'red';
+        } else {
+            field.style.borderColor = '';
         }
     }
     
