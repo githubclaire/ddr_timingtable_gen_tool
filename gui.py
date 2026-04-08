@@ -44,6 +44,138 @@ def is_checked(val):
     return False
 
 
+def parse_timing_entries(data, dram_type):
+    """Parse all timing entry params from binary."""
+    entry_size = 0x128
+    num_entries = len(data) // entry_size
+    
+    # Number of densities
+    num_densities = 7 if dram_type == 'lpddr4' else 10
+    
+    # Parse density from orbit config (offset 0x81C)
+    orbit_offset = 0x800
+    try:
+        density = struct.unpack('<H', data[orbit_offset+0x1C:orbit_offset+0x1E])[0]
+    except:
+        density = 16
+    
+    # Density index (0-based, assume density matches index)
+    density_index = min(max(density - 1, 0), num_densities - 1)
+    
+    # Parse density-dependent arrays
+    density_arrays = {}
+    try:
+        density_arrays['t_rfcab'] = [struct.unpack('<H', data[0x80+i*2:0x82+i*2])[0] for i in range(num_densities)]
+        density_arrays['t_rfcpb'] = [struct.unpack('<H', data[0x8E+i*2:0x90+i*2])[0] for i in range(num_densities)]
+        density_arrays['t_rfmab'] = [struct.unpack('<H', data[0x9C+i*2:0x9E+i*2])[0] for i in range(num_densities)]
+        density_arrays['t_rfmpb'] = [struct.unpack('<H', data[0xAA+i*2:0xAC+i*2])[0] for i in range(num_densities)]
+        density_arrays['t_refdpr'] = [struct.unpack('<H', data[0xB8+i*2:0xBA+i*2])[0] for i in range(num_densities)]
+        density_arrays['tx_pbr2pbr'] = [struct.unpack('<H', data[0xC6+i*2:0xC8+i*2])[0] for i in range(num_densities)]
+        density_arrays['t_xsr'] = [struct.unpack('<H', data[0xD4+i*2:0xD6+i*2])[0] for i in range(num_densities)]
+        density_arrays['t_xsdll'] = [struct.unpack('<H', data[0xE2+i*2:0xE4+i*2])[0] for i in range(num_densities)]
+        density_arrays['t_xs_fast'] = [struct.unpack('<H', data[0xF0+i*2:0xF2+i*2])[0] for i in range(num_densities)]
+    except:
+        density_arrays = {k: [0]*num_densities for k in ['t_rfcab','t_rfcpb','t_rfmab','t_rfmpb','t_refdpr','tx_pbr2pbr','t_xsr','t_xsdll','t_xs_fast']}
+    
+    density_dependent = {k: v[density_index] if density_index < len(v) else 0 for k, v in density_arrays.items()}
+    
+    timing_entries = []
+    
+    for idx in range(num_entries):
+        entry_offset = idx * entry_size
+        if entry_offset + 0x126 > len(data):
+            break
+        
+        # Check enable flags (OR logic)
+        write_odt = data[entry_offset + 0x10A] if entry_offset + 0x10A < len(data) else 0
+        write_dbi = data[entry_offset + 0x10C] if entry_offset + 0x10C < len(data) else 0
+        read_dbi = data[entry_offset + 0x10D] if entry_offset + 0x10D < len(data) else 0
+        read_link_parity = data[entry_offset + 0x11F] if entry_offset + 0x11F < len(data) else 0
+        write_link_parity = data[entry_offset + 0x120] if entry_offset + 0x120 < len(data) else 0
+        
+        if not (write_odt > 0 or write_dbi > 0 or read_dbi > 0 or read_link_parity > 0 or write_link_parity > 0):
+            continue
+        
+        # Validate t_ck range (must be between 100-10000 ps for valid entry)
+        t_ck = struct.unpack('<I', data[entry_offset+0x04:entry_offset+0x08])[0]
+        if not (100 < t_ck < 10000):
+            continue
+        
+        try:
+            entry = {
+                'entry': idx,
+                't_ck': struct.unpack('<I', data[entry_offset+0x04:entry_offset+0x08])[0],
+                'freq': struct.unpack('<I', data[entry_offset+0x00:entry_offset+0x04])[0],
+                'timing_zqcal': struct.unpack('<I', data[entry_offset+0x08:entry_offset+0x0C])[0],
+                'timing_param': [struct.unpack('<I', data[entry_offset+0x0C+i*4:entry_offset+0x10+i*4])[0] for i in range(21)],
+                'timing_derate': [
+                    struct.unpack('<I', data[entry_offset+0x60:entry_offset+0x64])[0],
+                    struct.unpack('<I', data[entry_offset+0x64:entry_offset+0x68])[0]
+                ],
+                'dfi_timing_param': [struct.unpack('<I', data[entry_offset+0x68+i*4:entry_offset+0x6C+i*4])[0] for i in range(8)],
+                # Common params (lines 498-510)
+                'wck_ratio': data[entry_offset + 0x106],
+                'tlp_resp': data[entry_offset + 0x107],
+                'adc': data[entry_offset + 0x108],
+                'dll_enable': data[entry_offset + 0x109],
+                'write_odt': data[entry_offset + 0x10A],
+                'nt_odt': data[entry_offset + 0x10B],
+                'write_dbi': data[entry_offset + 0x10C],
+                'read_dbi': data[entry_offset + 0x10D],
+                'wpste': data[entry_offset + 0x10E],
+                'rpste': data[entry_offset + 0x10F],
+                # Per-entry params (lines 520-542)
+                'rl': data[entry_offset + 0x110],
+                'wl': data[entry_offset + 0x111],
+                'mr_rl': data[entry_offset + 0x112],
+                'mr_wl': data[entry_offset + 0x113],
+                'mr_wr': data[entry_offset + 0x114],
+                'mr_rtp': data[entry_offset + 0x115],
+                'mr_cal': data[entry_offset + 0x116],
+                'mr_tccd_l': data[entry_offset + 0x117],
+                'bank_mode': data[entry_offset + 0x118],
+                'wck_fm': data[entry_offset + 0x119],
+                'rdqs_pst_mode': data[entry_offset + 0x11A],
+                'rdqs_pst': data[entry_offset + 0x11B],
+                'rdqs_pre': data[entry_offset + 0x11C],
+                'wck_pst': data[entry_offset + 0x11D],
+                'wck_on': data[entry_offset + 0x11E],
+                'read_link_parity': data[entry_offset + 0x11F],
+                'write_link_parity': data[entry_offset + 0x120],
+                't_rtw': data[entry_offset + 0x121],
+                't_wtr_a': data[entry_offset + 0x122],
+                't_wtr': data[entry_offset + 0x123],
+                't_rc': data[entry_offset + 0x124],
+                'trddata_en': data[entry_offset + 0x125],
+            }
+            timing_entries.append(entry)
+        except:
+            continue
+    
+    # Get common params from first entry
+    common = {}
+    if timing_entries:
+        first = timing_entries[0]
+        common = {
+            'wck_ratio': first.get('wck_ratio', 0),
+            'tlp_resp': first.get('tlp_resp', 0),
+            'dll_enable': first.get('dll_enable', 0),
+            'write_odt': first.get('write_odt', 0),
+            'nt_odt': first.get('nt_odt', 0),
+            'write_dbi': first.get('write_dbi', 0),
+            'read_dbi': first.get('read_dbi', 0),
+            'wpste': first.get('wpste', 0),
+            'rpste': first.get('rpste', 0),
+        }
+    
+    return {
+        'entries': timing_entries,
+        'common': common,
+        'density_dependent': density_dependent,
+        'selected_density': density,
+    }
+
+
 def analyze_binary_file(file_path, dram_type_override=None):
     """Analyze binary file with optional DRAM type override."""
     if not os.path.exists(file_path):
@@ -58,51 +190,39 @@ def analyze_binary_file(file_path, dram_type_override=None):
     file_size = len(data)
     
     # Determine DRAM type and size
-    # Methods: 1) file size, 2) t_ck pattern at offset 0x04, 3) dual channel flag
+    # Methods: 1) file size (most reliable), 2) dual channel flag
     is_lpddr5 = False
     is_dual_channel = False
     
-    # Method 1: Check t_ck at offset 0x04 (LPDDR5 typically has 1256, LPDDR4 has 471)
-    if file_size >= 4:
-        t_ck_at_04 = struct.unpack('<I', data[4:8])[0] if len(data) >= 8 else 0
-        # LPDDR5: t_ck=1256 or 796; LPDDR4: t_ck=471
-        if t_ck_at_04 in [1256, 796]:
-            is_lpddr5 = True
-        elif t_ck_at_04 == 471:
-            is_lpddr5 = False  # Explicit LPDDR4 marker
-    
-    # Method 2: Check LPDDR5 marker at offset 0x813 (zq_bg_mode)
-    # LPDDR5 has zq_bg_mode at this position, LPDDR4 has different content
-    if file_size > 0x813 and not is_lpddr5:
-        zq_bg_mode = data[0x813]
-        if zq_bg_mode == 1:
-            is_lpddr5 = True
-    
-    # Method 3: File size thresholds (fallback)
-    # LPDDR4 single: 5096, LPDDR5 single: 5104
-    # LPDDR4 dual: 7864, LPDDR5 dual: 7872
-    # Use tighter thresholds: >= 7860 = dual channel
+    # Method 1: File size thresholds (most reliable)
+    # LP4 single: 5096, LP5 single: 5104 (diff of 8 bytes for lp5 header)
+    # LP4 dual: 7864, LP5 dual: 7872
     if file_size >= 7860:
         is_dual_channel = True
-        # Don't assume LPDDR5 - dual channel can be LPDDR4 too
-    elif file_size >= 5090 and file_size < 5200:
-        # Single channel - check t_ck to differentiate
-        if file_size >= 5100:
-            is_lpddr5 = True  # 5104 = LPDDR5
-        # Otherwise keep t_ck detection result
-    elif file_size >= 3050:
-        if not is_lpddr5:  # Only if t_ck didn't detect
+        # Single vs dual already detected, now check LP4 vs LP5
+        # Use tighter thresholds: LP4 dual: ~7864, LP5 dual: ~7872
+        if file_size >= 7870:
             is_lpddr5 = True
+    elif file_size >= 5090 and file_size < 5200:
+        is_dual_channel = False
+        if file_size >= 5100:
+            is_lpddr5 = True  # 5104 = LP5 single
+        else:
+            is_lpddr5 = False  # 5096 = LP4 single
+    elif file_size >= 3050 and file_size < 4000:
+        is_dual_channel = False
+        is_lpddr5 = True  # Small LP5 files
     elif file_size < 3000:
-        return {'success': False, 'message': f'File too small to be valid binary: {file_size} bytes'}
+        return {'success': False, 'message': 'File too small to be valid binary: %d bytes' % file_size}
     
-    # Method 3: Check dual channel via phy_base_addr_id[2] (most reliable)
-    # LPDDR4: 0x8E0, LPDDR5: 0x8E8 (due to 9-byte header shift)
-    # Non-zero value at this offset indicates dual channel
+    # Method 2: Verify dual channel via phy_base_addr_id[2]
+    # Only trust this if value is clearly non-zero (not just any value)
+    # LP4: 0x8E0, LP5: 0x8E8
     if file_size > 0x800 + 0xE0:
         dual_check_offset = 0x8E8 if is_lpddr5 else 0x8E0
         phy_addr_id_2 = struct.unpack('<I', data[dual_check_offset:dual_check_offset+4])[0]
-        if phy_addr_id_2 != 0:
+        # Only mark as dual channel if value is >= 0x100000 (typical base address)
+        if phy_addr_id_2 >= 0x100000:
             is_dual_channel = True
     
     dram_type = 'lpddr5' if is_lpddr5 else 'lpddr4'
@@ -179,62 +299,68 @@ def analyze_binary_file(file_path, dram_type_override=None):
             # Get offsets dynamically based on dram type
             if is_lpddr5:
                 # LPDDR5: use correct struct offsets (has 9-byte lp5 header: lp5_mr2-18 + zq_bg_mode)
-                # Correct offsets from C struct analysis
+                # Correct offsets from ctypes struct - differ from LP4 by +6 to +8 bytes
                 dfs_offsets = (0x63, 0x65, 0x67)
+                # Threshold offsets: LP5 single vs dual differ
+                dp_thresh_offset = 0xf8 if is_dual_channel else 0xe8
+                ds_thresh_offset = 0xf4 if is_dual_channel else 0xe4
                 fields_to_read = [
                     # Pipe config (LPDDR5 struct starts at offset 0x14)
                     ('phy_freq_ratio', 0x14, '<H'),
                     ('omc_freq_ratio', 0x16, '<H'),
                     ('cpipe_depth', 0x18, '<H'),
                     ('dpipe_depth', 0x1a, '<H'),
+                    ('dram_t_ck', 0x90, '<I'),
+                    ('rclk_t_ck', 0x94, '<I'),
+                    ('boot_t_ck', 0x98, '<I'),
                     
                     # Basic geometry
                     ('density', 0x24, '<H'),
-                    ('rank_interleaving', 0x22, '<H'),
+                    ('rank_interleaving', 0x26, '<H'),
                     ('num_rank', 0x28, '<H'),
                     ('ctrl_dq_width', 0x2a, '<H'),
                     ('dq_width', 0x2c, '<H'),
                     
                     # Mode control
-                    ('reboot_with_mrw', 0x26, '<H'),
-                    ('rfm_en', 0x3c, '<H'),
-                    ('dsm_en', 0x3e, '<H'),
-                    ('ca_odt', 0x48, '<H'),
+                    ('reboot_with_mrw', 0x2a, '<H'),
+                    ('rfm_en', 0x40, '<H'),
+                    ('dsm_en', 0x42, '<H'),
+                    ('ca_odt', 0x4c, '<H'),
                     
-                    # Training enable
-                    ('eye_scan_rd_en', 0x40, '<H'),
-                    ('eye_scan_wr_en', 0x42, '<H'),
-                    ('eye_scan_prbs_rd_en', 0x44, '<H'),
-                    ('eye_scan_prbs_wr_en', 0x46, '<H'),
-                    ('init_zq_calibration', 0x4c, '<H'),
-                    ('command_bus_training', 0x75, '<H'),
-                    ('ca_vref_training', 0x77, '<H'),
-                    ('prbs_training', 0x79, '<H'),
-                    ('reboot_with_training', 0x7b, '<H'),
-                    ('dfs_training', 0x7d, '<H'),
-                    ('phy_vref_trn_mode', 0x81, '<H'),
-                    ('phy_duty_trn_mode', 0x83, '<H'),
-                    ('dram_vref_trn_mode', 0x85, '<H'),
-                    ('dram_duty_trn_mode', 0x87, '<H'),
+                    # Training enable (LP5: +6 offset from LP4)
+                    ('eye_scan_rd_en', 0x44, '<H'),
+                    ('eye_scan_wr_en', 0x46, '<H'),
+                    ('eye_scan_prbs_rd_en', 0x48, '<H'),
+                    ('eye_scan_prbs_wr_en', 0x4a, '<H'),
+                    ('init_zq_calibration', 0x50, '<H'),
+                    ('command_bus_training', 0x6c, '<H'),
+                    ('ca_vref_training', 0x6e, '<H'),
+                    ('prbs_training', 0x70, '<H'),
+                    ('reboot_with_training', 0x72, '<H'),
+                    ('dfs_training', 0x74, '<H'),
+                    ('phy_vref_trn_mode', 0x76, '<H'),
+                    ('phy_duty_trn_mode', 0x78, '<H'),
+                    ('dram_vref_trn_mode', 0x7a, '<H'),
+                    ('dram_duty_trn_mode', 0x7c, '<H'),
                     
-                    # Power management
-                    ('regional_clock_gating', 0x5a, '<H'),
-                    ('phy_clock_gating', 0x5c, '<H'),
-                    ('dram_clock_gating', 0x5e, '<H'),
+                    # Power management (LP5: +6 offset from LP4)
+                    ('regional_clock_gating', 0x5e, '<H'),
+                    ('phy_clock_gating', 0x60, '<H'),
+                    ('dram_clock_gating', 0x62, '<H'),
                     
-                    # Dynamic power management
-                    ('phy_low_power', 0x30, '<H'),
-                    ('phy_idle_cnt_th', 0x32, '<H'),
-                    ('dynamic_power_down', 0x56, '<H'),
-                    ('dynamic_self_refresh', 0x58, '<H'),
-                    ('dynamic_power_down_threshold', 0xe0, '<I'),
-                    ('dynamic_self_refresh_threshold', 0xdc, '<I'),
+                    # Dynamic power management (LP5: +6 offset from LP4)
+                    ('phy_low_power', 0x34, '<H'),
+                    ('phy_idle_cnt_th', 0x36, '<H'),
+                    ('dynamic_power_down', 0x5a, '<H'),
+                    ('dynamic_self_refresh', 0x5c, '<H'),
+                    ('dynamic_power_down_threshold', dp_thresh_offset, '<I'),
+                    ('dynamic_self_refresh_threshold', ds_thresh_offset, '<I'),
                     
-                    # Timing features
-                    ('temp_sensing', 0x4e, '<H'),
-                    ('zq_calibration', 0x50, '<H'),
-                    ('periodic_training', 0x52, '<H'),
-                    ('periodic_training_period', 0x54, '<H'),
+                    # Timing features (LP5: +6 offset from LP4)
+                    ('temp_sensing', 0x52, '<H'),
+                    ('zq_calibration', 0x54, '<H'),
+                    ('periodic_training', 0x56, '<H'),
+                    ('periodic_training_period', 0x58, '<H'),
                     
                     # DFS timing
                     ('dfs_lvl_t_ck_0', dfs_offsets[0], '<H'),
@@ -255,14 +381,22 @@ def analyze_binary_file(file_path, dram_type_override=None):
                 ]
             else:
                 # LPDDR4: use LPDDR4 struct offsets (no lp5 header)
-                # Correct offsets from binary verification
+                # Correct offsets from ctypes struct
                 dfs_offsets = (0x5E, 0x60, 0x62)
+                # Threshold offsets: LP4 single vs dual differ
+                # LP4 Single: dp_threshold=0xE0, ds_threshold=0xDC
+                # LP4 Dual: dp_threshold=0xF0, ds_threshold=0xEC
+                dp_thresh_offset = 0xf0 if is_dual_channel else 0xe0
+                ds_thresh_offset = 0xec if is_dual_channel else 0xdc
                 fields_to_read = [
                     # Pipe config
                     ('phy_freq_ratio', 0x0C, '<H'),
                     ('omc_freq_ratio', 0x0E, '<H'),
                     ('cpipe_depth', 0x14, '<H'),
                     ('dpipe_depth', 0x16, '<H'),
+                    ('dram_t_ck', 0x88, '<I'),
+                    ('rclk_t_ck', 0x8C, '<I'),
+                    ('boot_t_ck', 0x90, '<I'),
                     
                     # Basic geometry
                     ('density', 0x1C, '<H'),
@@ -288,10 +422,10 @@ def analyze_binary_file(file_path, dram_type_override=None):
                     ('prbs_training', 0x6A, '<H'),
                     ('reboot_with_training', 0x6C, '<H'),
                     ('dfs_training', 0x6E, '<H'),
-                    ('phy_vref_trn_mode', 0x72, '<H'),
-                    ('phy_duty_trn_mode', 0x74, '<H'),
-                    ('dram_vref_trn_mode', 0x76, '<H'),
-                    ('dram_duty_trn_mode', 0x78, '<H'),
+                    ('phy_vref_trn_mode', 0x70, '<H'),
+                    ('phy_duty_trn_mode', 0x72, '<H'),
+                    ('dram_vref_trn_mode', 0x74, '<H'),
+                    ('dram_duty_trn_mode', 0x76, '<H'),
                     
                     # Power management
                     ('regional_clock_gating', 0x58, '<H'),
@@ -303,8 +437,8 @@ def analyze_binary_file(file_path, dram_type_override=None):
                     ('phy_idle_cnt_th', 0x2E, '<H'),
                     ('dynamic_power_down', 0x54, '<H'),
                     ('dynamic_self_refresh', 0x56, '<H'),
-                    ('dynamic_power_down_threshold', 0xDC, '<I'),
-                    ('dynamic_self_refresh_threshold', 0xD8, '<I'),
+                    ('dynamic_power_down_threshold', dp_thresh_offset, '<I'),
+                    ('dynamic_self_refresh_threshold', ds_thresh_offset, '<I'),
                     
                     # Timing features
                     ('temp_sensing', 0x4C, '<H'),
@@ -385,7 +519,7 @@ def analyze_binary_file(file_path, dram_type_override=None):
                 'speed_bin': '4266' if dram_type == 'lpddr4' else '6400',
                 'periods': ' '.join(map(str, periods)),
                 'min_dram_tck': 314,
-                'dram_tck': periods[0] if periods else 471,
+                'dram_tck': orbit_data.get('dram_t_ck', periods[0] if periods else 471),
             },
             
             'pipe': {
@@ -404,11 +538,22 @@ def analyze_binary_file(file_path, dram_type_override=None):
                 'write_lecc_upto': write_lecc_upto,
             },
             
+            'timing_entries': parse_timing_entries(data, dram_type),
+            
             'orbit': {}
         }
     }
     
     # Set orbit config - use parsed values from binary
+    # Non-parseable fields (not in binary, generated at runtime):
+    non_parseable_fields = [
+        'variable-trrd', 'txsr-as-1st-ed', 'enhanced-nt-odt', 'wire-length',
+        'wdqs-ctrl-mode', 'rpste-upto', 'wpste-upto', 'nt-odt-upto',
+        'bg-mode-upto', 'wck-always-on-from', 'wck-always-on-upto',
+        'wck-1to4-upto', 'wck-hf-upto', 'wck-pst1-upto', 'wck-pst2-upto',
+        'rdqs-pst1-upto', 'rdqs-pst2-upto',
+    ]
+    
     result['data']['orbit'] = {
         'density': orbit_data.get('density', 16),
         'density_code': orbit_data.get('density_code', 0),
@@ -420,6 +565,9 @@ def analyze_binary_file(file_path, dram_type_override=None):
         'two_channel': 1 if is_dual_channel else 0,
         'ctrl_dq_width': orbit_data.get('ctrl_dq_width', 16),
         'dq_width': orbit_data.get('dq_width', 16),
+        'dram_t_ck': orbit_data.get('dram_t_ck', 0),
+        'rclk_t_ck': orbit_data.get('rclk_t_ck', 0),
+        'boot_t_ck': orbit_data.get('boot_t_ck', 0),
         'reboot_with_mrw': orbit_data.get('reboot_with_mrw', 0),
         'rfm_en': orbit_data.get('rfm_en', 0),
         'dsm_en': orbit_data.get('dsm_en', 0),
@@ -438,9 +586,9 @@ def analyze_binary_file(file_path, dram_type_override=None):
         'phy_duty_trn_mode': orbit_data.get('phy_duty_trn_mode', 0),
         'dram_vref_trn_mode': orbit_data.get('dram_vref_trn_mode', 0),
         'dram_duty_trn_mode': orbit_data.get('dram_duty_trn_mode', 0),
-        'regional_clock_gating': orbit_data.get('regional_clock_gating', 1),
+        'regional_clock_gating': orbit_data.get('regional_clock_gating', 0),
         'phy_clock_gating': orbit_data.get('phy_clock_gating', 0),
-        'dram_clock_gating': orbit_data.get('dram_clock_gating', 1),
+        'dram_clock_gating': orbit_data.get('dram_clock_gating', 0),
         'temp_sensing': orbit_data.get('temp_sensing', 0),
         'zq_calibration': orbit_data.get('zq_calibration', 0),
         'periodic_training': orbit_data.get('periodic_training', 0),
@@ -457,6 +605,7 @@ def analyze_binary_file(file_path, dram_type_override=None):
         'dynamic_self_refresh': orbit_data.get('dynamic_self_refresh', 0),
         'dynamic_power_down_threshold': orbit_data.get('dynamic_power_down_threshold', 0),
         'dynamic_self_refresh_threshold': orbit_data.get('dynamic_self_refresh_threshold', 0),
+        'non_parseable_fields': non_parseable_fields,
     }
     
     return result
@@ -625,6 +774,45 @@ class DDRHandler(http.server.BaseHTTPRequestHandler):
             if is_checked(params.get('orbit-ca-odt')):
                 cmd.extend(['--orbit-ca-odt', '1'])
             
+            # Training enable parameters (newly added CLI mappings)
+            if is_checked(params.get('eye-scan-rd-en')):
+                cmd.extend(['--orbit-eye-scan-rd-en', '1'])
+            if is_checked(params.get('eye-scan-wr-en')):
+                cmd.extend(['--orbit-eye-scan-wr-en', '1'])
+            if is_checked(params.get('eye-scan-prbs-rd-en')):
+                cmd.extend(['--orbit-eye-scan-prbs-rd-en', '1'])
+            if is_checked(params.get('eye-scan-prbs-wr-en')):
+                cmd.extend(['--orbit-eye-scan-prbs-wr-en', '1'])
+            if is_checked(params.get('phy-vref-trn-mode')):
+                cmd.extend(['--orbit-phy-vref-trn-mode', '1'])
+            if is_checked(params.get('phy-duty-trn-mode')):
+                cmd.extend(['--orbit-phy-duty-trn-mode', '1'])
+            if is_checked(params.get('dram-vref-trn-mode')):
+                cmd.extend(['--orbit-dram-vref-trn-mode', '1'])
+            if is_checked(params.get('dram-duty-trn-mode')):
+                cmd.extend(['--orbit-dram-duty-trn-mode', '1'])
+            if is_checked(params.get('command-bus-training')):
+                cmd.extend(['--orbit-command-bus-training', '1'])
+            if is_checked(params.get('ca-vref-training')):
+                cmd.extend(['--orbit-ca-vref-training', '1'])
+            if is_checked(params.get('prbs-training')):
+                cmd.extend(['--orbit-prbs-training', '1'])
+            if is_checked(params.get('reboot-with-training')):
+                cmd.extend(['--orbit-reboot-with-training', '1'])
+            if is_checked(params.get('init-zq-calibration')):
+                cmd.extend(['--orbit-init-zq-calibration', '1'])
+            if is_checked(params.get('zq-calibration')):
+                cmd.extend(['--orbit-zq-calibration', '1'])
+            if is_checked(params.get('dfs-training')):
+                cmd.extend(['--orbit-dfs-training', '1'])
+            if is_checked(params.get('phy-clock-gating')):
+                cmd.extend(['--orbit-phy-clock-gating', '1'])
+            
+            # PHY idle counter threshold
+            phy_idle_cnt_th = to_int(params.get('phy-idle-cnt-th'))
+            if phy_idle_cnt_th is not None:
+                cmd.extend(['--orbit-phy-idle-cnt-th', str(phy_idle_cnt_th)])
+            
             # Dynamic power management parameters
             if is_checked(params.get('dynamic-power-down')):
                 cmd.extend(['--orbit-dynamic-power-down', '1'])
@@ -662,6 +850,55 @@ class DDRHandler(http.server.BaseHTTPRequestHandler):
             t_zqcal = to_int(params.get('t-zqcal'))
             if t_zqcal is not None:
                 cmd.extend(['--orbit-t-zqcal', str(t_zqcal)])
+            
+            # Generate JSON override file with all orbit config params
+            import json as json_module
+            orbit_json = {
+                'eye_scan_rd_en': 1 if is_checked(params.get('eye-scan-rd-en')) else 0,
+                'eye_scan_wr_en': 1 if is_checked(params.get('eye-scan-wr-en')) else 0,
+                'eye_scan_prbs_rd_en': 1 if is_checked(params.get('eye-scan-prbs-rd-en')) else 0,
+                'eye_scan_prbs_wr_en': 1 if is_checked(params.get('eye-scan-prbs-wr-en')) else 0,
+                'phy_vref_trn_mode': 1 if is_checked(params.get('phy-vref-trn-mode')) else 0,
+                'phy_duty_trn_mode': 1 if is_checked(params.get('phy-duty-trn-mode')) else 0,
+                'dram_vref_trn_mode': 1 if is_checked(params.get('dram-vref-trn-mode')) else 0,
+                'dram_duty_trn_mode': 1 if is_checked(params.get('dram-duty-trn-mode')) else 0,
+                'command_bus_training': 1 if is_checked(params.get('command-bus-training')) else 0,
+                'ca_vref_training': 1 if is_checked(params.get('ca-vref-training')) else 0,
+                'prbs_training': 1 if is_checked(params.get('prbs-training')) else 0,
+                'reboot_with_training': 1 if is_checked(params.get('reboot-with-training')) else 0,
+                'init_zq_calibration': 1 if is_checked(params.get('init-zq-calibration')) else 0,
+                'zq_calibration': 1 if is_checked(params.get('zq-calibration')) else 0,
+                'dfs_training': 1 if is_checked(params.get('dfs-training')) else 0,
+                'phy_clock_gating': 1 if is_checked(params.get('phy-clock-gating')) else 0,
+                'phy_idle_cnt_th': to_int(params.get('phy-idle-cnt-th')) or 0,
+                'rank_interleaving': 1 if is_checked(params.get('orbit-rank-interleaving')) else 0,
+                'num_rank': to_int(params.get('orbit-num-rank')) or 2,
+                'reboot_with_mrw': 1 if is_checked(params.get('orbit-reboot-with-mrw')) else 0,
+                'rfm_en': 1 if is_checked(params.get('orbit-rfm-en')) else 0,
+                'dsm_en': 1 if is_checked(params.get('orbit-dsm-en')) else 0 if dram_type == 'lpddr4' else (1 if is_checked(params.get('orbit-dsm-en')) else 0),
+                'ca_odt': 1 if is_checked(params.get('orbit-ca-odt')) else 0,
+                'dynamic_power_down': 1 if is_checked(params.get('dynamic-power-down')) else 0,
+                'dynamic_power_down_threshold': to_int(params.get('dynamic-power-down-threshold')) or 0,
+                'dynamic_self_refresh': 1 if is_checked(params.get('dynamic-self-refresh')) else 0,
+                'dynamic_self_refresh_threshold': to_int(params.get('dynamic-self-refresh-threshold')) or 0,
+                'periodic_training': 1 if is_checked(params.get('periodic-training')) else 0,
+                'periodic_training_period': to_int(params.get('periodic-training-period')) or 24000,
+                'temp_sensing': 1 if is_checked(params.get('temp-sensing')) else 0,
+                'temp_sensing_period': to_int(params.get('temp-sensing-period')) or 32000,
+                'zq_calibration_period': to_int(params.get('zq-calibration-period')) or 48000,
+                't_refiab': to_int(params.get('t-refiab')) or 3904000,
+                't_refipb': to_int(params.get('t-refipb')) or 488000,
+                't_zqcal': to_int(params.get('t-zqcal')) or 1000000,
+                'regional_clock_gating': 1 if is_checked(params.get('regional-clock-gating')) else 0,
+                'dram_clock_gating': 1 if is_checked(params.get('dram-clock-gating')) else 0,
+                'phy_low_power': 1 if is_checked(params.get('phy-low-power')) else 0,
+            }
+            json_path = os.path.join(os.path.dirname(__file__), 'orbit_config_override.json')
+            with open(json_path, 'w') as f:
+                json_module.dump(orbit_json, f)
+            
+            # Pass JSON override to CLI
+            cmd.extend(['--orbit-config-json', json_path])
             
             # Always use Python implementation for full binary
             cmd.extend(['--orbit-config-use-python'])
