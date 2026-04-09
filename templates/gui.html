@@ -813,7 +813,27 @@ async function analyzeBinaryFile(filePath) {
         if (result.success) {
             fillGuiFromAnalysis(result.data);
             showAnalysisModal(result.data);
-            statusEl.style.display = 'none';
+            
+            // Show non-parseable fields warning
+            if (result.data.orbit?.non_parseable_fields?.length > 0) {
+                const fields = result.data.orbit.non_parseable_fields;
+                const lp4 = fields.filter(f => ['variable-trrd','txsr-as-1st-ed'].includes(f));
+                const lp5 = fields.filter(f => ['enhanced-nt-odt','wck-always-on-from','wck-always-on-upto','wck-1to4-upto','wck-hf-upto','wck-pst1-upto','wck-pst2-upto','rdqs-pst1-upto','rdqs-pst2-upto','nt-odt-upto','bg-mode-upto'].includes(f));
+                const timing = fields.filter(f => ['wdqs-ctrl-mode','rpste-upto','wpste-upto'].includes(f));
+                const common = ['wire-length'];
+                
+                let warning = '\n⚠️ Non-parseable fields (generated at runtime):\n';
+                if (lp4.length) warning += '  LP4: ' + lp4.join(', ') + '\n';
+                if (lp5.length) warning += '  LP5: ' + lp5.join(', ') + '\n';
+                if (timing.length) warning += '  Timing: ' + timing.join(', ') + '\n';
+                warning += '  Common: ' + common.join(', ');
+                
+                statusEl.style.display = 'block';
+                statusEl.className = 'status';
+                statusEl.innerHTML = '<pre>' + warning + '</pre>';
+            } else {
+                statusEl.style.display = 'none';
+            }
         } else {
             statusEl.className = 'status error';
             statusEl.innerHTML = '<strong>Error:</strong> ' + result.message;
@@ -832,6 +852,7 @@ function fillGuiFromAnalysis(data) {
         setFieldValue('dq-width', data.basic.dq_width);
         setFieldValue('speed-bin', data.basic.speed_bin);
         setFieldValue('min-dram-tck', data.basic.min_dram_tck);
+        setFieldValue('dram-tck', data.basic.dram_tck);
         toggleDramOptions();
         updatePeriodsLabel();
         updateDensityOptions();
@@ -883,7 +904,26 @@ function fillGuiFromAnalysis(data) {
         // Training
         setCheckboxValue('eye-scan-rd-en', data.orbit.eye_scan_rd_en);
         setCheckboxValue('eye-scan-wr-en', data.orbit.eye_scan_wr_en);
+        setCheckboxValue('eye-scan-prbs-rd-en', data.orbit.eye_scan_prbs_rd_en);
+        setCheckboxValue('eye-scan-prbs-wr-en', data.orbit.eye_scan_prbs_wr_en);
+        setCheckboxValue('phy-vref-trn-mode', data.orbit.phy_vref_trn_mode);
+        setCheckboxValue('phy-duty-trn-mode', data.orbit.phy_duty_trn_mode);
+        setCheckboxValue('dram-vref-trn-mode', data.orbit.dram_vref_trn_mode);
+        setCheckboxValue('dram-duty-trn-mode', data.orbit.dram_duty_trn_mode);
         setCheckboxValue('command-bus-training', data.orbit.command_bus_training);
+        setCheckboxValue('ca-vref-training', data.orbit.ca_vref_training);
+        setCheckboxValue('prbs-training', data.orbit.prbs_training);
+        setCheckboxValue('reboot-with-training', data.orbit.reboot_with_training);
+        setCheckboxValue('init-zq-calibration', data.orbit.init_zq_calibration);
+        setCheckboxValue('zq-calibration', data.orbit.zq_calibration);
+        setCheckboxValue('dfs-training', data.orbit.dfs_training);
+        setCheckboxValue('periodic-training', data.orbit.periodic_training);
+        setCheckboxValue('temp-sensing', data.orbit.temp_sensing);
+        
+        // LP4/LP5 specific
+        setCheckboxValue('variable-trrd', data.orbit.variable_trrd);
+        setCheckboxValue('txsr-as-1st-ed', data.orbit.txsr_as_1st_ed);
+        setCheckboxValue('enhanced-nt-odt', data.orbit.enhanced_nt_odt);
         
         // Power
         setCheckboxValue('regional-clock-gating', data.orbit.regional_clock_gating);
@@ -900,11 +940,22 @@ function fillGuiFromAnalysis(data) {
         
         // Timing intervals
         setFieldValue('zq-calibration-period', data.orbit.zq_calibration_period);
+        setFieldValue('periodic-training-period', data.orbit.periodic_training_period);
+        setFieldValue('temp-sensing-period', data.orbit.temp_sensing_period);
         setFieldValue('t-refiab', data.orbit.t_refiab);
         setFieldValue('t-refipb', data.orbit.t_refipb);
+        setFieldValue('t-zqcal', data.orbit.t_zqcal);
         
         // MRR
         setFieldValue('mrr-byte-lane', data.orbit.mrr_byte_lane);
+        
+        // Call toggle functions to show/hide dependent numeric fields
+        toggleZqCalibration();
+        togglePeriodicTraining();
+        toggleTempSensing();
+        toggleDynamicPowerDown();
+        toggleDynamicSelfRefresh();
+        togglePhyLowPower();
     }
 }
 
@@ -1029,6 +1080,113 @@ function showAnalysisModal(data) {
     html += `<tr><td>DRAM Type</td><td>${data.dram_type.toUpperCase()}</td></tr>`;
     html += `<tr><td>Dual Channel</td><td>${data.two_channel ? 'Yes' : 'No'}</td></tr>`;
     html += '</table></div>';
+    
+    // Section 1: Per-Entry Params
+    if (data.timing_entries?.entries?.length > 0) {
+        const entries = data.timing_entries.entries;
+        const tp_names = ['t_rp','t_rcd','t_ras','t_rc','t_rrd','t_rrd_l','t_faw','t_ccd_l','t_ccd_l_wr','t_ccd_s',
+                          't_rtw','t_wtr','t_wtr_l','t_wr','t_rp_ab','t_rcd_wr','t_cke','t_ckesr','t_xs','t_dqs0_qs','t_??'];
+        
+        html += '<div class="analysis-section"><h3>Timing Table - Per-Entry Params</h3>';
+        html += '<div style="overflow-x:auto;"><table class="analysis-table">';
+        
+        // Header row
+        html += '<tr><th>Parameter</th>';
+        entries.forEach((e, i) => {
+            const display_t_ck = e.t_ck_display !== undefined ? e.t_ck_display : e.t_ck;
+            html += `<th>Entry ${i}<br>t_ck=${display_t_ck}<br>freq=${e.freq}</th>`;
+        });
+        html += '</tr>';
+        
+        // Per-entry fields
+        const perEntryFields = ['rl','wl','mr_rl','mr_wl','mr_wr','mr_cal','mr_tccd_l','bank_mode','wck_fm',
+                                 'rdqs_pst_mode','rdqs_pst','rdqs_pre','wck_pst','wck_on','read_link_parity','write_link_parity',
+                                 't_rtw','t_wtr_a','t_wtr','t_rc','trddata_en','freq','timing_zqcal'];
+        
+        perEntryFields.forEach(field => {
+            html += `<tr><td>${field}</td>`;
+            entries.forEach(e => {
+                html += `<td>${e[field] !== undefined ? e[field] : '-'}</td>`;
+            });
+            html += '</tr>';
+        });
+        
+        // timing_param rows
+        for (let i = 0; i < 21; i++) {
+            html += `<tr><td>tp[${i}] ${tp_names[i]}</td>`;
+            entries.forEach(e => {
+                const val = e.timing_param?.[i];
+                html += `<td>${val !== undefined ? '0x' + val.toString(16).padStart(8,'0') : '-'}</td>`;
+            });
+            html += '</tr>';
+        }
+        
+        // timing_derate
+        html += '<tr><td>derate[0]</td>';
+        entries.forEach(e => {
+            const val = e.timing_derate?.[0];
+            html += `<td>${val !== undefined ? '0x' + val.toString(16).padStart(8,'0') : '-'}</td>`;
+        });
+        html += '</tr>';
+        html += '<tr><td>derate[1]</td>';
+        entries.forEach(e => {
+            const val = e.timing_derate?.[1];
+            html += `<td>${val !== undefined ? '0x' + val.toString(16).padStart(8,'0') : '-'}</td>`;
+        });
+        html += '</tr>';
+        
+        // dfi_timing_param
+        for (let i = 0; i < 8; i++) {
+            html += `<tr><td>dfi[${i}]</td>`;
+            entries.forEach(e => {
+                const val = e.dfi_timing_param?.[i];
+                html += `<td>${val !== undefined ? '0x' + val.toString(16).padStart(8,'0') : '-'}</td>`;
+            });
+            html += '</tr>';
+        }
+        
+        html += '</table></div></div>';
+    }
+    
+    // Section 2: Common Params
+    if (data.timing_entries?.common) {
+        const common = data.timing_entries.common;
+        html += '<div class="analysis-section"><h3>Common Params (Same for All Entries)</h3>';
+        html += '<table class="analysis-table"><tr><th>Parameter</th><th>Value</th></tr>';
+        for (const [key, val] of Object.entries(common)) {
+            html += `<tr><td>${key}</td><td>${val}</td></tr>`;
+        }
+        html += '</table></div>';
+    }
+    
+    // Section 3: Density-Dependent Params
+    if (data.timing_entries?.density_dependent) {
+        const dd = data.timing_entries.density_dependent;
+        const density = data.timing_entries.selected_density || 16;
+        html += `<div class="analysis-section"><h3>Density-Dependent Params (Density: ${density} Gb)</h3>`;
+        html += '<table class="analysis-table"><tr><th>Parameter</th><th>Value</th></tr>';
+        for (const [key, val] of Object.entries(dd)) {
+            html += `<tr><td>${key}</td><td>${val}</td></tr>`;
+        }
+        html += '</table></div>';
+    }
+    
+    // Orbit Config - New Fields
+    if (data.orbit) {
+        const newOrbitFields = {
+            'dram_t_ck': data.orbit.dram_t_ck,
+            'rclk_t_ck': data.orbit.rclk_t_ck,
+            'boot_t_ck': data.orbit.boot_t_ck,
+        };
+        html += '<div class="analysis-section"><h3>Orbit Config (New Fields)</h3>';
+        html += '<table class="analysis-table"><tr><th>Parameter</th><th>Value</th></tr>';
+        for (const [key, val] of Object.entries(newOrbitFields)) {
+            if (val !== undefined && val !== 0) {
+                html += `<tr><td>${key}</td><td>${val}</td></tr>`;
+            }
+        }
+        html += '</table></div>';
+    }
     
     html += '<div style="text-align:right; margin-top:20px;">';
     html += '<button type="button" class="btn btn-primary" onclick="closeModal()">OK</button>';

@@ -66,17 +66,20 @@ def parse_timing_entries(data, dram_type):
     density_index = min(max(density - 1, 0), num_densities - 1)
     
     # Parse density-dependent arrays
+    # LP5 density arrays are within each entry (at offset 0x88), LP4 at file level (0x80)
+    density_start = 0x88 if dram_type == 'lpddr5' else 0x80
+    
     density_arrays = {}
     try:
-        density_arrays['t_rfcab'] = [struct.unpack('<H', data[0x80+i*2:0x82+i*2])[0] for i in range(num_densities)]
-        density_arrays['t_rfcpb'] = [struct.unpack('<H', data[0x8E+i*2:0x90+i*2])[0] for i in range(num_densities)]
-        density_arrays['t_rfmab'] = [struct.unpack('<H', data[0x9C+i*2:0x9E+i*2])[0] for i in range(num_densities)]
-        density_arrays['t_rfmpb'] = [struct.unpack('<H', data[0xAA+i*2:0xAC+i*2])[0] for i in range(num_densities)]
-        density_arrays['t_refdpr'] = [struct.unpack('<H', data[0xB8+i*2:0xBA+i*2])[0] for i in range(num_densities)]
-        density_arrays['tx_pbr2pbr'] = [struct.unpack('<H', data[0xC6+i*2:0xC8+i*2])[0] for i in range(num_densities)]
-        density_arrays['t_xsr'] = [struct.unpack('<H', data[0xD4+i*2:0xD6+i*2])[0] for i in range(num_densities)]
-        density_arrays['t_xsdll'] = [struct.unpack('<H', data[0xE2+i*2:0xE4+i*2])[0] for i in range(num_densities)]
-        density_arrays['t_xs_fast'] = [struct.unpack('<H', data[0xF0+i*2:0xF2+i*2])[0] for i in range(num_densities)]
+        density_arrays['t_rfcab'] = [struct.unpack('<H', data[density_start+i*2: density_start+2+i*2])[0] for i in range(num_densities)]
+        density_arrays['t_rfcpb'] = [struct.unpack('<H', data[density_start+0x14+i*2: density_start+0x16+i*2])[0] for i in range(num_densities)]
+        density_arrays['t_rfmab'] = [struct.unpack('<H', data[density_start+0x28+i*2: density_start+0x2A+i*2])[0] for i in range(num_densities)]
+        density_arrays['t_rfmpb'] = [struct.unpack('<H', data[density_start+0x3C+i*2: density_start+0x3E+i*2])[0] for i in range(num_densities)]
+        density_arrays['t_refdpr'] = [struct.unpack('<H', data[density_start+0x50+i*2: density_start+0x52+i*2])[0] for i in range(num_densities)]
+        density_arrays['tx_pbr2pbr'] = [struct.unpack('<H', data[density_start+0x64+i*2: density_start+0x66+i*2])[0] for i in range(num_densities)]
+        density_arrays['t_xsr'] = [struct.unpack('<H', data[density_start+0x78+i*2: density_start+0x7A+i*2])[0] for i in range(num_densities)]
+        density_arrays['t_xsdll'] = [struct.unpack('<H', data[density_start+0x8C+i*2: density_start+0x8E+i*2])[0] for i in range(num_densities)]
+        density_arrays['t_xs_fast'] = [struct.unpack('<H', data[density_start+0xA0+i*2: density_start+0xA2+i*2])[0] for i in range(num_densities)]
     except:
         density_arrays = {k: [0]*num_densities for k in ['t_rfcab','t_rfcpb','t_rfmab','t_rfmpb','t_refdpr','tx_pbr2pbr','t_xsr','t_xsdll','t_xs_fast']}
     
@@ -104,10 +107,23 @@ def parse_timing_entries(data, dram_type):
         if not (100 < t_ck < 10000):
             continue
         
+        # LP5 has different entry structure than LP4 - use LP5-specific offsets
+        # LP5 common params start at offset 0x138 (after density arrays), not 0x106
+        common_offset = 0x138 if dram_type == 'lpddr5' else 0x106
+        per_entry_offset = 0x110 if dram_type == 'lpddr5' else 0x110
+        
         try:
+            # Get wck_ratio for period conversion from correct offset 0x138
+            wck_ratio = data[entry_offset + 0x138] if dram_type == 'lpddr5' else 4
+            if wck_ratio == 0:
+                wck_ratio = 4
+            
+            t_ck_val = struct.unpack('<I', data[entry_offset+0x04:entry_offset+0x08])[0]
+            
             entry = {
                 'entry': idx,
-                't_ck': struct.unpack('<I', data[entry_offset+0x04:entry_offset+0x08])[0],
+                't_ck': t_ck_val,
+                't_ck_display': t_ck_val // wck_ratio if dram_type == 'lpddr5' else t_ck_val,
                 'freq': struct.unpack('<I', data[entry_offset+0x00:entry_offset+0x04])[0],
                 'timing_zqcal': struct.unpack('<I', data[entry_offset+0x08:entry_offset+0x0C])[0],
                 'timing_param': [struct.unpack('<I', data[entry_offset+0x0C+i*4:entry_offset+0x10+i*4])[0] for i in range(21)],
@@ -116,40 +132,40 @@ def parse_timing_entries(data, dram_type):
                     struct.unpack('<I', data[entry_offset+0x64:entry_offset+0x68])[0]
                 ],
                 'dfi_timing_param': [struct.unpack('<I', data[entry_offset+0x68+i*4:entry_offset+0x6C+i*4])[0] for i in range(8)],
-                # Common params (lines 498-510)
-                'wck_ratio': data[entry_offset + 0x106],
-                'tlp_resp': data[entry_offset + 0x107],
-                'adc': data[entry_offset + 0x108],
-                'dll_enable': data[entry_offset + 0x109],
-                'write_odt': data[entry_offset + 0x10A],
-                'nt_odt': data[entry_offset + 0x10B],
-                'write_dbi': data[entry_offset + 0x10C],
-                'read_dbi': data[entry_offset + 0x10D],
-                'wpste': data[entry_offset + 0x10E],
-                'rpste': data[entry_offset + 0x10F],
-                # Per-entry params (lines 520-542)
-                'rl': data[entry_offset + 0x110],
-                'wl': data[entry_offset + 0x111],
-                'mr_rl': data[entry_offset + 0x112],
-                'mr_wl': data[entry_offset + 0x113],
-                'mr_wr': data[entry_offset + 0x114],
-                'mr_rtp': data[entry_offset + 0x115],
-                'mr_cal': data[entry_offset + 0x116],
-                'mr_tccd_l': data[entry_offset + 0x117],
-                'bank_mode': data[entry_offset + 0x118],
-                'wck_fm': data[entry_offset + 0x119],
-                'rdqs_pst_mode': data[entry_offset + 0x11A],
-                'rdqs_pst': data[entry_offset + 0x11B],
-                'rdqs_pre': data[entry_offset + 0x11C],
-                'wck_pst': data[entry_offset + 0x11D],
-                'wck_on': data[entry_offset + 0x11E],
-                'read_link_parity': data[entry_offset + 0x11F],
-                'write_link_parity': data[entry_offset + 0x120],
-                't_rtw': data[entry_offset + 0x121],
-                't_wtr_a': data[entry_offset + 0x122],
-                't_wtr': data[entry_offset + 0x123],
-                't_rc': data[entry_offset + 0x124],
-                'trddata_en': data[entry_offset + 0x125],
+                # Common params - use LP5-specific offsets if needed
+                'wck_ratio': data[entry_offset + common_offset],
+                'tlp_resp': data[entry_offset + common_offset + 1] if dram_type == 'lpddr5' else data[entry_offset + 0x107],
+                'adc': data[entry_offset + common_offset + 2] if dram_type == 'lpddr5' else data[entry_offset + 0x108],
+                'dll_enable': data[entry_offset + common_offset + 3] if dram_type == 'lpddr5' else data[entry_offset + 0x109],
+                'write_odt': data[entry_offset + common_offset + 4] if dram_type == 'lpddr5' else data[entry_offset + 0x10A],
+                'nt_odt': data[entry_offset + common_offset + 5] if dram_type == 'lpddr5' else data[entry_offset + 0x10B],
+                'write_dbi': data[entry_offset + common_offset + 6] if dram_type == 'lpddr5' else data[entry_offset + 0x10C],
+                'read_dbi': data[entry_offset + common_offset + 7] if dram_type == 'lpddr5' else data[entry_offset + 0x10D],
+                'wpste': data[entry_offset + common_offset + 8] if dram_type == 'lpddr5' else data[entry_offset + 0x10E],
+                'rpste': data[entry_offset + common_offset + 9] if dram_type == 'lpddr5' else data[entry_offset + 0x10F],
+                # Per-entry params
+                'rl': data[entry_offset + per_entry_offset],
+                'wl': data[entry_offset + per_entry_offset + 1],
+                'mr_rl': data[entry_offset + per_entry_offset + 2],
+                'mr_wl': data[entry_offset + per_entry_offset + 3],
+                'mr_wr': data[entry_offset + per_entry_offset + 4],
+                'mr_rtp': data[entry_offset + per_entry_offset + 5],
+                'mr_cal': data[entry_offset + per_entry_offset + 6],
+                'mr_tccd_l': data[entry_offset + per_entry_offset + 7],
+                'bank_mode': data[entry_offset + per_entry_offset + 8],
+                'wck_fm': data[entry_offset + per_entry_offset + 9],
+                'rdqs_pst_mode': data[entry_offset + per_entry_offset + 10],
+                'rdqs_pst': data[entry_offset + per_entry_offset + 11],
+                'rdqs_pre': data[entry_offset + per_entry_offset + 12],
+                'wck_pst': data[entry_offset + per_entry_offset + 13],
+                'wck_on': data[entry_offset + per_entry_offset + 14],
+                'read_link_parity': data[entry_offset + per_entry_offset + 15],
+                'write_link_parity': data[entry_offset + per_entry_offset + 16],
+                't_rtw': data[entry_offset + per_entry_offset + 17],
+                't_wtr_a': data[entry_offset + per_entry_offset + 18],
+                't_wtr': data[entry_offset + per_entry_offset + 19],
+                't_rc': data[entry_offset + per_entry_offset + 20],
+                'trddata_en': data[entry_offset + per_entry_offset + 21],
             }
             timing_entries.append(entry)
         except:
@@ -245,18 +261,34 @@ def analyze_binary_file(file_path, dram_type_override=None):
     entry_size = 0x15C if is_lpddr5 else 0x128
     max_entries = 8
     
+    # Get wck_ratio from first entry for LP5 period conversion
+    first_wck_ratio = 4  # default
+    if is_lpddr5 and len(data) >= entry_size:
+        common_offset = 0x88
+        first_wck_ratio = data[common_offset] if data[common_offset] > 0 else 4
+    
     for i in range(max_entries):
         offset = i * entry_size
         if offset + 4 > len(data):
             break
         t_ck = struct.unpack('<I', data[offset+4:offset+8])[0] if len(data) >= offset + 8 else 0
         
-        # For LP5: binary stores t_ck (after WCK conversion), use directly for periods
-        # The period range 300-5000 matches the stored t_ck values, not input periods
+        # Use raw t_ck for detection (t_ck values are in range 300-5000)
+        # But store converted t_wck for display
         period_value = t_ck
         
         if 300 <= period_value <= 5000:
-            periods.append(period_value)
+            # For LP5: convert to t_wck for display (user input period)
+            # Use per-entry wck_ratio from offset 0x138
+            if is_lpddr5:
+                wck_ratio = data[offset + 0x138] if offset + 0x138 < len(data) else 4
+                if wck_ratio > 0:
+                    display_period = t_ck // wck_ratio
+                else:
+                    display_period = t_ck
+            else:
+                display_period = t_ck
+            periods.append(display_period)
             if len(data) >= offset + 192:
                 # Timing feature flags
                 # write_odt at offset +0x9E (158)
