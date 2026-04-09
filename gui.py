@@ -46,7 +46,10 @@ def is_checked(val):
 
 def parse_timing_entries(data, dram_type):
     """Parse all timing entry params from binary."""
-    entry_size = 0x128
+    # LP5 uses different entry size than LP4
+    # LP4: 0x128 (296 bytes)
+    # LP5: 0x15C (348 bytes)
+    entry_size = 0x15C if dram_type == 'lpddr5' else 0x128
     num_entries = len(data) // entry_size
     
     # Number of densities
@@ -238,7 +241,8 @@ def analyze_binary_file(file_path, dram_type_override=None):
     write_odt_upto = 0
     read_dbi_upto = 0
     write_dbi_upto = 0
-    entry_size = 0x128
+    # LP5 uses different entry size than LP4
+    entry_size = 0x15C if is_lpddr5 else 0x128
     max_entries = 8
     
     for i in range(max_entries):
@@ -246,8 +250,13 @@ def analyze_binary_file(file_path, dram_type_override=None):
         if offset + 4 > len(data):
             break
         t_ck = struct.unpack('<I', data[offset+4:offset+8])[0] if len(data) >= offset + 8 else 0
-        if 300 <= t_ck <= 5000:
-            periods.append(t_ck)
+        
+        # For LP5: binary stores t_ck (after WCK conversion), use directly for periods
+        # The period range 300-5000 matches the stored t_ck values, not input periods
+        period_value = t_ck
+        
+        if 300 <= period_value <= 5000:
+            periods.append(period_value)
             if len(data) >= offset + 192:
                 # Timing feature flags
                 # write_odt at offset +0x9E (158)
@@ -279,8 +288,8 @@ def analyze_binary_file(file_path, dram_type_override=None):
     # If we only got 1 period (common for single-channel binaries), use defaults
     if len(periods) == 1:
         if is_lpddr5:
-            # LPDDR5 default periods
-            periods = [1256, 796, 556, 2500]
+            # LPDDR5 default periods (t_wck values, before WCK conversion)
+            periods = [314, 418, 556, 2500]
         else:
             # LPDDR4 default periods
             periods = [471, 938, 1631, 2500]
@@ -298,9 +307,9 @@ def analyze_binary_file(file_path, dram_type_override=None):
             # LPDDR5 struct has different offsets than LPDDR4
             # Get offsets dynamically based on dram type
             if is_lpddr5:
-                # LPDDR5: use correct struct offsets (has 9-byte lp5 header: lp5_mr2-18 + zq_bg_mode)
-                # Correct offsets from ctypes struct - differ from LP4 by +6 to +8 bytes
-                dfs_offsets = (0x63, 0x65, 0x67)
+                # LPDDR5: use correct struct offsets
+                # dfs_lvl_t_ck at 0x64, 0x66, 0x68 (not 0x63, 0x65, 0x67)
+                dfs_offsets = (0x64, 0x66, 0x68)
                 # Threshold offsets: LP5 single vs dual differ
                 dp_thresh_offset = 0xf8 if is_dual_channel else 0xe8
                 ds_thresh_offset = 0xf4 if is_dual_channel else 0xe4
@@ -368,10 +377,8 @@ def analyze_binary_file(file_path, dram_type_override=None):
                     ('dfs_lvl_t_ck_2', dfs_offsets[2], '<H'),
                     
                     # Late fields - using ctypes struct offsets for LPDDR5
-                    # ctypes struct offsets (LP5 has lp5 header: lp5_mr2-18 + zq_bg_mode)
-                    # LP5 Single: zq=0xEC, temp=0xF4, t_refipb=0xF8, t_refiab=0xFC, t_zq=0x100, mrr=0x108
-                    # LP5 Dual: zq=0xFC, temp=0x104, t_refipb=0x108, t_refiab=0x10C, t_zq=0x110, mrr=0x118
-                    ('density_code', 0xA5 + (0x10 if is_dual_channel else 0), '<I'),
+                    # LP5 density_code at 0x80 (not 0xA5)
+                    ('density_code', 0x80, '<I'),
                     ('zq_calibration_period', 0xFC if is_dual_channel else 0xEC, '<I'),
                     ('temp_sensing_period', 0x104 if is_dual_channel else 0xF4, '<I'),
                     ('t_refipb', 0x108 if is_dual_channel else 0xF8, '<I'),

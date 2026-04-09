@@ -259,6 +259,7 @@ class TimingEntryTest:
         print("\n" + "=" * 50)
         print("TC3: LPDDR5 Same Params - Single Channel")
         print("        Periods: [314, 418, 556, 2500]")
+        print("        Note: LP5 now correctly parses all 4 entries with fixed entry_size")
         print("=" * 50)
         
         try:
@@ -271,8 +272,15 @@ class TimingEntryTest:
             for i, e in enumerate(valid_entries):
                 print(f"  Entry {i}: t_ck={e['t_ck']}, rl={e['rl']}, wl={e['wl']}")
             
-            if len(valid_entries) < 1:
-                raise Exception(f"Expected at least 1 entry, got {len(valid_entries)}")
+            # After fixing entry_size, LP5 should detect all 4 entries
+            if len(valid_entries) != 4:
+                raise Exception(f"Expected 4 valid entries, got {len(valid_entries)}")
+            
+            # Verify t_ck values are correct (stored as t_ck after WCK conversion)
+            expected_tck = [1256, 1672, 2224, 5000]
+            for i, e in enumerate(valid_entries):
+                if e['t_ck'] != expected_tck[i]:
+                    raise Exception(f"Entry {i} t_ck: expected {expected_tck[i]}, got {e['t_ck']}")
             
             print("PASSED")
             self.passed += 1
@@ -286,6 +294,7 @@ class TimingEntryTest:
         print("\n" + "=" * 50)
         print("TC4: LPDDR5 Same Params - Dual Channel")
         print("        Periods: [314, 418, 556, 2500]")
+        print("        Note: LP5 now correctly parses all 4 entries with fixed entry_size")
         print("=" * 50)
         
         try:
@@ -298,8 +307,13 @@ class TimingEntryTest:
             for i, e in enumerate(valid_entries):
                 print(f"  Entry {i}: t_ck={e['t_ck']}, rl={e['rl']}, wl={e['wl']}")
             
-            if len(valid_entries) < 1:
-                raise Exception(f"Expected at least 1 entry, got {len(valid_entries)}")
+            if len(valid_entries) != 4:
+                raise Exception(f"Expected 4 valid entries, got {len(valid_entries)}")
+            
+            expected_tck = [1256, 1672, 2224, 5000]
+            for i, e in enumerate(valid_entries):
+                if e['t_ck'] != expected_tck[i]:
+                    raise Exception(f"Entry {i} t_ck: expected {expected_tck[i]}, got {e['t_ck']}")
             
             if data.get('two_channel', 0) != 1:
                 raise Exception("Expected dual channel")
@@ -395,8 +409,9 @@ class TimingEntryTest:
             for i, e in enumerate(valid_entries):
                 print(f"  Entry {i}: t_ck={e['t_ck']}, rl={e['rl']}, wl={e['wl']}")
             
-            if len(valid_entries) < 1:
-                raise Exception(f"Expected at least 1 entry, got {len(valid_entries)}")
+            # With fixed entry_size, expect all 4 entries
+            if len(valid_entries) != 4:
+                raise Exception(f"Expected 4 entries, got {len(valid_entries)}")
             
             print("PASSED")
             self.passed += 1
@@ -422,8 +437,9 @@ class TimingEntryTest:
             for i, e in enumerate(valid_entries):
                 print(f"  Entry {i}: t_ck={e['t_ck']}, rl={e['rl']}, wl={e['wl']}")
             
-            if len(valid_entries) < 1:
-                raise Exception(f"Expected at least 1 entry, got {len(valid_entries)}")
+            # With fixed entry_size, expect all 4 entries
+            if len(valid_entries) != 4:
+                raise Exception(f"Expected 4 entries, got {len(valid_entries)}")
             
             if data.get('two_channel', 0) != 1:
                 raise Exception("Expected dual channel")

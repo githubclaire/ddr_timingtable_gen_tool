@@ -148,6 +148,32 @@ chmod +x test_lpddr5.sh
 ./test_lpddr5.sh
 ```
 
+## Recent Updates (2026-04-09)
+
+### LP5 Binary Parsing Fixes
+
+Fixed several issues in `gui.py` for correct LPDDR5 binary parsing:
+
+1. **Entry Size**: LP5 uses different entry size (0x15C/348 bytes) than LP4 (0x128/296 bytes)
+2. **Orbit Config Offsets**: Fixed LP5-specific offsets for:
+   - `dfs_lvl_t_ck`: 0x63→0x64, 0x65→0x66, 0x67→0x68
+   - `density_code`: 0xA5→0x80
+3. **LP5 Default Periods**: Updated to use t_wck values (314, 418, 556, 2500)
+
+### Test Coverage
+
+```bash
+# Timing entry validation test (8 tests)
+python3 test_timing_entry_validation.py
+
+# Random value flow test (452 tests)
+python3 test_random_value_flow.py
+```
+
+All tests pass:
+- `test_timing_entry_validation.py`: 8/8 passed
+- `test_random_value_flow.py`: 452/452 passed
+
 ## Density Code Mapping
 
 | Density (Gb) | Density Code |
