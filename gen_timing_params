@@ -698,6 +698,8 @@ def parse_args():
     orbit_grp.add_argument('--orbit-dynamic-power-down-threshold', type=int, default=0, help='Dynamic power down threshold (cycles)')
     orbit_grp.add_argument('--orbit-dynamic-self-refresh', type=int, default=0, choices=[0,1], help='Dynamic self refresh enable')
     orbit_grp.add_argument('--orbit-dynamic-self-refresh-threshold', type=int, default=0, help='Dynamic self refresh threshold (cycles)')
+    orbit_grp.add_argument('--orbit-phy-idle-cnt-th', type=int, default=0, help='PHY idle counter threshold')
+    orbit_grp.add_argument('--orbit-phy-low-power', type=int, default=0, choices=[0,1], help='PHY low power enable')
     
     # Timing intervals
     orbit_grp.add_argument('--orbit-periodic-training', type=int, default=0, choices=[0,1], help='Periodic training enable')
@@ -882,6 +884,8 @@ def generate_orbit_config_bin(args):
             'orbit_dynamic_power_down_threshold': 'dynamic_power_down_threshold',
             'orbit_dynamic_self_refresh': 'dynamic_self_refresh',
             'orbit_dynamic_self_refresh_threshold': 'dynamic_self_refresh_threshold',
+            'orbit_phy_idle_cnt_th': 'phy_idle_cnt_th',
+            'orbit_phy_low_power': 'phy_low_power',
             # Timing intervals
             'orbit_periodic_training': 'periodic_training',
             'orbit_periodic_training_period': 'periodic_training_period',

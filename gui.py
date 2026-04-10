@@ -55,19 +55,31 @@ def parse_timing_entries(data, dram_type):
     # Number of densities
     num_densities = 7 if dram_type == 'lpddr4' else 10
     
-    # Parse density from orbit config (offset 0x81C)
+    # Parse density from orbit config
+    # LP4: offset 0x1C within struct = 0x81C in file
+    # LP5: offset 0x24 within struct = 0x824 in file
     orbit_offset = 0x800
+    density_offset = 0x1C if dram_type == 'lpddr4' else 0x24
     try:
-        density = struct.unpack('<H', data[orbit_offset+0x1C:orbit_offset+0x1E])[0]
+        density = struct.unpack('<H', data[orbit_offset+density_offset:orbit_offset+density_offset+2])[0]
     except:
         density = 16
     
-    # Density index (0-based, assume density matches index)
-    density_index = min(max(density - 1, 0), num_densities - 1)
+    # Density index mapping - find density in array
+    # LP4: [2, 3, 4, 6, 8, 12, 16]
+    # LP5: [1, 2, 3, 4, 6, 8, 12, 16, 24, 32]
+    if dram_type == 'lpddr5':
+        DENSITIES = [1, 2, 3, 4, 6, 8, 12, 16, 24, 32]
+    else:
+        DENSITIES = [2, 3, 4, 6, 8, 12, 16]
+    try:
+        density_index = DENSITIES.index(density)
+    except ValueError:
+        density_index = 0  # Default to first density if not found
     
     # Parse density-dependent arrays
-    # LP5 density arrays are within each entry (at offset 0x88), LP4 at file level (0x80)
-    density_start = 0x88 if dram_type == 'lpddr5' else 0x80
+    # LP5 and LP4 density arrays are both at file-level offset 0x80
+    density_start = 0x80
     
     density_arrays = {}
     try:
@@ -108,13 +120,13 @@ def parse_timing_entries(data, dram_type):
             continue
         
         # LP5 has different entry structure than LP4 - use LP5-specific offsets
-        # LP5 common params start at offset 0x138 (after density arrays), not 0x106
-        common_offset = 0x138 if dram_type == 'lpddr5' else 0x106
-        per_entry_offset = 0x110 if dram_type == 'lpddr5' else 0x110
+        # LP5 common params start at offset 0x13c (after density arrays), not 0x106
+        common_offset = 0x13c if dram_type == 'lpddr5' else 0x106
+        per_entry_offset = 0x146 if dram_type == 'lpddr5' else 0x110
         
         try:
-            # Get wck_ratio for period conversion from correct offset 0x138
-            wck_ratio = data[entry_offset + 0x138] if dram_type == 'lpddr5' else 4
+            # Get wck_ratio for period conversion from correct offset 0x13c
+            wck_ratio = data[entry_offset + 0x13c] if dram_type == 'lpddr5' else 4
             if wck_ratio == 0:
                 wck_ratio = 4
             
@@ -176,7 +188,6 @@ def parse_timing_entries(data, dram_type):
     if timing_entries:
         first = timing_entries[0]
         common = {
-            'wck_ratio': first.get('wck_ratio', 0),
             'tlp_resp': first.get('tlp_resp', 0),
             'dll_enable': first.get('dll_enable', 0),
             'write_odt': first.get('write_odt', 0),
@@ -261,12 +272,6 @@ def analyze_binary_file(file_path, dram_type_override=None):
     entry_size = 0x15C if is_lpddr5 else 0x128
     max_entries = 8
     
-    # Get wck_ratio from first entry for LP5 period conversion
-    first_wck_ratio = 4  # default
-    if is_lpddr5 and len(data) >= entry_size:
-        common_offset = 0x88
-        first_wck_ratio = data[common_offset] if data[common_offset] > 0 else 4
-    
     for i in range(max_entries):
         offset = i * entry_size
         if offset + 4 > len(data):
@@ -279,9 +284,9 @@ def analyze_binary_file(file_path, dram_type_override=None):
         
         if 300 <= period_value <= 5000:
             # For LP5: convert to t_wck for display (user input period)
-            # Use per-entry wck_ratio from offset 0x138
+            # Use per-entry wck_ratio from offset 0x13c
             if is_lpddr5:
-                wck_ratio = data[offset + 0x138] if offset + 0x138 < len(data) else 4
+                wck_ratio = data[offset + 0x13c] if offset + 0x13c < len(data) else 4
                 if wck_ratio > 0:
                     display_period = t_ck // wck_ratio
                 else:
@@ -342,18 +347,20 @@ def analyze_binary_file(file_path, dram_type_override=None):
                 # LPDDR5: use correct struct offsets
                 # dfs_lvl_t_ck at 0x64, 0x66, 0x68 (not 0x63, 0x65, 0x67)
                 dfs_offsets = (0x64, 0x66, 0x68)
-                # Threshold offsets: LP5 single vs dual differ
-                dp_thresh_offset = 0xf8 if is_dual_channel else 0xe8
-                ds_thresh_offset = 0xf4 if is_dual_channel else 0xe4
+                # Threshold offsets from C struct
+                # LP5 Single: dp_threshold=0xE6, ds_threshold=0xE2
+                # LP5 Dual: dp_threshold=0xF6, ds_threshold=0xF2
+                dp_thresh_offset = 0xf6 if is_dual_channel else 0xe6
+                ds_thresh_offset = 0xf2 if is_dual_channel else 0xe2
                 fields_to_read = [
                     # Pipe config (LPDDR5 struct starts at offset 0x14)
                     ('phy_freq_ratio', 0x14, '<H'),
                     ('omc_freq_ratio', 0x16, '<H'),
                     ('cpipe_depth', 0x18, '<H'),
                     ('dpipe_depth', 0x1a, '<H'),
-                    ('dram_t_ck', 0x90, '<I'),
-                    ('rclk_t_ck', 0x94, '<I'),
-                    ('boot_t_ck', 0x98, '<I'),
+                    ('dram_t_ck', 0x90, '<I'),  # LP5: value at 0x890 = 1256
+                    ('rclk_t_ck', 0x84, '<I'),  # LP5: value at 0x884 = 41666
+                    ('boot_t_ck', 0x88, '<I'),  # LP5: value at 0x888 = 20000
                     
                     # Basic geometry
                     ('density', 0x24, '<H'),
@@ -422,9 +429,9 @@ def analyze_binary_file(file_path, dram_type_override=None):
                 # LPDDR4: use LPDDR4 struct offsets (no lp5 header)
                 # Correct offsets from ctypes struct
                 dfs_offsets = (0x5E, 0x60, 0x62)
-                # Threshold offsets: LP4 single vs dual differ
-                # LP4 Single: dp_threshold=0xE0, ds_threshold=0xDC
-                # LP4 Dual: dp_threshold=0xF0, ds_threshold=0xEC
+                # Threshold offsets - verify against binary data
+                # LP4 Single: dp=0xE0 (file 0x8E0), ds=0xDC (file 0x8DC) - both should read 0
+                # LP4 Dual: unknown, try 0xEC/0xF0
                 dp_thresh_offset = 0xf0 if is_dual_channel else 0xe0
                 ds_thresh_offset = 0xec if is_dual_channel else 0xdc
                 fields_to_read = [
@@ -434,8 +441,8 @@ def analyze_binary_file(file_path, dram_type_override=None):
                     ('cpipe_depth', 0x14, '<H'),
                     ('dpipe_depth', 0x16, '<H'),
                     ('dram_t_ck', 0x88, '<I'),
-                    ('rclk_t_ck', 0x8C, '<I'),
-                    ('boot_t_ck', 0x90, '<I'),
+                    ('rclk_t_ck', 0x7C, '<I'),
+                    ('boot_t_ck', 0x80, '<I'),
                     
                     # Basic geometry
                     ('density', 0x1C, '<H'),
