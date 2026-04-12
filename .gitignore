@@ -5,23 +5,34 @@ test_*.bin
 
 # Compiled executables
 ddr_config_bin_exec
+ddr_config_bin_parity_exec
 print_offsets
 print_offsets_clean
 print_offsets_single
 test_num_omc
+dump_struct_layout
 
 # Python bytecode
 *.pyc
 __pycache__/
+.pytest_cache/
 
 # Backup files
 *.backup
 *~
 
-# Generated C files (can be regenerated)
+# Generated C/H files (can be regenerated)
 orbit_timing_params.c
 mr_config_gen.h
 orbit_init_gen.h
+orbit_tables.gen.h
+orbit_init_gen.h
+
+# Generated outputs
+ddr_timing_table.bin.report.txt
+ddr_timing_table.container
+ddr_config.json
+ddr_config.h
 
 # IDE files
 .vscode/
