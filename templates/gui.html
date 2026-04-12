@@ -650,6 +650,87 @@
         label[title] { cursor: help; border-bottom: 1px dotted var(--text-muted); }
 
         /* ============================================================
+         * User Guide Modal
+         * ============================================================ */
+        .guide-modal { display: none; position: fixed; z-index: 1001; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.55); }
+        .guide-modal.visible { display: flex; align-items: center; justify-content: center; }
+        .guide-content {
+            background: var(--surface-alt);
+            border-radius: var(--radius);
+            width: 94%;
+            max-width: 960px;
+            max-height: 90vh;
+            overflow-y: auto;
+            color: var(--text);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        .guide-header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 16px 24px; border-bottom: 1px solid var(--border);
+            position: sticky; top: 0; background: var(--surface-alt); z-index: 1;
+        }
+        .guide-header h2 { font-size: 16px; font-weight: 700; }
+        .guide-body { padding: 20px 24px; }
+        .guide-section { margin-bottom: 24px; }
+        .guide-section h3 { font-size: 14px; font-weight: 700; margin-bottom: 8px; color: var(--primary); }
+        .guide-section p, .guide-section li { font-size: 13px; line-height: 1.7; color: var(--text-secondary); }
+        .guide-section ul { padding-left: 18px; margin-top: 4px; }
+
+        /* Dependency diagram */
+        .dep-diagram { width: 100%; overflow-x: auto; }
+        .dep-diagram svg { display: block; margin: 0 auto; }
+        .dep-diagram svg text { font-family: var(--font-sans); }
+        .dep-node {
+            cursor: pointer;
+            transition: filter 0.15s;
+        }
+        .dep-node rect {
+            rx: 6; ry: 6;
+            stroke-width: 1.5;
+            transition: stroke-width 0.15s, filter 0.15s;
+        }
+        .dep-node:hover rect, .dep-node.active rect {
+            stroke-width: 2.5;
+            filter: drop-shadow(0 2px 6px rgba(0,0,0,0.15));
+        }
+        .dep-edge { transition: opacity 0.15s, stroke-width 0.15s; }
+        .dep-edge.dimmed { opacity: 0.12; }
+        .dep-edge.highlight { stroke-width: 2.5; opacity: 1; }
+        .dep-node.dimmed rect { opacity: 0.25; }
+        .dep-node.dimmed text { opacity: 0.3; }
+
+        /* Constraint rules table */
+        .constraint-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .constraint-table th, .constraint-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+        .constraint-table th { font-weight: 600; color: var(--text); background: var(--surface); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+        .constraint-table td { color: var(--text-secondary); }
+        .constraint-table tr:hover td { background: var(--primary-light); }
+        .constraint-id { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 10px; font-weight: 700; font-family: var(--font-mono); }
+        .cid-red { background: var(--error-bg); color: var(--error); }
+        .cid-amber { background: var(--warning-bg); color: #92400e; }
+        .cid-blue { background: var(--primary-light); color: var(--primary); }
+
+        /* DRAM-type badges in guide */
+        .guide-badge { display: inline-block; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 3px; margin-right: 4px; vertical-align: middle; }
+        .guide-badge.lp5 { background: #dbeafe; color: #1e40af; }
+        .guide-badge.lp4 { background: #fef3c7; color: #92400e; }
+        .guide-badge.both { background: var(--surface); color: var(--text-secondary); border: 1px solid var(--border); }
+
+        /* Guide button in tab bar */
+        .guide-btn {
+            margin-left: auto; margin-right: 8px;
+            padding: 6px 14px;
+            font-size: 12px; font-weight: 600;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            background: transparent;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: background 0.15s, color 0.15s;
+        }
+        .guide-btn:hover { background: var(--primary-light); color: var(--primary); }
+
+        /* ============================================================
          * Phase 4: Responsive
          * ============================================================ */
         @media (max-width: 768px) {
@@ -706,6 +787,7 @@
     <div class="tab-bar">
         <button class="tab-btn active" onclick="switchTab('configure')" id="tabConfigure">Configure</button>
         <button class="tab-btn" onclick="switchTab('inspect')" id="tabInspect">Generate &amp; Inspect</button>
+        <button class="guide-btn" onclick="openGuide()">Field Guide</button>
         <span class="kbd-hint"><kbd>Shift</kbd>+<kbd>Enter</kbd> to generate</span>
     </div>
 
@@ -1244,6 +1326,52 @@
     </div>
 </div>
 
+<!-- Field Guide Modal -->
+<div id="guideModal" class="guide-modal" onclick="if(event.target===this)closeGuide()">
+    <div class="guide-content">
+        <div class="guide-header">
+            <h2>Field Dependency Guide</h2>
+            <span class="close" onclick="closeGuide()">&times;</span>
+        </div>
+        <div class="guide-body">
+            <div class="guide-section">
+                <h3>Dependency Diagram</h3>
+                <p>Fields connected by arrows have cross-validation constraints. Hover a field to highlight its dependencies. Click for details.</p>
+                <div class="dep-diagram" id="depDiagram"></div>
+            </div>
+            <div class="guide-section" id="guideConstraintDetail" style="display:none;">
+                <h3 id="guideDetailTitle">Constraint Detail</h3>
+                <p id="guideDetailText"></p>
+            </div>
+            <div class="guide-section">
+                <h3>Constraint Rules</h3>
+                <table class="constraint-table">
+                    <thead><tr><th></th><th>Constraint</th><th>Fields Involved</th><th>Rule</th></tr></thead>
+                    <tbody id="constraintTableBody"></tbody>
+                </table>
+            </div>
+            <div class="guide-section">
+                <h3>How Periods Are Validated</h3>
+                <p>Each period (tWCK for LP5, tCK for LP4) is validated against the JEDEC memcfg table boundaries.
+                   For LP5, the valid range changes <strong>per period</strong> depending on which features are active at that frequency:</p>
+                <ul>
+                    <li><strong>WCK 1:4</strong> is enabled when <code>wck-1to4-upto &ge; period</code>, setting data_freq_ratio = 4 (otherwise 2)</li>
+                    <li><strong>Read LECC</strong> is enabled when <code>read-lecc-upto &gt; period</code> (strict &gt;), selecting a different memcfg table</li>
+                    <li>The internal tCK seen by the memcfg lookup is <code>period &times; data_freq_ratio</code></li>
+                    <li>For LP4, period bounds are fixed at <strong>468 &ndash; 5000 ps</strong></li>
+                </ul>
+            </div>
+            <div class="guide-section">
+                <h3>Understanding "upto" and "from" Fields</h3>
+                <p>Most timing threshold fields use <strong>upto</strong> semantics: the feature is enabled when the current period &le; the upto value
+                   (i.e., at frequencies <em>higher</em> than 1/upto). A larger upto value enables the feature across more (slower) frequencies.</p>
+                <p style="margin-top:6px;"><strong>WCK Always-On</strong> uses a <strong>window</strong>: enabled when <code>from &le; period &le; upto</code>.
+                   Setting from &gt; upto disables it entirely.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 // ============================================================
 // Utility
@@ -1479,6 +1607,34 @@ function updateFieldRanges() {
     if (odtLabel) odtLabel.title = isLp5
         ? 'Max tWCK (ps) to enable write ODT. Range: 0-10000ps'
         : 'Max tCK (ps) to enable write ODT. Capped at 1249ps by LPDDR4 spec. Range: 0-1249ps';
+
+    // Update period label tooltip with dynamic memcfg-aware bounds
+    const periodLabel = document.querySelector('label[title*="periods"]');
+    if (periodLabel) {
+        if (isLp5) {
+            periodLabel.title = 'Target tWCK periods in ps. Valid range depends on WCK 1:4 and Read LECC settings per period. Max entries: 5';
+        } else {
+            periodLabel.title = 'Target tCK periods in ps. Range: 468-5000ps. Max entries: 6';
+        }
+    }
+
+    // Update PST tooltips with hierarchy note
+    if (isLp5) {
+        const pst1Label = document.querySelector('label[title*="WCK PST as 4.5"]');
+        if (pst1Label) pst1Label.title = 'Max tWCK (ps) to set WCK PST as 4.5*tWCK. Must be >= wck-pst2-upto. Range: 0-10000ps';
+        const pst2Label = document.querySelector('label[title*="WCK PST as 6.5"]');
+        if (pst2Label) pst2Label.title = 'Max tWCK (ps) to set WCK PST as 6.5*tWCK. Must be <= wck-pst1-upto. Range: 0-10000ps';
+        const rdqsPst1Label = document.querySelector('label[title*="RDQS PST as 2.5"]');
+        if (rdqsPst1Label) rdqsPst1Label.title = 'Max tWCK (ps) to set RDQS PST as 2.5*tWCK. Must be >= rdqs-pst2-upto. Range: 0-10000ps';
+        const rdqsPst2Label = document.querySelector('label[title*="RDQS PST as 4.5"]');
+        if (rdqsPst2Label) rdqsPst2Label.title = 'Max tWCK (ps) to set RDQS PST as 4.5*tWCK. Must be <= rdqs-pst1-upto. Range: 0-10000ps';
+
+        // Update WCK always-on tooltip with SPHY-V9R8 constraint note
+        const aoFromLabel = document.querySelector('label[title*="Min tWCK"][title*="always-on"]');
+        if (aoFromLabel) aoFromLabel.title = 'Min tWCK (ps) for WCK always-on window. SPHY-V9R8 requires always-on for tWCK >= 1250 (1:4) or >= 1836 (1:2). Range: 0-10000ps';
+        const aoUptoLabel = document.querySelector('label[title*="Max tWCK"][title*="always-on"]');
+        if (aoUptoLabel) aoUptoLabel.title = 'Max tWCK (ps) for WCK always-on window. SPHY-V9R8 requires always-on for tWCK >= 1250 (1:4) or >= 1836 (1:2). Range: 0-10000ps';
+    }
 }
 
 // ============================================================
@@ -2135,17 +2291,29 @@ function validateForm() {
     return true;
 }
 
+function getFieldPs(fieldName) {
+    const field = document.querySelector(`[name="${fieldName}"]`);
+    if (!field || !field.value) return null;
+    let val = parseInt(field.value);
+    if (isNaN(val)) return null;
+    const isMhz = document.querySelector('input[name="timing-unit"]:checked').value === 'MHz';
+    if (isMhz && val > 0 && (fieldName.includes('-upto') || fieldName.includes('-from'))) {
+        val = Math.round(1000000 / val);
+    }
+    return val;
+}
+
 function validateTimingRanges() {
     const dramType = getDramType();
     const timingUnit = document.querySelector('input[name="timing-unit"]:checked').value;
     const isMhz = timingUnit === 'MHz';
     const errors = [];
     const isLp5 = (dramType === 'lpddr5');
-    const periodMin = isLp5 ? 235 : 468;
     const periodMax = 5000;
 
     buildFieldRanges();
 
+    // --- Per-field individual range checks ---
     for (const [fieldName, range] of Object.entries(FIELD_RANGES)) {
         const field = document.querySelector(`[name="${fieldName}"]`);
         if (!field || !field.value || field.offsetParent === null) continue;
@@ -2163,7 +2331,7 @@ function validateTimingRanges() {
         }
     }
 
-    // DFS levels
+    // --- DFS levels ---
     const dfsMin = isLp5 ? 938 : 468;
     document.querySelectorAll('input[name^="dfs-lvl-t-ck-"]').forEach(field => {
         if (!field.value || field.offsetParent === null) return;
@@ -2178,21 +2346,73 @@ function validateTimingRanges() {
         }
     });
 
-    // Periods
-    document.querySelectorAll('input[name^="periods-"]').forEach(field => {
+    // --- LP5 cross-field state used by period and constraint checks ---
+    const wck1to4Upto = isLp5 ? getFieldPs('wck-1to4-upto') : null;
+    const readLeccUpto = isLp5 ? getFieldPs('read-lecc-upto') : null;
+    const wckAoFrom = isLp5 ? getFieldPs('wck-always-on-from') : null;
+    const wckAoUpto = isLp5 ? getFieldPs('wck-always-on-upto') : null;
+    const wckPst1Upto = isLp5 ? getFieldPs('wck-pst1-upto') : null;
+    const wckPst2Upto = isLp5 ? getFieldPs('wck-pst2-upto') : null;
+    const rdqsPst1Upto = isLp5 ? getFieldPs('rdqs-pst1-upto') : null;
+    const rdqsPst2Upto = isLp5 ? getFieldPs('rdqs-pst2-upto') : null;
+
+    // Helper: compute per-period valid tWCK bounds for LP5 based on memcfg tables.
+    // Returns {min, max} in tWCK ps, or null if bounds cannot be determined.
+    //   read_lecc + ratio=4 → memcfgs_map[0], internal 938-2499 → tWCK 235-624
+    //   read_lecc + ratio=2 → memcfgs_map[0], internal 938-2499 → tWCK 469-1249
+    //   !read_lecc + ratio=2 → memcfgs_map[1], internal 1250-9999 → tWCK 625-4999
+    //   !read_lecc + ratio=4 → memcfgs_map[2], internal 938-19999 → tWCK 235-4999
+    function lp5PeriodBounds(tck) {
+        if (wck1to4Upto === null || readLeccUpto === null) return null;
+        const wck1to4 = wck1to4Upto >= tck;
+        const ratio = wck1to4 ? 4 : 2;
+        const readLecc = readLeccUpto > tck;  // note: strict '>' matches backend
+        if (readLecc) {
+            return { min: Math.ceil(938 / ratio), max: Math.floor(2499 / ratio) };
+        } else if (ratio === 2) {
+            return { min: 625, max: 4999 };
+        } else {
+            return { min: 235, max: 4999 };
+        }
+    }
+
+    // --- Periods: dynamic per-period memcfg bound check ---
+    const periodFields = document.querySelectorAll('input[name^="periods-"]');
+    if (periodFields.length === 0) {
+        errors.push('At least one period is required');
+    }
+    periodFields.forEach(field => {
         if (!field.value || field.offsetParent === null) return;
         let val = parseInt(field.value);
         if (isNaN(val)) return;
         if (isMhz && val > 0) val = Math.round(1000000 / val);
-        if (val < periodMin || val > periodMax) {
-            errors.push(`${field.name}: ${val}ps (valid: ${periodMin}-${periodMax}ps)`);
-            field.classList.add('field-error');
+
+        if (isLp5) {
+            const bounds = lp5PeriodBounds(val);
+            if (bounds) {
+                if (val < bounds.min || val > bounds.max) {
+                    const display = isMhz ? `${field.value}MHz = ${val}ps` : `${val}ps`;
+                    const wck1to4 = wck1to4Upto >= val;
+                    const readLecc = readLeccUpto > val;
+                    const mode = (readLecc ? 'LECC+' : '') + (wck1to4 ? 'WCK 1:4' : 'WCK 1:2');
+                    errors.push(`${field.name}: ${display} out of memcfg range for ${mode} (valid: ${bounds.min}-${bounds.max}ps)`);
+                    field.classList.add('field-error');
+                } else {
+                    field.classList.remove('field-error');
+                }
+            }
         } else {
-            field.classList.remove('field-error');
+            // LP4: static bounds 468-5000
+            if (val < 468 || val > periodMax) {
+                errors.push(`${field.name}: ${val}ps (valid: 468-${periodMax}ps)`);
+                field.classList.add('field-error');
+            } else {
+                field.classList.remove('field-error');
+            }
         }
     });
 
-    // Density
+    // --- Density ---
     const densityField = document.querySelector('input[name="orbit-config-density"]');
     if (densityField && densityField.value) {
         const density = parseInt(densityField.value);
@@ -2202,6 +2422,40 @@ function validateTimingRanges() {
         };
         if (!validDensities[dramType].includes(density)) {
             errors.push(`density: ${density} (valid: ${validDensities[dramType].join(', ')})`);
+        }
+    }
+
+    // === LP5 cross-field constraints ===
+    if (isLp5) {
+        // 1. SPHY-V9R8 WCK always-on constraint:
+        //    WCK always-on must be enabled when t_ck >= 1250 (wck_1to4) or t_ck >= 1836 (no wck_1to4)
+        if (wck1to4Upto !== null && wckAoFrom !== null && wckAoUpto !== null) {
+            periodFields.forEach(field => {
+                if (!field.value || field.offsetParent === null) return;
+                let tck = parseInt(field.value);
+                if (isNaN(tck)) return;
+                if (isMhz && tck > 0) tck = Math.round(1000000 / tck);
+                const wck1to4 = wck1to4Upto >= tck;
+                const threshold = wck1to4 ? 1250 : 1836;
+                if (tck >= threshold) {
+                    const wckAlwaysOn = (wckAoFrom <= tck && tck <= wckAoUpto);
+                    if (!wckAlwaysOn) {
+                        const mode = wck1to4 ? 'WCK 1:4' : 'WCK 1:2';
+                        errors.push(`${field.name}: ${tck}ps >= ${threshold}ps (${mode}) requires WCK always-on (set wck-always-on-from/upto to cover this period)`);
+                    }
+                }
+            });
+        }
+
+        // 2. WCK PST hierarchy: wck-pst2-upto should be <= wck-pst1-upto.
+        //    If pst2 > pst1, periods between pst1 and pst2 jump from pst=0 to pst=2, skipping 1.
+        if (wckPst2Upto !== null && wckPst1Upto !== null && wckPst2Upto > wckPst1Upto) {
+            errors.push(`wck-pst2-upto (${wckPst2Upto}ps) must be <= wck-pst1-upto (${wckPst1Upto}ps): PST2 is a subset of PST1`);
+        }
+
+        // 3. RDQS PST hierarchy: rdqs-pst2-upto should be <= rdqs-pst1-upto.
+        if (rdqsPst2Upto !== null && rdqsPst1Upto !== null && rdqsPst2Upto > rdqsPst1Upto) {
+            errors.push(`rdqs-pst2-upto (${rdqsPst2Upto}ps) must be <= rdqs-pst1-upto (${rdqsPst1Upto}ps): PST2 is a subset of PST1`);
         }
     }
 
@@ -2437,8 +2691,9 @@ function confirmFilePath() {
     const keep = document.getElementById('fpKeepPath').checked;
     if (keep) localStorage.setItem('fp_' + fpActionKey, path);
     else localStorage.removeItem('fp_' + fpActionKey);
+    const cb = fpCallback;
     closeFilePathDialog();
-    if (fpCallback) fpCallback(path);
+    if (cb) cb(path);
 }
 
 async function browsePath(dir) {
@@ -2491,8 +2746,207 @@ document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
         document.querySelectorAll('.help-text.visible').forEach(el => el.classList.remove('visible'));
         closeFilePathDialog();
+        closeGuide();
     }
 });
+
+// ============================================================
+// Field Guide
+// ============================================================
+function openGuide() {
+    renderGuideDiagram();
+    document.getElementById('guideModal').classList.add('visible');
+}
+function closeGuide() {
+    document.getElementById('guideModal').classList.remove('visible');
+}
+
+function renderGuideDiagram() {
+    const isLp5 = getDramType() === 'lpddr5';
+
+    // ---- Node definitions ----
+    // LP5 nodes
+    const lp5Nodes = [
+        { id: 'periods',        label: 'Periods (tWCK)',        x: 390, y: 30,  w: 140, h: 32, color: '#2563eb', fill: '#dbeafe' },
+        { id: 'wck-1to4-upto',  label: 'WCK 1:4 upto',         x: 120, y: 110, w: 130, h: 32, color: '#7c3aed', fill: '#ede9fe' },
+        { id: 'read-lecc-upto', label: 'Read LECC upto',        x: 390, y: 110, w: 130, h: 32, color: '#7c3aed', fill: '#ede9fe' },
+        { id: 'wck-ao-from',    label: 'WCK Always-On From',    x: 90,  y: 210, w: 165, h: 32, color: '#dc2626', fill: '#fee2e2' },
+        { id: 'wck-ao-upto',    label: 'WCK Always-On Upto',    x: 330, y: 210, w: 165, h: 32, color: '#dc2626', fill: '#fee2e2' },
+        { id: 'wck-pst1-upto',  label: 'WCK PST1 upto',        x: 580, y: 110, w: 130, h: 32, color: '#d97706', fill: '#fef3c7' },
+        { id: 'wck-pst2-upto',  label: 'WCK PST2 upto',        x: 580, y: 170, w: 130, h: 32, color: '#d97706', fill: '#fef3c7' },
+        { id: 'rdqs-pst1-upto', label: 'RDQS PST1 upto',       x: 760, y: 110, w: 130, h: 32, color: '#d97706', fill: '#fef3c7' },
+        { id: 'rdqs-pst2-upto', label: 'RDQS PST2 upto',       x: 760, y: 170, w: 130, h: 32, color: '#d97706', fill: '#fef3c7' },
+        { id: 'memcfg',         label: 'Memcfg Lookup',         x: 250, y: 310, w: 130, h: 32, color: '#059669', fill: '#d1fae5' },
+        { id: 'data-freq-ratio',label: 'data_freq_ratio',       x: 120, y: 310, w: 130, h: 32, color: '#6b7280', fill: '#f3f4f6' },
+    ];
+
+    // LP4 nodes
+    const lp4Nodes = [
+        { id: 'periods',        label: 'Periods (tCK)',          x: 300, y: 30,  w: 140, h: 32, color: '#2563eb', fill: '#dbeafe' },
+        { id: 'write-odt-upto', label: 'Write ODT upto',        x: 160, y: 120, w: 140, h: 32, color: '#d97706', fill: '#fef3c7' },
+        { id: 'memcfg',         label: 'Memcfg Lookup',         x: 440, y: 120, w: 130, h: 32, color: '#059669', fill: '#d1fae5' },
+    ];
+
+    // ---- Edge definitions ----
+    // Each edge: { from, to, label, constraint, color }
+    const lp5Edges = [
+        { from: 'periods', to: 'wck-1to4-upto',  label: 'determines ratio', constraint: 'C1', color: '#7c3aed',
+          detail: 'For each period, WCK 1:4 is enabled when wck-1to4-upto >= period. This sets data_freq_ratio to 4 (enabled) or 2 (disabled), which changes the internal tCK and selects a different memcfg table.' },
+        { from: 'periods', to: 'read-lecc-upto',  label: 'selects memcfg table', constraint: 'C2', color: '#7c3aed',
+          detail: 'Read LECC is enabled when read-lecc-upto > period (strict >). This selects memcfg_map[0] (LECC table), which has a narrower valid range (internal tCK 938-2499).' },
+        { from: 'wck-1to4-upto', to: 'data-freq-ratio', label: 'sets', constraint: 'C1', color: '#6b7280',
+          detail: 'WCK 1:4 enabled sets data_freq_ratio = 4; disabled sets it to 2.' },
+        { from: 'data-freq-ratio', to: 'memcfg', label: 'internal tCK = period x ratio', constraint: 'C1', color: '#059669',
+          detail: 'The internal tCK used for memcfg table lookup is period * data_freq_ratio. The valid period range depends on which memcfg table is selected and the ratio.' },
+        { from: 'read-lecc-upto', to: 'memcfg', label: 'selects table', constraint: 'C2', color: '#059669',
+          detail: 'Read LECC selects memcfg_map[0] with range 938-2499. Without LECC: map[1] (ratio=2, 1250-9999) or map[2] (ratio=4, 938-19999).' },
+        { from: 'periods', to: 'wck-ao-upto',    label: 'must cover', constraint: 'C3', color: '#dc2626',
+          detail: 'SPHY-V9R8 requires WCK always-on for slow periods: >= 1250ps (WCK 1:4) or >= 1836ps (WCK 1:2). The always-on window [from, upto] must include each such period.' },
+        { from: 'periods', to: 'wck-ao-from',    label: 'must cover', constraint: 'C3', color: '#dc2626',
+          detail: 'The always-on window lower bound. WCK always-on is enabled when from <= period <= upto. Setting from > upto disables it for all periods.' },
+        { from: 'wck-1to4-upto', to: 'wck-ao-upto', label: 'threshold depends', constraint: 'C3', color: '#dc2626',
+          detail: 'The WCK always-on threshold depends on whether WCK 1:4 is active: 1250ps (ratio=4) or 1836ps (ratio=2). Changing wck-1to4-upto changes which periods require always-on.' },
+        { from: 'wck-pst2-upto', to: 'wck-pst1-upto', label: 'must be <=', constraint: 'C4', color: '#d97706',
+          detail: 'WCK PST2 (6.5*tWCK) is a superset of PST1 (4.5*tWCK). PST2 upto must be <= PST1 upto, otherwise periods between them would skip from PST=0 to PST=2.' },
+        { from: 'rdqs-pst2-upto', to: 'rdqs-pst1-upto', label: 'must be <=', constraint: 'C5', color: '#d97706',
+          detail: 'RDQS PST2 (4.5*tWCK) must be <= RDQS PST1 (2.5*tWCK) for the same hierarchical reason as WCK PST.' },
+    ];
+
+    const lp4Edges = [
+        { from: 'periods', to: 'memcfg', label: 'must be in range', constraint: 'C6', color: '#059669',
+          detail: 'LP4 periods must fall within memcfg table bounds: 468-5000ps (tCK). The backend raises "invalid target clock period" if outside this range.' },
+        { from: 'write-odt-upto', to: 'periods', label: 'capped at 1249', constraint: 'C7', color: '#d97706',
+          detail: 'LP4 spec caps write-odt-upto at 1249ps. The backend silently overrides values > 1249. The GUI enforces this limit directly.' },
+    ];
+
+    const nodes = isLp5 ? lp5Nodes : lp4Nodes;
+    const edges = isLp5 ? lp5Edges : lp4Edges;
+    const svgW = isLp5 ? 920 : 640;
+    const svgH = isLp5 ? 370 : 180;
+
+    // ---- Build constraint table ----
+    const constraints = isLp5 ? [
+        { id: 'C1', css: 'cid-blue',  badge: 'lp5', label: 'Period memcfg bounds', fields: 'periods, wck-1to4-upto, read-lecc-upto', rule: 'Each period\'s valid tWCK range depends on data_freq_ratio (from WCK 1:4) and read LECC. Internal tCK = period x ratio must fall in the selected memcfg table.' },
+        { id: 'C2', css: 'cid-blue',  badge: 'lp5', label: 'Read LECC table select', fields: 'read-lecc-upto, periods', rule: 'Read LECC enabled (read-lecc-upto > period) selects memcfg_map[0] with narrower range (internal 938-2499). Disabled: map[1] (ratio=2) or map[2] (ratio=4).' },
+        { id: 'C3', css: 'cid-red',   badge: 'lp5', label: 'WCK always-on (SPHY-V9R8)', fields: 'periods, wck-1to4-upto, wck-always-on-from, wck-always-on-upto', rule: 'WCK always-on must be enabled (from <= period <= upto) when period >= 1250ps (WCK 1:4) or >= 1836ps (WCK 1:2). Fatal exception if violated.' },
+        { id: 'C4', css: 'cid-amber', badge: 'lp5', label: 'WCK PST hierarchy', fields: 'wck-pst2-upto, wck-pst1-upto', rule: 'wck-pst2-upto must be <= wck-pst1-upto. PST level 2 is a higher level than 1; enabling it without also enabling level 1 creates a gap.' },
+        { id: 'C5', css: 'cid-amber', badge: 'lp5', label: 'RDQS PST hierarchy', fields: 'rdqs-pst2-upto, rdqs-pst1-upto', rule: 'rdqs-pst2-upto must be <= rdqs-pst1-upto for the same reason as WCK PST.' },
+    ] : [
+        { id: 'C6', css: 'cid-blue',  badge: 'lp4', label: 'Period memcfg bounds', fields: 'periods', rule: 'Periods must be 468-5000ps (tCK). Outside this range, memcfg lookup fails with "invalid target clock period".' },
+        { id: 'C7', css: 'cid-amber', badge: 'lp4', label: 'Write ODT cap', fields: 'write-odt-upto', rule: 'LP4 SDRAM spec caps write-odt-upto at 1249ps. Values above are silently clamped by the backend.' },
+    ];
+
+    const tbody = document.getElementById('constraintTableBody');
+    tbody.innerHTML = constraints.map(c => `<tr data-cid="${c.id}">
+        <td><span class="constraint-id ${c.css}">${c.id}</span></td>
+        <td><span class="guide-badge ${c.badge}">${c.badge.toUpperCase()}</span>${c.label}</td>
+        <td style="font-family:var(--font-mono);font-size:11px">${c.fields}</td>
+        <td>${c.rule}</td>
+    </tr>`).join('');
+
+    // ---- Render SVG ----
+    const defs = `<defs><marker id="ah" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto-start-reverse"><polygon points="0 0, 10 3.5, 0 7" fill="currentColor"/></marker></defs>`;
+
+    function edgePath(e) {
+        const src = nodes.find(n => n.id === e.from);
+        const dst = nodes.find(n => n.id === e.to);
+        if (!src || !dst) return '';
+        const sx = src.x + src.w / 2, sy = src.y + src.h / 2;
+        const dx = dst.x + dst.w / 2, dy = dst.y + dst.h / 2;
+        // Compute attachment points on rectangles
+        function attach(node, ox, oy) {
+            const cx = node.x + node.w / 2, cy = node.y + node.h / 2;
+            const hw = node.w / 2, hh = node.h / 2;
+            const vx = ox - cx, vy = oy - cy;
+            if (vx === 0 && vy === 0) return { x: cx, y: cy };
+            const sx = Math.abs(vx) > 0.001 ? hw / Math.abs(vx) : 1e9;
+            const sy = Math.abs(vy) > 0.001 ? hh / Math.abs(vy) : 1e9;
+            const s = Math.min(sx, sy);
+            return { x: cx + vx * s, y: cy + vy * s };
+        }
+        const a = attach(src, dx, dy);
+        const b = attach(dst, sx, sy);
+        // Quadratic curve with slight offset for readability
+        const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+        const nx = -(b.y - a.y) * 0.15, ny = (b.x - a.x) * 0.15;
+        return `<path d="M${a.x},${a.y} Q${mx+nx},${my+ny} ${b.x},${b.y}" fill="none" stroke="${e.color}" stroke-width="1.5" marker-end="url(#ah)" class="dep-edge" data-cid="${e.constraint}" data-from="${e.from}" data-to="${e.to}" style="color:${e.color}"/>`;
+    }
+
+    function nodeRect(n) {
+        return `<g class="dep-node" data-nid="${n.id}" onmouseenter="guideHighlight('${n.id}')" onmouseleave="guideClearHighlight()" onclick="guideShowDetail('${n.id}')">
+            <rect x="${n.x}" y="${n.y}" width="${n.w}" height="${n.h}" fill="${n.fill}" stroke="${n.color}"/>
+            <text x="${n.x + n.w/2}" y="${n.y + n.h/2 + 4}" text-anchor="middle" fill="${n.color}" font-size="11" font-weight="600">${n.label}</text>
+        </g>`;
+    }
+
+    const svg = `<svg width="${svgW}" height="${svgH}" viewBox="0 0 ${svgW} ${svgH}" xmlns="http://www.w3.org/2000/svg">
+        ${defs}
+        ${edges.map(edgePath).join('\n')}
+        ${nodes.map(nodeRect).join('\n')}
+    </svg>`;
+
+    document.getElementById('depDiagram').innerHTML = svg;
+
+    // Store edges for interaction
+    window._guideEdges = edges;
+    window._guideNodes = nodes;
+}
+
+function guideHighlight(nodeId) {
+    const svg = document.querySelector('#depDiagram svg');
+    if (!svg) return;
+    const edges = window._guideEdges || [];
+    const connectedNodes = new Set([nodeId]);
+    edges.forEach(e => {
+        if (e.from === nodeId || e.to === nodeId) {
+            connectedNodes.add(e.from);
+            connectedNodes.add(e.to);
+        }
+    });
+    svg.querySelectorAll('.dep-edge').forEach(el => {
+        const from = el.dataset.from, to = el.dataset.to;
+        if (from === nodeId || to === nodeId) {
+            el.classList.add('highlight');
+            el.classList.remove('dimmed');
+        } else {
+            el.classList.add('dimmed');
+            el.classList.remove('highlight');
+        }
+    });
+    svg.querySelectorAll('.dep-node').forEach(el => {
+        if (connectedNodes.has(el.dataset.nid)) {
+            el.classList.remove('dimmed');
+            el.classList.add('active');
+        } else {
+            el.classList.add('dimmed');
+            el.classList.remove('active');
+        }
+    });
+}
+
+function guideClearHighlight() {
+    const svg = document.querySelector('#depDiagram svg');
+    if (!svg) return;
+    svg.querySelectorAll('.dep-edge').forEach(el => { el.classList.remove('highlight', 'dimmed'); });
+    svg.querySelectorAll('.dep-node').forEach(el => { el.classList.remove('dimmed', 'active'); });
+    document.getElementById('guideConstraintDetail').style.display = 'none';
+}
+
+function guideShowDetail(nodeId) {
+    const edges = window._guideEdges || [];
+    const related = edges.filter(e => e.from === nodeId || e.to === nodeId);
+    if (related.length === 0) return;
+    const detailDiv = document.getElementById('guideConstraintDetail');
+    const titleEl = document.getElementById('guideDetailTitle');
+    const textEl = document.getElementById('guideDetailText');
+    const node = (window._guideNodes || []).find(n => n.id === nodeId);
+    titleEl.textContent = node ? node.label : nodeId;
+    textEl.innerHTML = related.map(e =>
+        `<span class="constraint-id ${e.constraint.startsWith('C3') ? 'cid-red' : e.constraint.match(/C[45]/) ? 'cid-amber' : 'cid-blue'}">${e.constraint}</span> ${e.detail}`
+    ).join('<br><br>');
+    detailDiv.style.display = 'block';
+    detailDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
 
 // ============================================================
 // Initialize

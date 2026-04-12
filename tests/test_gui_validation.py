@@ -519,6 +519,173 @@ class TestUiOverhaulHtml(unittest.TestCase):
         """loadJson / applyLoadedParams must call updateFieldRanges."""
         self.assertIn('updateFieldRanges', self.html)
 
+    def test_wck_always_on_cross_validation(self):
+        """SPHY-V9R8 WCK always-on constraint must be validated in JS."""
+        self.assertIn('function getFieldPs', self.html)
+        self.assertIn('1250', self.html)
+        self.assertIn('1836', self.html)
+        self.assertIn('wck-1to4-upto', self.html)
+        self.assertIn('wck-always-on-from', self.html)
+        self.assertIn('wck-always-on-upto', self.html)
+        self.assertIn('requires WCK always-on', self.html)
+
+    def test_lp5_period_memcfg_bounds_check(self):
+        """LP5 period validation must use dynamic memcfg bounds per wck_1to4/read_lecc."""
+        self.assertIn('lp5PeriodBounds', self.html)
+        self.assertIn('memcfg range', self.html)
+        # Must reference read-lecc-upto for dynamic bounds
+        self.assertIn('read-lecc-upto', self.html)
+
+    def test_pst_hierarchy_check(self):
+        """PST2 must be <= PST1 for both WCK and RDQS."""
+        self.assertIn('wck-pst2-upto', self.html)
+        self.assertIn('wck-pst1-upto', self.html)
+        self.assertIn('rdqs-pst2-upto', self.html)
+        self.assertIn('rdqs-pst1-upto', self.html)
+        self.assertIn('PST2 is a subset of PST1', self.html)
+
+    def test_at_least_one_period_required(self):
+        """Validation must require at least one period."""
+        self.assertIn('At least one period is required', self.html)
+
+    def test_field_guide_infrastructure(self):
+        """Field guide modal, diagram, and interaction functions must exist."""
+        self.assertIn('guideModal', self.html)
+        self.assertIn('guide-modal', self.html)
+        self.assertIn('openGuide', self.html)
+        self.assertIn('closeGuide', self.html)
+        self.assertIn('renderGuideDiagram', self.html)
+        self.assertIn('guideHighlight', self.html)
+        self.assertIn('guideClearHighlight', self.html)
+        self.assertIn('guideShowDetail', self.html)
+        self.assertIn('dep-diagram', self.html)
+        self.assertIn('Field Guide', self.html)
+        self.assertIn('constraint-table', self.html)
+        # Must have both LP4 and LP5 diagram content
+        self.assertIn('lp5Nodes', self.html)
+        self.assertIn('lp4Nodes', self.html)
+        self.assertIn('lp5Edges', self.html)
+        self.assertIn('lp4Edges', self.html)
+
+
+class TestWckAlwaysOnConstraint(unittest.TestCase):
+    """Verify gen_timing_params rejects invalid WCK always-on settings."""
+
+    def test_lp5_wck_always_on_violation_caught(self):
+        """Period 2500ps with wck_1to4 but wck_always_on disabled must fail."""
+        args = [
+            sys.executable, os.path.join(ROOT, "gen_timing_params"),
+            "--dram-type", "lpddr5",
+            "--phy-name", "sphy-v9r8",
+            "--speed-bin", "6400",
+            "--dq-width", "8",
+            "--cpipe-depth", "1", "--dpipe-depth", "1",
+            "--omc-freq-ratio", "1", "--phy-freq-ratio", "1",
+            "--wire-length", "10",
+            "--orbit-config-density", "8",
+            "--wck-1to4-upto", "2500",
+            "--wck-always-on-from", "9000", "--wck-always-on-upto", "314",
+            "--orbit-config-use-python",
+            "314", "2500",
+        ]
+        result = subprocess.run(args, capture_output=True, text=True, cwd=ROOT)
+        self.assertNotEqual(result.returncode, 0,
+                            "Should fail when WCK always-on is disabled at t_ck >= 1250")
+        self.assertIn("WCK always on", result.stderr + result.stdout)
+
+    def test_lp5_wck_always_on_valid(self):
+        """Period 2500ps with wck_1to4 and wck_always_on covering it must pass."""
+        args = [
+            sys.executable, os.path.join(ROOT, "gen_timing_params"),
+            "--dram-type", "lpddr5",
+            "--phy-name", "sphy-v9r8",
+            "--speed-bin", "6400",
+            "--dq-width", "8",
+            "--cpipe-depth", "1", "--dpipe-depth", "1",
+            "--omc-freq-ratio", "1", "--phy-freq-ratio", "1",
+            "--wire-length", "10",
+            "--orbit-config-density", "8",
+            "--wck-1to4-upto", "2500",
+            "--wck-always-on-from", "1250", "--wck-always-on-upto", "2500",
+            "--orbit-config-use-python",
+            "314", "2500",
+        ]
+        result = subprocess.run(args, capture_output=True, text=True, cwd=ROOT)
+        self.assertEqual(result.returncode, 0,
+                         f"Should succeed with valid WCK always-on window.\n"
+                         f"stderr: {result.stderr}")
+
+
+class TestLp5MemcfgBounds(unittest.TestCase):
+    """Verify gen_timing_params rejects periods outside memcfg bounds."""
+
+    def test_lp5_lecc_period_too_high_fails(self):
+        """With read_lecc enabled and wck_1to4, period > 624 should fail."""
+        args = [
+            sys.executable, os.path.join(ROOT, "gen_timing_params"),
+            "--dram-type", "lpddr5",
+            "--phy-name", "sphy-v9r8",
+            "--speed-bin", "6400",
+            "--dq-width", "16",
+            "--cpipe-depth", "1", "--dpipe-depth", "1",
+            "--omc-freq-ratio", "1", "--phy-freq-ratio", "1",
+            "--wire-length", "10",
+            "--orbit-config-density", "16",
+            "--wck-1to4-upto", "10000",
+            "--read-lecc-upto", "10000",
+            "--wck-always-on-from", "0", "--wck-always-on-upto", "10000",
+            "--orbit-config-use-python",
+            "625",  # internal tCK = 625*4 = 2500 = boundary, should fail (lower.t_ck must be > t_ck)
+        ]
+        result = subprocess.run(args, capture_output=True, text=True, cwd=ROOT)
+        self.assertNotEqual(result.returncode, 0,
+                            "Should fail: period 625 with LECC+WCK1:4 → internal 2500 = boundary (must be < 2500)")
+
+    def test_lp5_lecc_period_in_range_ok(self):
+        """With read_lecc enabled and wck_1to4, period 624 should work."""
+        args = [
+            sys.executable, os.path.join(ROOT, "gen_timing_params"),
+            "--dram-type", "lpddr5",
+            "--phy-name", "sphy-v9r8",
+            "--speed-bin", "6400",
+            "--dq-width", "16",
+            "--cpipe-depth", "1", "--dpipe-depth", "1",
+            "--omc-freq-ratio", "1", "--phy-freq-ratio", "1",
+            "--wire-length", "10",
+            "--orbit-config-density", "16",
+            "--wck-1to4-upto", "10000",
+            "--read-lecc-upto", "10000",
+            "--wck-always-on-from", "0", "--wck-always-on-upto", "10000",
+            "--orbit-config-use-python",
+            "624",  # internal tCK = 624*4 = 2496 < 2500, in range
+        ]
+        result = subprocess.run(args, capture_output=True, text=True, cwd=ROOT)
+        self.assertEqual(result.returncode, 0,
+                         f"Should succeed: period 624 with LECC+WCK1:4 is valid.\n"
+                         f"stderr: {result.stderr}")
+
+    def test_lp5_no_lecc_ratio2_period_too_low_fails(self):
+        """Without read_lecc, ratio=2, period 624 should fail (min=625)."""
+        args = [
+            sys.executable, os.path.join(ROOT, "gen_timing_params"),
+            "--dram-type", "lpddr5",
+            "--phy-name", "sphy-v9r8",
+            "--speed-bin", "6400",
+            "--dq-width", "16",
+            "--cpipe-depth", "1", "--dpipe-depth", "1",
+            "--omc-freq-ratio", "1", "--phy-freq-ratio", "1",
+            "--wire-length", "10",
+            "--orbit-config-density", "16",
+            "--wck-1to4-upto", "0",  # disable wck_1to4 → ratio=2
+            "--read-lecc-upto", "0",
+            "--wck-always-on-from", "0", "--wck-always-on-upto", "10000",
+            "--orbit-config-use-python",
+            "624",  # internal tCK = 624*2 = 1248 < 1250 = min
+        ]
+        result = subprocess.run(args, capture_output=True, text=True, cwd=ROOT)
+        self.assertNotEqual(result.returncode, 0,
+                            "Should fail: period 624 with ratio=2, no LECC → internal 1248 < 1250")
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
