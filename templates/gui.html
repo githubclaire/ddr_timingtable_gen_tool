@@ -5,510 +5,1220 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DDR Timing Table Generator</title>
     <style>
+        /* ============================================================
+         * Phase 1: CSS Custom Properties & Base Styles
+         * ============================================================ */
+        :root {
+            --primary: #1a56db;
+            --primary-hover: #1648b8;
+            --primary-light: #e8effc;
+            --surface: #f9fafb;
+            --surface-alt: #ffffff;
+            --border: #e5e7eb;
+            --border-focus: #1a56db;
+            --text: #1f2937;
+            --text-secondary: #6b7280;
+            --text-muted: #9ca3af;
+            --success: #059669;
+            --success-bg: #d1fae5;
+            --error: #dc2626;
+            --error-bg: #fee2e2;
+            --warning: #d97706;
+            --warning-bg: #fef3c7;
+            --header-bg: #111827;
+            --card-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+            --card-shadow-hover: 0 4px 6px rgba(0,0,0,0.07);
+            --radius: 8px;
+            --radius-sm: 4px;
+            --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            --font-mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+        }
+
+        /* Phase 4: Dark mode */
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --primary: #6ea8fe;
+                --primary-hover: #8ab8ff;
+                --primary-light: #1e3a5f;
+                --surface: #111827;
+                --surface-alt: #1f2937;
+                --border: #374151;
+                --border-focus: #6ea8fe;
+                --text: #f3f4f6;
+                --text-secondary: #9ca3af;
+                --text-muted: #6b7280;
+                --success: #34d399;
+                --success-bg: #064e3b;
+                --error: #f87171;
+                --error-bg: #7f1d1d;
+                --warning: #fbbf24;
+                --warning-bg: #78350f;
+                --header-bg: #030712;
+                --card-shadow: 0 1px 3px rgba(0,0,0,0.3);
+                --card-shadow-hover: 0 4px 6px rgba(0,0,0,0.4);
+            }
+        }
+
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
-               background: #f5f5f5; padding: 20px; }
-        .container { max-width: 1600px; margin: 0 auto; background: white; border-radius: 8px; 
-                     box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow: hidden; }
-        .header { background: #2c3e50; color: white; padding: 20px; display: flex; justify-content: space-between; align-items: center; }
-        .header h1 { font-size: 24px; }
-        .content { padding: 20px; max-height: 75vh; overflow-y: auto; }
-        .section { margin-bottom: 15px; border: 1px solid #ddd; border-radius: 4px; }
-        .section-header { background: #ecf0f1; padding: 10px 15px; cursor: pointer; 
-                         font-weight: 600; display: flex; justify-content: space-between; 
-                         align-items: center; }
-        .section-header:hover { background: #dfe6e9; }
-        .section-content { padding: 15px; display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); 
-                          gap: 12px; }
-        .section-content.collapsed { display: none; }
-        .subsection { margin-left: 15px; border-left: 2px solid #3498db; padding-left: 10px; margin-bottom: 15px; }
-        .subsection-title { font-size: 12px; color: #2980b9; font-weight: 600; margin-bottom: 8px; }
-        .field { display: flex; flex-direction: column; }
-        .field label { font-size: 12px; color: #666; margin-bottom: 4px; }
-        .field input, .field select { padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
-        .field input:focus, .field select:focus { outline: none; border-color: #3498db; }
-        .field.checkbox { flex-direction: row; align-items: center; }
-        .lpddr5-only { display: none; }
-        .field.checkbox label { margin-bottom: 0; margin-left: 8px; cursor: pointer; }
-        .field.checkbox input { width: auto; cursor: pointer; }
-        
-        /* Unit toggle */
-        .unit-toggle { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-        .unit-toggle label { font-size: 13px; color: #333; }
-        .unit-toggle input[type="radio"] { margin: 0; }
-        
+        body {
+            font-family: var(--font-sans);
+            background: var(--surface);
+            color: var(--text);
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        /* ============================================================
+         * Sticky Header
+         * ============================================================ */
+        .header {
+            background: var(--header-bg);
+            color: #fff;
+            padding: 12px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .header h1 {
+            font-size: 18px;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+        }
+        .header-dram-select {
+            padding: 6px 12px;
+            border-radius: var(--radius-sm);
+            border: 1px solid rgba(255,255,255,0.2);
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .header-dram-select option { color: #000; background: #fff; }
+        .config-summary {
+            font-size: 12px;
+            color: rgba(255,255,255,0.7);
+            font-family: var(--font-mono);
+        }
+
+        /* ============================================================
+         * Tabs (Phase 3)
+         * ============================================================ */
+        .tab-bar {
+            display: flex;
+            gap: 0;
+            background: var(--surface-alt);
+            border-bottom: 2px solid var(--border);
+            padding: 0 24px;
+        }
+        .tab-btn {
+            padding: 12px 24px;
+            border: none;
+            background: none;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: color 0.15s, border-color 0.15s;
+        }
+        .tab-btn:hover { color: var(--text); }
+        .tab-btn.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* ============================================================
+         * Card Layout
+         * ============================================================ */
+        .content {
+            padding: 20px 24px;
+        }
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        .card {
+            background: var(--surface-alt);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--card-shadow);
+            overflow: hidden;
+            transition: box-shadow 0.15s;
+        }
+        .card:hover { box-shadow: var(--card-shadow-hover); }
+        .card-header {
+            padding: 12px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+        .card-header .arrow {
+            font-size: 10px;
+            transition: transform 0.2s;
+            color: var(--text-muted);
+        }
+        .card-header .arrow.open { transform: rotate(90deg); }
+        .card-body {
+            padding: 16px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 12px;
+        }
+        .card-body.collapsed { display: none; }
+        .card-body.single-col {
+            grid-template-columns: 1fr;
+        }
+        .card-body.two-col {
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        }
+
+        /* Full-width card */
+        .card.full-width {
+            grid-column: 1 / -1;
+        }
+
+        /* ============================================================
+         * Form Fields
+         * ============================================================ */
+        .field {
+            display: flex;
+            flex-direction: column;
+        }
+        .field label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+            font-weight: 500;
+        }
+        .field label .param-name {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+        .field input, .field select {
+            padding: 8px 10px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            font-size: 14px;
+            background: var(--surface-alt);
+            color: var(--text);
+            height: 40px;
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        .field input[type="number"] {
+            font-family: var(--font-mono);
+        }
+        .field input:focus, .field select:focus {
+            outline: none;
+            border-color: var(--border-focus);
+            box-shadow: 0 0 0 2px var(--primary-light);
+        }
+        .field input.field-error {
+            border-color: var(--error);
+            box-shadow: 0 0 0 2px var(--error-bg);
+        }
+        .field input.field-valid {
+            border-color: var(--success);
+        }
+        .field .field-error-msg {
+            font-size: 11px;
+            color: var(--error);
+            margin-top: 2px;
+            display: none;
+        }
+        .field input.field-error ~ .field-error-msg { display: block; }
+        .field input[readonly] {
+            background: var(--surface);
+            color: var(--text-muted);
+        }
+
         /* Field with unit display */
         .field-unit { position: relative; }
-        .field-unit input { padding-right: 45px; }
-        .field-unit .unit-label { position: absolute; right: 10px; top: 50%; 
-                                  transform: translateY(-25%); font-size: 12px; color: #888; }
-        
-        .arrow { transition: transform 0.2s; font-size: 12px; }
-        .arrow.open { transform: rotate(90deg); }
-        
-        .buttons { padding: 20px; background: #f8f9fa; display: flex; gap: 10px; flex-wrap: wrap; }
-        .btn { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 600; }
-        .btn-primary { background: #27ae60; color: white; }
-        .btn-primary:hover { background: #219a52; }
-        .btn-secondary { background: #3498db; color: white; }
-        .btn-secondary:hover { background: #2980b9; }
-        .btn-outline { background: white; border: 1px solid #ddd; color: #333; }
-        .btn-outline:hover { background: #f8f9fa; }
-        .btn-warning { background: #e67e22; color: white; }
-        .btn-warning:hover { background: #d35400; }
-        
-        .status { padding: 15px; margin: 20px; border-radius: 4px; display: none; }
-        .status.success { background: #d4edda; color: #155724; display: block; }
-        .status.error { background: #f8d7da; color: #721c24; display: block; }
-        .status pre { white-space: pre-wrap; word-wrap: break-word; max-height: 300px; overflow-y: auto; }
-        
-        /* Modal styles */
-        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; 
-                  background-color: rgba(0,0,0,0.5); }
-        .modal-content { background-color: white; margin: 2% auto; padding: 20px; border-radius: 8px; 
-                        width: 90%; max-height: 90vh; overflow-y: auto; }
-        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-        .modal-header h2 { color: #2c3e50; }
-        .close { font-size: 28px; font-weight: bold; color: #aaa; cursor: pointer; }
-        .close:hover { color: #000; }
-        
+        .field-unit input { padding-right: 50px; }
+        .field-unit .unit-label {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-25%);
+            font-size: 11px;
+            color: var(--text-muted);
+            font-family: var(--font-mono);
+            pointer-events: none;
+        }
+        /* Dual readout (Phase 2) */
+        .dual-readout {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-family: var(--font-mono);
+            margin-top: 2px;
+        }
+
+        /* Range indicator bar (Phase 2) */
+        .range-bar {
+            height: 3px;
+            background: var(--border);
+            border-radius: 2px;
+            margin-top: 3px;
+            overflow: hidden;
+        }
+        .range-bar-fill {
+            height: 100%;
+            background: var(--primary);
+            border-radius: 2px;
+            transition: width 0.2s;
+        }
+
+        /* Toggle switches */
+        .field.checkbox {
+            flex-direction: row;
+            align-items: center;
+            gap: 8px;
+        }
+        .field.checkbox label {
+            margin-bottom: 0;
+            cursor: pointer;
+            font-size: 13px;
+            color: var(--text);
+        }
+        .toggle-switch {
+            position: relative;
+            width: 36px;
+            height: 20px;
+            flex-shrink: 0;
+        }
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+            position: absolute;
+        }
+        .toggle-slider {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: var(--border);
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .toggle-slider::before {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            left: 2px;
+            bottom: 2px;
+            background: white;
+            border-radius: 50%;
+            transition: transform 0.2s;
+        }
+        .toggle-switch input:checked + .toggle-slider {
+            background: var(--primary);
+        }
+        .toggle-switch input:checked + .toggle-slider::before {
+            transform: translateX(16px);
+        }
+        .toggle-switch input:focus + .toggle-slider {
+            box-shadow: 0 0 0 2px var(--primary-light);
+        }
+
+        /* Unit toggle */
+        .unit-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .unit-toggle label {
+            font-size: 13px;
+            color: var(--text);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .lpddr5-only { display: none; }
+        .hidden { display: none !important; }
+
+        /* ============================================================
+         * Help Icons (Phase 2)
+         * ============================================================ */
+        .help-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--border);
+            color: var(--text-muted);
+            font-size: 10px;
+            font-weight: 700;
+            cursor: pointer;
+            margin-left: 4px;
+            flex-shrink: 0;
+            transition: background 0.15s;
+        }
+        .help-icon:hover { background: var(--primary-light); color: var(--primary); }
+        .help-text {
+            display: none;
+            font-size: 12px;
+            color: var(--text-secondary);
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 8px 10px;
+            margin-top: 4px;
+            line-height: 1.5;
+            grid-column: 1 / -1;
+        }
+        .help-text.visible { display: block; }
+
+        /* ============================================================
+         * Frequency Visualization (Phase 2)
+         * ============================================================ */
+        .freq-viz {
+            display: flex;
+            align-items: flex-end;
+            gap: 4px;
+            height: 40px;
+            padding: 8px 0;
+            grid-column: 1 / -1;
+        }
+        .freq-viz-bar {
+            flex: 1;
+            background: var(--primary);
+            border-radius: 2px 2px 0 0;
+            min-height: 4px;
+            position: relative;
+            opacity: 0.7;
+            transition: height 0.3s;
+        }
+        .freq-viz-bar .freq-label {
+            position: absolute;
+            bottom: -18px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 10px;
+            font-family: var(--font-mono);
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+
+        /* ============================================================
+         * Buttons
+         * ============================================================ */
+        .buttons {
+            padding: 16px 24px;
+            background: var(--surface-alt);
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: background 0.15s, opacity 0.15s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover:not(:disabled) { background: var(--primary-hover); }
+        .btn-success { background: var(--success); color: white; }
+        .btn-success:hover:not(:disabled) { opacity: 0.9; }
+        .btn-outline {
+            background: var(--surface-alt);
+            border: 1px solid var(--border);
+            color: var(--text);
+        }
+        .btn-outline:hover:not(:disabled) { background: var(--surface); }
+        .btn-spacer { flex: 1; }
+
+        /* ============================================================
+         * Status Banner
+         * ============================================================ */
+        .status {
+            padding: 12px 16px;
+            margin: 16px 24px;
+            border-radius: var(--radius-sm);
+            display: none;
+            font-size: 13px;
+        }
+        .status.success { background: var(--success-bg); color: var(--success); display: block; border: 1px solid var(--success); }
+        .status.error { background: var(--error-bg); color: var(--error); display: block; border: 1px solid var(--error); }
+        .status.warning { background: var(--warning-bg); color: var(--warning); display: block; border: 1px solid var(--warning); }
+        .status pre { white-space: pre-wrap; word-wrap: break-word; max-height: 300px; overflow-y: auto; margin-top: 8px; font-family: var(--font-mono); font-size: 12px; }
+
+        /* Inline confirmation banner (Phase 2) */
+        .confirm-banner {
+            background: var(--warning-bg);
+            border: 1px solid var(--warning);
+            color: var(--text);
+            padding: 10px 16px;
+            border-radius: var(--radius-sm);
+            margin: 8px 24px;
+            display: none;
+            align-items: center;
+            gap: 10px;
+            font-size: 13px;
+        }
+        .confirm-banner.visible { display: flex; }
+        .confirm-banner .btn { padding: 6px 14px; font-size: 12px; }
+
+        /* ============================================================
+         * Inspect Tab (Phase 3)
+         * ============================================================ */
+        .inspect-panel {
+            padding: 20px 24px;
+        }
+        .cli-preview {
+            background: var(--header-bg);
+            color: #e5e7eb;
+            padding: 12px 16px;
+            border-radius: var(--radius);
+            font-family: var(--font-mono);
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-break: break-all;
+            margin-bottom: 16px;
+            position: relative;
+        }
+        .cli-preview .copy-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            padding: 4px 10px;
+            font-size: 11px;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: #fff;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+        }
+        .cli-preview .copy-btn:hover { background: rgba(255,255,255,0.2); }
+
+        .inspector-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .inspector-summary .stat {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 12px;
+            text-align: center;
+        }
+        .inspector-summary .stat-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--primary);
+            font-family: var(--font-mono);
+        }
+        .inspector-summary .stat-label {
+            font-size: 11px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .analysis-table-wrap {
+            overflow-x: auto;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            margin-bottom: 16px;
+        }
+        .analysis-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+            font-family: var(--font-mono);
+        }
+        .analysis-table th, .analysis-table td {
+            border: 1px solid var(--border);
+            padding: 6px 8px;
+            text-align: left;
+        }
+        .analysis-table th {
+            background: var(--surface);
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            position: sticky;
+            top: 0;
+        }
+        .analysis-table td:first-child {
+            position: sticky;
+            left: 0;
+            background: var(--surface-alt);
+            font-weight: 500;
+            z-index: 1;
+        }
+        .analysis-table tr:nth-child(even) td { background: var(--surface); }
+        .analysis-table tr:nth-child(even) td:first-child { background: var(--surface); }
+
         .analysis-section { margin-bottom: 20px; }
-        .analysis-section h3 { color: #34495e; border-bottom: 2px solid #3498db; padding-bottom: 5px; margin-bottom: 10px; }
-        .analysis-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-        .analysis-table th, .analysis-table td { border: 1px solid #ddd; padding: 6px; text-align: left; }
-        .analysis-table th { background: #ecf0f1; font-size: 11px; }
-        .analysis-table tr:nth-child(even) { background: #f9f9f9; }
-        
-        .hidden { display: none; }
+        .analysis-section h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 8px;
+            padding-bottom: 4px;
+            border-bottom: 2px solid var(--primary);
+        }
 
-        /* Tooltip styling */
-        label[title] { cursor: help; border-bottom: 1px dotted #999; }
+        .inspect-placeholder {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-muted);
+        }
+        .inspect-placeholder .icon { font-size: 48px; margin-bottom: 12px; }
 
-        /* File path dialog */
-        .fp-dialog { max-width: 600px; }
+        /* Loading spinner */
+        .spinner {
+            display: inline-block;
+            width: 18px;
+            height: 18px;
+            border: 2px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ============================================================
+         * Modal / File Path Dialog
+         * ============================================================ */
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); }
+        .modal-content { background: var(--surface-alt); margin: 5% auto; padding: 20px; border-radius: var(--radius); width: 90%; max-width: 600px; max-height: 85vh; overflow-y: auto; color: var(--text); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .modal-header h2 { font-size: 16px; color: var(--text); }
+        .close { font-size: 24px; font-weight: bold; color: var(--text-muted); cursor: pointer; }
+        .close:hover { color: var(--text); }
+
         .fp-dialog .fp-path-row { display: flex; gap: 8px; margin-bottom: 10px; }
-        .fp-dialog .fp-path-input { flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-family: monospace; font-size: 13px; }
-        .fp-dialog .fp-browser { border: 1px solid #ddd; border-radius: 4px; max-height: 250px; overflow-y: auto; margin-bottom: 10px; }
-        .fp-dialog .fp-entry { padding: 6px 10px; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 13px; }
-        .fp-dialog .fp-entry:hover { background: #e8f4fd; }
+        .fp-dialog .fp-path-input { flex: 1; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-family: var(--font-mono); font-size: 13px; background: var(--surface-alt); color: var(--text); }
+        .fp-dialog .fp-browser { border: 1px solid var(--border); border-radius: var(--radius-sm); max-height: 250px; overflow-y: auto; margin-bottom: 10px; }
+        .fp-dialog .fp-entry { padding: 6px 10px; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text); }
+        .fp-dialog .fp-entry:hover { background: var(--primary-light); }
         .fp-dialog .fp-entry.fp-dir { font-weight: 600; }
-        .fp-dialog .fp-cwd { font-size: 11px; color: #888; margin-bottom: 6px; font-family: monospace; }
+        .fp-dialog .fp-cwd { font-size: 11px; color: var(--text-muted); margin-bottom: 6px; font-family: var(--font-mono); }
         .fp-dialog .fp-actions { display: flex; gap: 8px; justify-content: flex-end; }
         .fp-dialog .fp-keep-row { margin-bottom: 10px; display: flex; align-items: center; gap: 6px; font-size: 13px; }
+
+        /* Tooltip styling */
+        label[title] { cursor: help; border-bottom: 1px dotted var(--text-muted); }
+
+        /* ============================================================
+         * Phase 4: Responsive
+         * ============================================================ */
+        @media (max-width: 768px) {
+            .card-grid { grid-template-columns: 1fr; }
+            .card-body { grid-template-columns: 1fr; }
+            .header { flex-direction: column; gap: 8px; text-align: center; }
+            .buttons { justify-content: center; }
+            .content { padding: 12px; }
+        }
+
+        /* ============================================================
+         * Phase 4: Keyboard hint
+         * ============================================================ */
+        .kbd-hint {
+            font-size: 10px;
+            color: var(--text-muted);
+            margin-left: auto;
+        }
+        kbd {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            padding: 1px 5px;
+            font-size: 10px;
+            font-family: var(--font-mono);
+        }
     </style>
 </head>
 <body>
+<!-- ================================================================
+     STICKY HEADER
+     ================================================================ -->
 <div class="container">
     <div class="header">
-        <h1>DDR Timing Table Generator</h1>
-        <span style="font-size: 12px;">Web GUI - Run python3 gui.py</span>
+        <div class="header-left">
+            <h1>DDR Timing Table Generator</h1>
+            <select class="header-dram-select" name="dram-type" id="dram-type-select"
+                    onchange="handleDramTypeChange(this.value)">
+                <option value="lpddr4">LPDDR4</option>
+                <option value="lpddr5">LPDDR5</option>
+            </select>
+        </div>
+        <div class="config-summary" id="configSummary">LPDDR4 &middot; x16 &middot; 2-rank &middot; 4266 MT/s</div>
     </div>
-    <form id="paramsForm">
-        <div class="content">
-            <!-- Basic Parameters -->
-            <div class="section">
-                <div class="section-header" onclick="toggleSection(this)">
-                    <span>Basic Parameters</span>
-                    <span class="arrow open">▶</span>
-                </div>
-                <div class="section-content">
-                    <div class="field">
-                        <label title="DRAM memory type selection">DRAM Type</label>
-                        <select name="dram-type" onchange="toggleDramOptions(); setFreqRatios(); updateDensityOptions(); updatePeriodsLabel(); updateDramTckDefault(); toggleDsmEn(); updateSpeedBin(); updateMinDramTck(); updatePeriodsFromDefaults(); updateFieldRanges();">
-                            <option value="lpddr4">LPDDR4</option>
-                            <option value="lpddr5">LPDDR5</option>
-                        </select>
-                    </div>
-                    <div class="field">
-                        <label title="PHY component name">PHY Name</label>
-                        <input type="text" name="phy-name" value="sphy-v9r8">
-                    </div>
-                    <div class="field">
-                        <label title="Data width per channel (DQ bits)">DQ Width</label>
-                        <select name="dq-width" onchange="updateMrrByteLane()">
-                            <option value="4">4</option>
-                            <option value="8">8</option>
-                            <option value="16" selected>16</option>
-                            <option value="32">32</option>
-                        </select>
-                    </div>
-                    <div class="field">
-                        <label title="Speed bin defining max frequency">Speed Bin</label>
-                        <input type="text" name="speed-bin" value="4266" onchange="updateMinDramTck();">
-                    </div>
-                    <div class="field">
-                        <label title="Target tCK/tWCK periods in ps. Max: LP4=6, LP5=5 (limited by 0x800 timing table / entry size). Range: 100-10000ps">Periods (<span id="periods-unit">tCK</span>)</label>
-                        <div id="periods-container" style="display:flex; flex-direction:column; gap:4px;">
-                            <!-- Dynamic periods will be added here -->
-                        </div>
-                        <div style="margin-top:4px;">
-                            <button type="button" onclick="addPeriod()" style="padding:4px 8px; cursor:pointer;">+ Add Period</button>
-                            <span id="periods-limit-hint" style="font-size:11px; color:#888; margin-left:6px;">max 6</span>
-                        </div>
-                    </div>
-                    <div class="field field-unit">
-                        <label title="Min tCK/tWCK in ps (max operating frequency). Range: 100-5000ps">Min tCK/tWCK</label>
-                        <input type="number" name="min-dram-tck" value="314" step="1" min="100" max="5000">
-                        <span class="unit-label">ps</span>
-                    </div>
-                    <div class="field field-unit">
-                        <label title="Base DRAM timing (tCK/tWCK) in ps. Range: 100-5000ps">dram_t_ck</label>
-                        <input type="number" name="dram-tck" value="471" step="1" min="100" max="5000" id="dram-tck">
-                        <span class="unit-label">ps</span>
-                    </div>
-                </div>
-            </div>
 
-            <!-- Pipe Configuration -->
-            <div class="section">
-                <div class="section-header" onclick="toggleSection(this)">
-                    <span>Pipe Configuration</span>
-                    <span class="arrow open">▶</span>
-                </div>
-                <div class="section-content">
-                    <div class="field">
-                        <label title="Command pipe depth (auto-set based on DDR type)">cpipe-depth</label>
-                        <input type="number" name="cpipe-depth" value="1" readonly>
-                    </div>
-                    <div class="field">
-                        <label title="Data pipe depth (auto-set based on DDR type)">dpipe-depth</label>
-                        <input type="number" name="dpipe-depth" value="1" readonly>
-                    </div>
-                    <div class="field">
-                        <label title="OMC frequency ratio (auto-set: LPDDR4=2, LPDDR5=1)">omc-freq-ratio</label>
-                        <input type="number" name="omc-freq-ratio" value="2" id="omc-freq-ratio" readonly>
-                    </div>
-                    <div class="field">
-                        <label title="PHY frequency ratio (auto-set: LPDDR4=2, LPDDR5=1)">phy-freq-ratio</label>
-                        <input type="number" name="phy-freq-ratio" value="2" id="phy-freq-ratio" readonly>
-                    </div>
-                    <div class="field field-unit">
-                        <label title="PCB trace length in mil (milli-inch). Used for board delay calculation (0.07 ns/mil). Not affected by ps/MHz toggle.">wire-length</label>
-                        <input type="number" name="wire-length" value="10" step="0.1" min="0">
-                        <span class="unit-label" data-fixed-unit="mil">mil</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Timing Features -->
-            <div class="section">
-                <div class="section-header" onclick="toggleSection(this)">
-                    <span>Timing Features</span>
-                    <span class="arrow open">▶</span>
-                </div>
-                <div class="section-content">
-                    <div class="unit-toggle">
-                        <label><input type="radio" name="timing-unit" value="ps" checked> ps</label>
-                        <label><input type="radio" name="timing-unit" value="MHz"> MHz</label>
-                    </div>
-                    <div class="field field-unit">
-                        <label title="Max tCK/tWCK (ps) to enable write ODT. LPDDR4: capped at 1249ps by spec. Range: LP4 0-1249ps, LP5 0-10000ps">write-odt-upto</label>
-                        <input type="number" name="write-odt-upto" value="1249" step="1" min="0" max="1249">
-                        <span class="unit-label">ps</span>
-                    </div>
-                    <div class="field field-unit">
-                        <label title="Max tCK/tWCK (ps) to enable read DBI. Range: 0-10000ps">read-dbi-upto</label>
-                        <input type="number" name="read-dbi-upto" value="10000" step="1" min="0" max="10000">
-                        <span class="unit-label">ps</span>
-                    </div>
-                    <div class="field field-unit">
-                        <label title="Max tCK/tWCK (ps) to enable write DBI. Range: 0-10000ps">write-dbi-upto</label>
-                        <input type="number" name="write-dbi-upto" value="10000" step="1" min="0" max="10000">
-                        <span class="unit-label">ps</span>
-                    </div>
-                    <div class="field field-unit lpddr5-only">
-                        <label title="Max tWCK (ps) to enable read link ECC (LPDDR5 only). Range: 0-10000ps">read-lecc-upto</label>
-                        <input type="number" name="read-lecc-upto" value="0" step="1" min="0" max="10000">
-                        <span class="unit-label">ps</span>
-                    </div>
-                    <div class="field field-unit lpddr5-only">
-                        <label title="Max tWCK (ps) to enable write link ECC (LPDDR5 only). Range: 0-10000ps">write-lecc-upto</label>
-                        <input type="number" name="write-lecc-upto" value="0" step="1" min="0" max="10000">
-                        <span class="unit-label">ps</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- LPDDR4 Options -->
-            <div class="section" id="lpddr4-options">
-                <div class="section-header" onclick="toggleSection(this)">
-                    <span>LPDDR4 Options</span>
-                    <span class="arrow open">▶</span>
-                </div>
-                <div class="section-content">
-                    <div class="field">
-                        <label title="Write DQS control mode. Range: 0-3">wdqs-ctrl-mode</label>
-                        <input type="number" name="wdqs-ctrl-mode" value="1" min="0" max="3">
-                    </div>
-                    <div class="field field-unit">
-                        <label title="Max tCK (ps) to enable extended read post-amble. Range: 0-10000ps">rpste-upto</label>
-                        <input type="number" name="rpste-upto" value="625" step="1" min="0" max="10000">
-                        <span class="unit-label">ps</span>
-                    </div>
-                    <div class="field field-unit">
-                        <label title="Max tCK (ps) to enable extended write post-amble. Range: 0-10000ps">wpste-upto</label>
-                        <input type="number" name="wpste-upto" value="625" step="1" min="0" max="10000">
-                        <span class="unit-label">ps</span>
-                    </div>
-                    <div class="field checkbox">
-                        <input type="checkbox" name="variable-trrd">
-                        <label>variable-trrd</label>
-                    </div>
-                    <div class="field checkbox">
-                        <input type="checkbox" name="txsr-as-1st-ed" checked>
-                        <label>txsr-as-1st-ed</label>
-                    </div>
-                </div>
-            </div>
-
-            <!-- LPDDR5 Options -->
-            <div class="section" id="lpddr5-options" style="display:none;">
-                <div class="section-header" onclick="toggleSection(this)">
-                    <span>LPDDR5 Options</span>
-                    <span class="arrow open">▶</span>
-                </div>
-                <div class="section-content">
-                    <div class="field field-unit">
-                        <label title="Max tWCK (ps) to enable WCK 1:4 mode (LPDDR5). Range: 0-10000ps. Default: 625">wck-1to4-upto</label>
-                        <input type="number" name="wck-1to4-upto" value="2500" step="1" min="0" max="10000">
-                        <span class="unit-label">ps</span>
-                    </div>
-                    <div class="field field-unit">
-                        <label title="Min tWCK (ps) for WCK always-on window. Set from > upto to disable. Range: 0-10000ps. Default: 1 (disabled)">wck-always-on-from</label>
-                        <input type="number" name="wck-always-on-from" value="10000" step="1" min="0" max="10000">
-                        <span class="unit-label">ps</span>
-                    </div>
-                    <div class="field field-unit">
-                        <label title="Max tWCK (ps) for WCK always-on window. Set from > upto to disable. Range: 0-10000ps. Default: 0 (disabled)">wck-always-on-upto</label>
-                        <input type="number" name="wck-always-on-upto" value="314" step="1" min="0" max="10000">
-                        <span class="unit-label">ps</span>
-                    </div>
-                    <div class="field field-unit">
-                        <label title="Max tWCK (ps) to enable NT-ODT. Range: 0-10000ps. Default: 0">nt-odt-upto</label>
-                        <input type="number" name="nt-odt-upto" value="625" step="1" min="0" max="10000">
-                        <span class="unit-label">ps</span>
-                    </div>
-                    <div class="field field-unit">
-                        <label title="Max tWCK (ps) to enable bank-group mode. Range: 0-10000ps. Default: 625">bg-mode-upto</label>
-                        <input type="number" name="bg-mode-upto" value="625" step="1" min="0" max="10000">
-                        <span class="unit-label">ps</span>
-                    </div>
-                    <div class="field field-unit">
-                        <label title="Max tWCK (ps) to enable WCK high-frequency mode. Range: 0-10000ps. Default: 624">wck-hf-upto</label>
-                        <input type="number" name="wck-hf-upto" value="625" step="1" min="0" max="10000">
-                        <span class="unit-label">ps</span>
-                    </div>
-                    <div class="field field-unit">
-                        <label title="Max tWCK (ps) to set WCK PST as 4.5*tWCK. Range: 0-10000ps. Default: 0">wck-pst1-upto</label>
-                        <input type="number" name="wck-pst1-upto" value="1250" step="1" min="0" max="10000">
-                        <span class="unit-label">ps</span>
-                    </div>
-                    <div class="field field-unit">
-                        <label title="Max tWCK (ps) to set WCK PST as 6.5*tWCK. Range: 0-10000ps. Default: 0">wck-pst2-upto</label>
-                        <input type="number" name="wck-pst2-upto" value="625" step="1" min="0" max="10000">
-                        <span class="unit-label">ps</span>
-                    </div>
-                    <div class="field field-unit">
-                        <label title="Max tWCK (ps) to set RDQS PST as 2.5*tWCK. Range: 0-10000ps. Default: 0">rdqs-pst1-upto</label>
-                        <input type="number" name="rdqs-pst1-upto" value="1250" step="1" min="0" max="10000">
-                        <span class="unit-label">ps</span>
-                    </div>
-                    <div class="field field-unit">
-                        <label title="Max tWCK (ps) to set RDQS PST as 4.5*tWCK. Range: 0-10000ps. Default: 0">rdqs-pst2-upto</label>
-                        <input type="number" name="rdqs-pst2-upto" value="625" step="1" min="0" max="10000">
-                        <span class="unit-label">ps</span>
-                    </div>
-                    <div class="field checkbox">
-                        <input type="checkbox" name="enhanced-nt-odt">
-                        <label>enhanced-nt-odt</label>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Orbit Configuration -->
-            <div class="section">
-                <div class="section-header" onclick="toggleSection(this)">
-                    <span>Orbit Configuration</span>
-                    <span class="arrow open">▶</span>
-                </div>
-                <div class="section-content">
-                    <!-- Basic/Geometry -->
-                    <div class="subsection">
-                        <div class="subsection-title">Basic/Geometry</div>
-                        <div class="field checkbox">
-                            <input type="checkbox" name="two-channel">
-                            <label title="Enable dual channel mode">two-channel</label>
-                        </div>
-                        <div class="field">
-                            <label title="DRAM density in Gb">orbit-config-density (Gb)</label>
-                            <select name="orbit-config-density" id="orbit-config-density">
-                                <option value="16" selected>16</option>
-                            </select>
-                        </div>
-                        <div class="field">
-                            <label title="Byte mode: x16 (0) or x8 (1)">orbit-byte-mode</label>
-                            <select name="orbit-byte-mode">
-                                <option value="0" selected>x16</option>
-                                <option value="1">x8</option>
-                            </select>
-                        </div>
-                        <div class="field">
-                            <label title="Mixed mode doubles total density">orbit-mixed</label>
-                            <select name="orbit-mixed">
-                                <option value="0" selected>No</option>
-                                <option value="1">Yes</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <!-- Mode Control -->
-                    <div class="subsection">
-                        <div class="subsection-title">Mode Control</div>
-                        <div class="field checkbox hidden" id="orbit-rank-interleaving-field">
-                            <input type="checkbox" name="orbit-rank-interleaving" id="orbit-rank-interleaving-cb" checked>
-                            <label title="Enable rank interleaving">rank-interleaving</label>
-                        </div>
-                        <div class="field">
-                            <label title="Number of ranks (1 or 2)">orbit-num-rank</label>
-                            <select name="orbit-num-rank" id="orbit-num-rank-select" onchange="toggleRankInterleaving()">
-                                <option value="1">1</option>
-                                <option value="2" selected>2</option>
-                            </select>
-                        </div>
-                        <div class="field checkbox">
-                            <input type="checkbox" name="orbit-reboot-with-mrw">
-                            <label title="Reboot with MRW (Mode Register Write)">reboot-with-mrw</label>
-                        </div>
-                        <div class="field checkbox">
-                            <input type="checkbox" name="reboot-with-training">
-                            <label title="Reboot with training">reboot-with-training</label>
-                        </div>
-                    </div>
-
-                    <!-- Training Enable -->
-                    <div class="subsection">
-                        <div class="subsection-title">Training Enable</div>
-                        <div class="field checkbox"><input type="checkbox" name="eye-scan-rd-en"><label title="Eye scan read enable">eye-scan-rd-en</label></div>
-                        <div class="field checkbox"><input type="checkbox" name="eye-scan-wr-en"><label title="Eye scan write enable">eye-scan-wr-en</label></div>
-                        <div class="field checkbox"><input type="checkbox" name="eye-scan-prbs-rd-en"><label title="Eye scan PRBS read enable">eye-scan-prbs-rd-en</label></div>
-                        <div class="field checkbox"><input type="checkbox" name="eye-scan-prbs-wr-en"><label title="Eye scan PRBS write enable">eye-scan-prbs-wr-en</label></div>
-                        <div class="field checkbox"><input type="checkbox" name="phy-vref-trn-mode"><label title="PHY Vref training mode">phy-vref-trn-mode</label></div>
-                        <div class="field checkbox"><input type="checkbox" name="phy-duty-trn-mode"><label title="PHY duty training mode">phy-duty-trn-mode</label></div>
-                        <div class="field checkbox"><input type="checkbox" name="dram-vref-trn-mode"><label title="DRAM Vref training mode">dram-vref-trn-mode</label></div>
-                        <div class="field checkbox"><input type="checkbox" name="dram-duty-trn-mode"><label title="DRAM duty training mode">dram-duty-trn-mode</label></div>
-                        <div class="field checkbox"><input type="checkbox" name="command-bus-training"><label title="Command bus training enable">command-bus-training</label></div>
-                        <div class="field checkbox"><input type="checkbox" name="ca-vref-training"><label title="CA Vref training enable">ca-vref-training</label></div>
-                        <div class="field checkbox"><input type="checkbox" name="prbs-training"><label title="PRBS training enable">prbs-training</label></div>
-                    </div>
-
-                    <!-- Power Management -->
-                    <div class="subsection">
-                        <div class="subsection-title">Power Management</div>
-                        <div class="field checkbox"><input type="checkbox" name="regional-clock-gating" checked><label title="Regional clock gating enable">regional-clock-gating</label></div>
-                        <div class="field checkbox"><input type="checkbox" name="dram-clock-gating" checked><label title="DRAM clock gating enable">dram-clock-gating</label></div>
-                        <div class="field checkbox"><input type="checkbox" name="phy-clock-gating"><label title="PHY clock gating enable">phy-clock-gating</label></div>
-                        <div class="field checkbox"><input type="checkbox" name="phy-low-power" id="phy-low-power-cb" onchange="togglePhyLowPower()"><label title="PHY low power mode">phy-low-power</label></div>
-                        <div class="field hidden" id="phy-idle-cnt-th-field">
-                            <label title="PHY idle counter threshold">phy-idle-cnt-th</label>
-                            <input type="number" name="phy-idle-cnt-th" value="0">
-                        </div>
-                        <div class="field checkbox"><input type="checkbox" name="dynamic-power-down" id="dynamic-power-down-cb" onchange="toggleDynamicPowerDown()"><label title="Dynamic power down">dynamic-power-down</label></div>
-                        <div class="field checkbox"><input type="checkbox" name="dynamic-self-refresh" id="dynamic-self-refresh-cb" onchange="toggleDynamicSelfRefresh()"><label title="Dynamic self refresh">dynamic-self-refresh</label></div>
-                        <div class="field hidden" id="dynamic-power-down-threshold-field">
-                            <label title="Dynamic power down threshold (cycles)">dynamic-power-down-threshold</label>
-                            <input type="number" name="dynamic-power-down-threshold" value="0">
-                        </div>
-                        <div class="field hidden" id="dynamic-self-refresh-threshold-field">
-                            <label title="Dynamic self refresh threshold (cycles)">dynamic-self-refresh-threshold</label>
-                            <input type="number" name="dynamic-self-refresh-threshold" value="0">
-                        </div>
-                    </div>
-
-                    <!-- Timing Intervals -->
-                    <div class="subsection">
-                        <div class="subsection-title">Timing Intervals</div>
-                        <div class="field hidden" id="zq-calibration-period-field">
-                            <label title="ZQ calibration period in tCK">zq-calibration-period</label>
-                            <input type="number" name="zq-calibration-period" value="48000">
-                        </div>
-                        <div class="field hidden" id="periodic-training-period-field">
-                            <label title="Periodic training period in tCK">periodic-training-period</label>
-                            <input type="number" name="periodic-training-period" value="24000">
-                        </div>
-                        <div class="field hidden" id="temp-sensing-period-field">
-                            <label title="Temperature sensing period in tCK">temp-sensing-period</label>
-                            <input type="number" name="temp-sensing-period" value="32000">
-                        </div>
-                        <div class="field"><label title="Average refresh interval in tCK">t-refiab</label><input type="number" name="t-refiab" value="3904000"></div>
-                        <div class="field"><label title="Per-bank refresh interval in tCK">t-refipb</label><input type="number" name="t-refipb" value="488000"></div>
-                        <div class="field"><label title="ZQ calibration timeout in tCK">t-zqcal</label><input type="number" name="t-zqcal" value="1000000"></div>
-                    </div>
-
-                    <!-- DFS Timing -->
-                    <div class="subsection">
-                        <div class="subsection-title">DFS Timing</div>
-                        <div class="field field-unit">
-                            <label title="DFS timing level 0 in ps. Range: 300-5000ps">dfs_lvl_t_ck[0]</label>
-                            <input type="number" name="dfs-lvl-t-ck-0" value="938" step="1" min="300" max="5000" id="dfs0">
-                            <span class="unit-label">ps</span>
-                        </div>
-                        <div class="field field-unit">
-                            <label title="DFS timing level 1 in ps. Range: 300-5000ps">dfs_lvl_t_ck[1]</label>
-                            <input type="number" name="dfs-lvl-t-ck-1" value="1631" step="1" min="300" max="5000" id="dfs1">
-                            <span class="unit-label">ps</span>
-                        </div>
-                        <div class="field field-unit">
-                            <label title="DFS timing level 2 in ps. Range: 300-5000ps">dfs_lvl_t_ck[2]</label>
-                            <input type="number" name="dfs-lvl-t-ck-2" value="2500" step="1" min="300" max="5000" id="dfs2">
-                            <span class="unit-label">ps</span>
-                        </div>
-                    </div>
-
-                    <!-- Feature Flags -->
-                    <div class="subsection">
-                        <div class="subsection-title">Feature Flags</div>
-                        <div class="field checkbox"><input type="checkbox" name="orbit-rfm-en"><label>rfm-en</label></div>
-                        <div class="field checkbox hidden" id="orbit-dsm-en-field"><input type="checkbox" name="orbit-dsm-en" id="orbit-dsm-en-cb"><label>dsm-en (LPDDR5)</label></div>
-                        <div class="field checkbox"><input type="checkbox" name="orbit-ca-odt"><label>ca-odt</label></div>
-                        <div class="field checkbox"><input type="checkbox" name="init-zq-calibration"><label>init-zq-calibration</label></div>
-                        <div class="field checkbox"><input type="checkbox" name="zq-calibration" id="zq-calibration-cb" onchange="toggleZqCalibration()"><label>zq-calibration</label></div>
-                        <div class="field checkbox"><input type="checkbox" name="dfs-training"><label>dfs-training</label></div>
-                        <div class="field checkbox"><input type="checkbox" name="periodic-training" id="periodic-training-cb" onchange="togglePeriodicTraining()"><label>periodic-training</label></div>
-                        <div class="field checkbox"><input type="checkbox" name="temp-sensing" id="temp-sensing-cb" onchange="toggleTempSensing()"><label>temp-sensing</label></div>
-                    </div>
-
-                    <!-- MRR (Auto-calculated) -->
-                    <div class="subsection">
-                        <div class="subsection-title">MRR (Auto-calculated from DQ Width)</div>
-                        <div class="field">
-                            <label>mrr_byte_lane</label>
-                            <input type="text" name="mrr-byte-lane" value="0x55" id="mrr-byte-lane" readonly style="background:#eee;">
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="buttons">
-            <button type="button" class="btn btn-outline" onclick="saveJson()">Save JSON</button>
-            <button type="button" class="btn btn-outline" onclick="loadJson()">Load JSON</button>
-            <button type="button" class="btn btn-secondary" onclick="loadBinary()">Load Binary</button>
-            <button type="button" class="btn btn-primary" onclick="generate()">Generate Binary</button>
-        </div>
-    </form>
-    <div id="status" class="status"></div>
-</div>
-
-<!-- Analysis Modal -->
-<div id="analysisModal" class="modal">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h2>Binary Analysis</h2>
-            <span class="close" onclick="closeModal()">&times;</span>
-        </div>
-        <div id="analysisContent"></div>
+    <!-- DRAM type change confirmation banner -->
+    <div class="confirm-banner" id="dramConfirmBanner">
+        <span>Switching DRAM type will reset type-specific fields. Continue?</span>
+        <button class="btn btn-primary" onclick="confirmDramSwitch()">Switch</button>
+        <button class="btn btn-outline" onclick="cancelDramSwitch()">Cancel</button>
     </div>
-</div>
+
+    <!-- Tab Bar -->
+    <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchTab('configure')" id="tabConfigure">Configure</button>
+        <button class="tab-btn" onclick="switchTab('inspect')" id="tabInspect">Generate &amp; Inspect</button>
+        <span class="kbd-hint"><kbd>Shift</kbd>+<kbd>Enter</kbd> to generate</span>
+    </div>
+
+    <!-- ================================================================
+         CONFIGURE TAB
+         ================================================================ -->
+    <div class="tab-content active" id="tab-configure">
+        <form id="paramsForm">
+            <div class="content">
+                <div class="card-grid">
+                    <!-- ============================================
+                         PHY & Clock Card
+                         ============================================ -->
+                    <div class="card">
+                        <div class="card-header" onclick="toggleCard(this)">
+                            <span>PHY &amp; Clock</span>
+                            <span class="arrow open">&#9654;</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="field">
+                                <label title="PHY component name">PHY Name</label>
+                                <input type="text" name="phy-name" value="sphy-v9r8">
+                            </div>
+                            <div class="field">
+                                <label title="Data width per channel (DQ bits)">DQ Width</label>
+                                <select name="dq-width" onchange="updateMrrByteLane(); updateConfigSummary();">
+                                    <option value="4">4</option>
+                                    <option value="8">8</option>
+                                    <option value="16" selected>16</option>
+                                    <option value="32">32</option>
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label title="Speed bin defining max frequency">Speed Bin</label>
+                                <input type="text" name="speed-bin" value="4266" onchange="updateMinDramTck(); updateConfigSummary();">
+                            </div>
+                            <div class="field field-unit">
+                                <label title="Base DRAM timing (tCK/tWCK) in ps. Range: 100-5000ps">dram_t_ck <span class="param-name">(dram-tck)</span></label>
+                                <input type="number" name="dram-tck" value="471" step="1" min="100" max="5000" id="dram-tck">
+                                <span class="unit-label">ps</span>
+                                <span class="dual-readout" id="dram-tck-readout"></span>
+                            </div>
+                            <div class="field field-unit">
+                                <label title="Min tCK/tWCK in ps (max operating frequency). Range: 100-5000ps">Min tCK/tWCK <span class="param-name">(min-dram-tck)</span></label>
+                                <input type="number" name="min-dram-tck" value="314" step="1" min="100" max="5000">
+                                <span class="unit-label">ps</span>
+                                <span class="dual-readout" id="min-dram-tck-readout"></span>
+                            </div>
+                            <div class="field field-unit">
+                                <label title="PCB trace length in mil (milli-inch). Used for board delay calculation (0.07 ns/mil).">Wire Length <span class="param-name">(wire-length)</span></label>
+                                <input type="number" name="wire-length" value="10" step="0.1" min="0">
+                                <span class="unit-label" data-fixed-unit="mil">mil</span>
+                            </div>
+                            <!-- Hidden pipe config fields (auto-set) -->
+                            <input type="hidden" name="cpipe-depth" value="1">
+                            <input type="hidden" name="dpipe-depth" value="1">
+                            <input type="hidden" name="omc-freq-ratio" value="2" id="omc-freq-ratio">
+                            <input type="hidden" name="phy-freq-ratio" value="2" id="phy-freq-ratio">
+                        </div>
+                    </div>
+
+                    <!-- ============================================
+                         Timing Thresholds Card
+                         ============================================ -->
+                    <div class="card">
+                        <div class="card-header" onclick="toggleCard(this)">
+                            <span>Timing Thresholds</span>
+                            <span class="arrow open">&#9654;</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="unit-toggle" style="grid-column: 1 / -1;">
+                                <label><input type="radio" name="timing-unit" value="ps" checked> ps</label>
+                                <label><input type="radio" name="timing-unit" value="MHz"> MHz</label>
+                            </div>
+                            <div class="field field-unit">
+                                <label title="Max tCK/tWCK (ps) to enable write ODT. LP4: capped at 1249ps. Range: LP4 0-1249, LP5 0-10000">Write ODT <span class="param-name">(write-odt-upto)</span>
+                                    <span class="help-icon" onclick="toggleHelp(event, 'help-write-odt')">?</span>
+                                </label>
+                                <input type="number" name="write-odt-upto" value="1249" step="1" min="0" max="1249">
+                                <span class="unit-label">ps</span>
+                                <span class="dual-readout" id="write-odt-upto-readout"></span>
+                                <div class="range-bar"><div class="range-bar-fill"></div></div>
+                                <span class="field-error-msg"></span>
+                            </div>
+                            <div class="help-text" id="help-write-odt">On-die termination for write operations. Enable at higher frequencies to improve signal integrity. LP4 spec caps this at 1249ps; LP5 allows up to 10000ps.</div>
+                            <div class="field field-unit">
+                                <label title="Max tCK/tWCK (ps) to enable read DBI. Range: 0-10000ps">Read DBI <span class="param-name">(read-dbi-upto)</span></label>
+                                <input type="number" name="read-dbi-upto" value="10000" step="1" min="0" max="10000">
+                                <span class="unit-label">ps</span>
+                                <span class="dual-readout" id="read-dbi-upto-readout"></span>
+                                <div class="range-bar"><div class="range-bar-fill"></div></div>
+                                <span class="field-error-msg"></span>
+                            </div>
+                            <div class="field field-unit">
+                                <label title="Max tCK/tWCK (ps) to enable write DBI. Range: 0-10000ps">Write DBI <span class="param-name">(write-dbi-upto)</span></label>
+                                <input type="number" name="write-dbi-upto" value="10000" step="1" min="0" max="10000">
+                                <span class="unit-label">ps</span>
+                                <span class="dual-readout" id="write-dbi-upto-readout"></span>
+                                <div class="range-bar"><div class="range-bar-fill"></div></div>
+                                <span class="field-error-msg"></span>
+                            </div>
+                            <div class="field field-unit lpddr5-only">
+                                <label title="Max tWCK (ps) to enable read link ECC (LPDDR5 only). Range: 0-10000ps">Read LECC <span class="param-name">(read-lecc-upto)</span></label>
+                                <input type="number" name="read-lecc-upto" value="0" step="1" min="0" max="10000">
+                                <span class="unit-label">ps</span>
+                                <span class="dual-readout" id="read-lecc-upto-readout"></span>
+                                <span class="field-error-msg"></span>
+                            </div>
+                            <div class="field field-unit lpddr5-only">
+                                <label title="Max tWCK (ps) to enable write link ECC (LPDDR5 only). Range: 0-10000ps">Write LECC <span class="param-name">(write-lecc-upto)</span></label>
+                                <input type="number" name="write-lecc-upto" value="0" step="1" min="0" max="10000">
+                                <span class="unit-label">ps</span>
+                                <span class="dual-readout" id="write-lecc-upto-readout"></span>
+                                <span class="field-error-msg"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ============================================
+                         Frequency Plan Card (full width)
+                         ============================================ -->
+                    <div class="card full-width">
+                        <div class="card-header" onclick="toggleCard(this)">
+                            <span>Frequency Plan</span>
+                            <span class="arrow open">&#9654;</span>
+                        </div>
+                        <div class="card-body single-col">
+                            <div class="field">
+                                <label title="Target tCK/tWCK periods in ps. Max: LP4=6, LP5=5">Periods (<span id="periods-unit">tCK</span>) <span class="param-name">&mdash; max <span id="periods-limit-hint">6</span></span></label>
+                                <div id="periods-container" style="display:flex; flex-wrap:wrap; gap:8px; margin-top:4px;">
+                                    <!-- Dynamic periods -->
+                                </div>
+                                <div style="margin-top:8px;">
+                                    <button type="button" class="btn btn-outline" onclick="addPeriod()" style="padding:6px 12px; font-size:12px;">+ Add Period</button>
+                                </div>
+                            </div>
+                            <div class="freq-viz" id="freqViz"></div>
+                            <div class="field" style="margin-top:8px;">
+                                <label title="DFS timing levels in internal tCK (ps). Always internal tCK, even for LP5.">DFS Levels <span class="param-name">(always internal tCK, even for LP5)</span></label>
+                                <div style="display:flex; gap:8px; margin-top:4px; flex-wrap:wrap;">
+                                    <div class="field field-unit" style="flex:1; min-width:120px;">
+                                        <label title="DFS level 0. Range: LP4 468-5000, LP5 938-5000">Level 0</label>
+                                        <input type="number" name="dfs-lvl-t-ck-0" value="938" step="1" min="300" max="5000" id="dfs0">
+                                        <span class="unit-label">ps</span>
+                                    </div>
+                                    <div class="field field-unit" style="flex:1; min-width:120px;">
+                                        <label title="DFS level 1. Range: LP4 468-5000, LP5 938-5000">Level 1</label>
+                                        <input type="number" name="dfs-lvl-t-ck-1" value="1631" step="1" min="300" max="5000" id="dfs1">
+                                        <span class="unit-label">ps</span>
+                                    </div>
+                                    <div class="field field-unit" style="flex:1; min-width:120px;">
+                                        <label title="DFS level 2. Range: LP4 468-5000, LP5 938-5000">Level 2</label>
+                                        <input type="number" name="dfs-lvl-t-ck-2" value="2500" step="1" min="300" max="5000" id="dfs2">
+                                        <span class="unit-label">ps</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ============================================
+                         Memory Topology Card
+                         ============================================ -->
+                    <div class="card">
+                        <div class="card-header" onclick="toggleCard(this)">
+                            <span>Memory Topology</span>
+                            <span class="arrow open">&#9654;</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="field">
+                                <label title="DRAM density in Gb">Density (Gb)</label>
+                                <select name="orbit-config-density" id="orbit-config-density" onchange="updateConfigSummary()">
+                                    <option value="16" selected>16</option>
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label title="Byte mode: x16 (0) or x8 (1)">Byte Mode</label>
+                                <select name="orbit-byte-mode" onchange="updateConfigSummary()">
+                                    <option value="0" selected>x16</option>
+                                    <option value="1">x8</option>
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label title="Number of ranks (1 or 2)">Ranks</label>
+                                <select name="orbit-num-rank" id="orbit-num-rank-select" onchange="toggleRankInterleaving(); updateConfigSummary();">
+                                    <option value="1">1</option>
+                                    <option value="2" selected>2</option>
+                                </select>
+                            </div>
+                            <div class="field checkbox hidden" id="orbit-rank-interleaving-field">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" name="orbit-rank-interleaving" id="orbit-rank-interleaving-cb" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <label title="Enable rank interleaving">Rank Interleaving</label>
+                            </div>
+                            <div class="field checkbox">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" name="two-channel">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <label title="Enable dual channel mode">Dual Channel</label>
+                            </div>
+                            <div class="field">
+                                <label title="Mixed mode doubles total density">Mixed Mode</label>
+                                <select name="orbit-mixed">
+                                    <option value="0" selected>No</option>
+                                    <option value="1">Yes</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ============================================
+                         Power Management Card
+                         ============================================ -->
+                    <div class="card">
+                        <div class="card-header" onclick="toggleCard(this)">
+                            <span>Power Management</span>
+                            <span class="arrow open">&#9654;</span>
+                        </div>
+                        <div class="card-body two-col">
+                            <div class="field checkbox">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" name="regional-clock-gating" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <label>Regional Clock Gating</label>
+                            </div>
+                            <div class="field checkbox">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" name="dram-clock-gating" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <label>DRAM Clock Gating</label>
+                            </div>
+                            <div class="field checkbox">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" name="phy-clock-gating">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <label>PHY Clock Gating</label>
+                            </div>
+                            <div class="field checkbox">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" name="phy-low-power" id="phy-low-power-cb" onchange="togglePhyLowPower()">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <label>PHY Low Power</label>
+                            </div>
+                            <div class="field hidden" id="phy-idle-cnt-th-field">
+                                <label title="PHY idle counter threshold">Idle Threshold</label>
+                                <input type="number" name="phy-idle-cnt-th" value="0">
+                            </div>
+                            <div class="field checkbox">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" name="dynamic-power-down" id="dynamic-power-down-cb" onchange="toggleDynamicPowerDown()">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <label>Dynamic Power Down</label>
+                            </div>
+                            <div class="field hidden" id="dynamic-power-down-threshold-field">
+                                <label>Power Down Threshold</label>
+                                <input type="number" name="dynamic-power-down-threshold" value="0">
+                            </div>
+                            <div class="field checkbox">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" name="dynamic-self-refresh" id="dynamic-self-refresh-cb" onchange="toggleDynamicSelfRefresh()">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <label>Dynamic Self-Refresh</label>
+                            </div>
+                            <div class="field hidden" id="dynamic-self-refresh-threshold-field">
+                                <label>Self-Refresh Threshold</label>
+                                <input type="number" name="dynamic-self-refresh-threshold" value="0">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ============================================
+                         Training Options (Collapsible)
+                         ============================================ -->
+                    <div class="card">
+                        <div class="card-header" onclick="toggleCard(this)">
+                            <span>Training Options</span>
+                            <span class="arrow">&#9654;</span>
+                        </div>
+                        <div class="card-body two-col collapsed">
+                            <div class="field checkbox"><label class="toggle-switch"><input type="checkbox" name="eye-scan-rd-en"><span class="toggle-slider"></span></label><label>Eye Scan Read</label></div>
+                            <div class="field checkbox"><label class="toggle-switch"><input type="checkbox" name="eye-scan-wr-en"><span class="toggle-slider"></span></label><label>Eye Scan Write</label></div>
+                            <div class="field checkbox"><label class="toggle-switch"><input type="checkbox" name="eye-scan-prbs-rd-en"><span class="toggle-slider"></span></label><label>PRBS Eye Scan Read</label></div>
+                            <div class="field checkbox"><label class="toggle-switch"><input type="checkbox" name="eye-scan-prbs-wr-en"><span class="toggle-slider"></span></label><label>PRBS Eye Scan Write</label></div>
+                            <div class="field checkbox"><label class="toggle-switch"><input type="checkbox" name="phy-vref-trn-mode"><span class="toggle-slider"></span></label><label>PHY Vref Training</label></div>
+                            <div class="field checkbox"><label class="toggle-switch"><input type="checkbox" name="phy-duty-trn-mode"><span class="toggle-slider"></span></label><label>PHY Duty Training</label></div>
+                            <div class="field checkbox"><label class="toggle-switch"><input type="checkbox" name="dram-vref-trn-mode"><span class="toggle-slider"></span></label><label>DRAM Vref Training</label></div>
+                            <div class="field checkbox"><label class="toggle-switch"><input type="checkbox" name="dram-duty-trn-mode"><span class="toggle-slider"></span></label><label>DRAM Duty Training</label></div>
+                            <div class="field checkbox"><label class="toggle-switch"><input type="checkbox" name="command-bus-training"><span class="toggle-slider"></span></label><label>Command Bus Training</label></div>
+                            <div class="field checkbox"><label class="toggle-switch"><input type="checkbox" name="ca-vref-training"><span class="toggle-slider"></span></label><label>CA Vref Training</label></div>
+                            <div class="field checkbox"><label class="toggle-switch"><input type="checkbox" name="prbs-training"><span class="toggle-slider"></span></label><label>PRBS Training</label></div>
+                            <div class="field checkbox"><label class="toggle-switch"><input type="checkbox" name="reboot-with-training"><span class="toggle-slider"></span></label><label>Reboot with Training</label></div>
+                        </div>
+                    </div>
+
+                    <!-- ============================================
+                         Calibration & Refresh (Collapsible)
+                         ============================================ -->
+                    <div class="card">
+                        <div class="card-header" onclick="toggleCard(this)">
+                            <span>Calibration &amp; Refresh</span>
+                            <span class="arrow">&#9654;</span>
+                        </div>
+                        <div class="card-body collapsed">
+                            <div class="field checkbox">
+                                <label class="toggle-switch"><input type="checkbox" name="orbit-reboot-with-mrw"><span class="toggle-slider"></span></label>
+                                <label>Reboot with MRW</label>
+                            </div>
+                            <div class="field checkbox">
+                                <label class="toggle-switch"><input type="checkbox" name="orbit-rfm-en"><span class="toggle-slider"></span></label>
+                                <label>RFM Enable</label>
+                            </div>
+                            <div class="field checkbox hidden" id="orbit-dsm-en-field">
+                                <label class="toggle-switch"><input type="checkbox" name="orbit-dsm-en" id="orbit-dsm-en-cb"><span class="toggle-slider"></span></label>
+                                <label>DSM Enable (LP5)</label>
+                            </div>
+                            <div class="field checkbox">
+                                <label class="toggle-switch"><input type="checkbox" name="orbit-ca-odt"><span class="toggle-slider"></span></label>
+                                <label>CA ODT</label>
+                            </div>
+                            <div class="field checkbox">
+                                <label class="toggle-switch"><input type="checkbox" name="init-zq-calibration"><span class="toggle-slider"></span></label>
+                                <label>Init ZQ Calibration</label>
+                            </div>
+                            <div class="field checkbox">
+                                <label class="toggle-switch"><input type="checkbox" name="zq-calibration" id="zq-calibration-cb" onchange="toggleZqCalibration()"><span class="toggle-slider"></span></label>
+                                <label>ZQ Calibration</label>
+                            </div>
+                            <div class="field hidden" id="zq-calibration-period-field">
+                                <label>ZQ Calibration Period</label>
+                                <input type="number" name="zq-calibration-period" value="48000">
+                            </div>
+                            <div class="field checkbox">
+                                <label class="toggle-switch"><input type="checkbox" name="dfs-training"><span class="toggle-slider"></span></label>
+                                <label>DFS Training</label>
+                            </div>
+                            <div class="field checkbox">
+                                <label class="toggle-switch"><input type="checkbox" name="periodic-training" id="periodic-training-cb" onchange="togglePeriodicTraining()"><span class="toggle-slider"></span></label>
+                                <label>Periodic Training</label>
+                            </div>
+                            <div class="field hidden" id="periodic-training-period-field">
+                                <label>Periodic Training Period</label>
+                                <input type="number" name="periodic-training-period" value="24000">
+                            </div>
+                            <div class="field checkbox">
+                                <label class="toggle-switch"><input type="checkbox" name="temp-sensing" id="temp-sensing-cb" onchange="toggleTempSensing()"><span class="toggle-slider"></span></label>
+                                <label>Temperature Sensing</label>
+                            </div>
+                            <div class="field hidden" id="temp-sensing-period-field">
+                                <label>Temp Sensing Period</label>
+                                <input type="number" name="temp-sensing-period" value="32000">
+                            </div>
+                            <div class="field"><label>t_refiab</label><input type="number" name="t-refiab" value="3904000"></div>
+                            <div class="field"><label>t_refipb</label><input type="number" name="t-refipb" value="488000"></div>
+                            <div class="field"><label>t_zqcal</label><input type="number" name="t-zqcal" value="1000000"></div>
+                        </div>
+                    </div>
+
+                    <!-- ============================================
+                         LP4/LP5-Specific Options (Collapsible)
+                         ============================================ -->
+                    <div class="card full-width">
+                        <div class="card-header" onclick="toggleCard(this)">
+                            <span id="lp-specific-title">LPDDR4 Options</span>
+                            <span class="arrow">&#9654;</span>
+                        </div>
+                        <div class="card-body collapsed" id="lp-specific-body">
+                            <!-- LP4 fields -->
+                            <div class="field lp4-field">
+                                <label title="Write DQS control mode. Range: 0-3">WDQS Control Mode <span class="param-name">(wdqs-ctrl-mode)</span></label>
+                                <input type="number" name="wdqs-ctrl-mode" value="1" min="0" max="3">
+                            </div>
+                            <div class="field field-unit lp4-field">
+                                <label title="Max tCK (ps) to enable extended read post-amble. Range: 0-10000ps">RPSTE <span class="param-name">(rpste-upto)</span></label>
+                                <input type="number" name="rpste-upto" value="625" step="1" min="0" max="10000">
+                                <span class="unit-label">ps</span>
+                                <span class="dual-readout" id="rpste-upto-readout"></span>
+                                <span class="field-error-msg"></span>
+                            </div>
+                            <div class="field field-unit lp4-field">
+                                <label title="Max tCK (ps) to enable extended write post-amble. Range: 0-10000ps">WPSTE <span class="param-name">(wpste-upto)</span></label>
+                                <input type="number" name="wpste-upto" value="625" step="1" min="0" max="10000">
+                                <span class="unit-label">ps</span>
+                                <span class="dual-readout" id="wpste-upto-readout"></span>
+                                <span class="field-error-msg"></span>
+                            </div>
+                            <div class="field checkbox lp4-field">
+                                <label class="toggle-switch"><input type="checkbox" name="variable-trrd"><span class="toggle-slider"></span></label>
+                                <label>variable-trrd</label>
+                            </div>
+                            <div class="field checkbox lp4-field">
+                                <label class="toggle-switch"><input type="checkbox" name="txsr-as-1st-ed" checked><span class="toggle-slider"></span></label>
+                                <label>txsr-as-1st-ed</label>
+                            </div>
+
+                            <!-- LP5 fields -->
+                            <div class="field field-unit lp5-field" style="display:none;">
+                                <label title="Max tWCK (ps) to enable WCK 1:4 mode. Range: 0-10000ps">WCK 1:4 <span class="param-name">(wck-1to4-upto)</span></label>
+                                <input type="number" name="wck-1to4-upto" value="2500" step="1" min="0" max="10000">
+                                <span class="unit-label">ps</span>
+                                <span class="dual-readout" id="wck-1to4-upto-readout"></span>
+                                <span class="field-error-msg"></span>
+                            </div>
+                            <div class="field field-unit lp5-field" style="display:none;">
+                                <label title="Min tWCK (ps) for WCK always-on. Range: 0-10000ps">WCK Always-On From <span class="param-name">(wck-always-on-from)</span></label>
+                                <input type="number" name="wck-always-on-from" value="10000" step="1" min="0" max="10000">
+                                <span class="unit-label">ps</span>
+                                <span class="field-error-msg"></span>
+                            </div>
+                            <div class="field field-unit lp5-field" style="display:none;">
+                                <label title="Max tWCK (ps) for WCK always-on. Range: 0-10000ps">WCK Always-On Upto <span class="param-name">(wck-always-on-upto)</span></label>
+                                <input type="number" name="wck-always-on-upto" value="314" step="1" min="0" max="10000">
+                                <span class="unit-label">ps</span>
+                                <span class="field-error-msg"></span>
+                            </div>
+                            <div class="field field-unit lp5-field" style="display:none;">
+                                <label title="Max tWCK (ps) to enable NT-ODT. Range: 0-10000ps">NT-ODT <span class="param-name">(nt-odt-upto)</span></label>
+                                <input type="number" name="nt-odt-upto" value="625" step="1" min="0" max="10000">
+                                <span class="unit-label">ps</span>
+                                <span class="field-error-msg"></span>
+                            </div>
+                            <div class="field field-unit lp5-field" style="display:none;">
+                                <label title="Max tWCK (ps) to enable bank-group mode. Range: 0-10000ps">BG Mode <span class="param-name">(bg-mode-upto)</span></label>
+                                <input type="number" name="bg-mode-upto" value="625" step="1" min="0" max="10000">
+                                <span class="unit-label">ps</span>
+                                <span class="field-error-msg"></span>
+                            </div>
+                            <div class="field field-unit lp5-field" style="display:none;">
+                                <label title="Max tWCK (ps) to enable WCK high-frequency mode. Range: 0-10000ps">WCK HF <span class="param-name">(wck-hf-upto)</span></label>
+                                <input type="number" name="wck-hf-upto" value="625" step="1" min="0" max="10000">
+                                <span class="unit-label">ps</span>
+                                <span class="field-error-msg"></span>
+                            </div>
+                            <div class="field field-unit lp5-field" style="display:none;">
+                                <label title="Max tWCK (ps) to set WCK PST as 4.5*tWCK. Range: 0-10000ps">WCK PST1 <span class="param-name">(wck-pst1-upto)</span></label>
+                                <input type="number" name="wck-pst1-upto" value="1250" step="1" min="0" max="10000">
+                                <span class="unit-label">ps</span>
+                                <span class="field-error-msg"></span>
+                            </div>
+                            <div class="field field-unit lp5-field" style="display:none;">
+                                <label title="Max tWCK (ps) to set WCK PST as 6.5*tWCK. Range: 0-10000ps">WCK PST2 <span class="param-name">(wck-pst2-upto)</span></label>
+                                <input type="number" name="wck-pst2-upto" value="625" step="1" min="0" max="10000">
+                                <span class="unit-label">ps</span>
+                                <span class="field-error-msg"></span>
+                            </div>
+                            <div class="field field-unit lp5-field" style="display:none;">
+                                <label title="Max tWCK (ps) to set RDQS PST as 2.5*tWCK. Range: 0-10000ps">RDQS PST1 <span class="param-name">(rdqs-pst1-upto)</span></label>
+                                <input type="number" name="rdqs-pst1-upto" value="1250" step="1" min="0" max="10000">
+                                <span class="unit-label">ps</span>
+                                <span class="field-error-msg"></span>
+                            </div>
+                            <div class="field field-unit lp5-field" style="display:none;">
+                                <label title="Max tWCK (ps) to set RDQS PST as 4.5*tWCK. Range: 0-10000ps">RDQS PST2 <span class="param-name">(rdqs-pst2-upto)</span></label>
+                                <input type="number" name="rdqs-pst2-upto" value="625" step="1" min="0" max="10000">
+                                <span class="unit-label">ps</span>
+                                <span class="field-error-msg"></span>
+                            </div>
+                            <div class="field checkbox lp5-field" style="display:none;">
+                                <label class="toggle-switch"><input type="checkbox" name="enhanced-nt-odt"><span class="toggle-slider"></span></label>
+                                <label>Enhanced NT-ODT</label>
+                            </div>
+                        </div>
+                    </div>
+                </div><!-- /card-grid -->
+
+                <!-- MRR (auto-calculated, hidden) -->
+                <input type="hidden" name="mrr-byte-lane" value="0x55" id="mrr-byte-lane">
+            </div><!-- /content -->
+
+            <div class="buttons">
+                <button type="button" class="btn btn-outline" onclick="saveJson()">Save JSON</button>
+                <button type="button" class="btn btn-outline" onclick="loadJson()">Load JSON</button>
+                <button type="button" class="btn btn-outline" onclick="loadBinary()">Load Binary</button>
+                <span class="btn-spacer"></span>
+                <button type="button" class="btn btn-success" onclick="generate()" id="generateBtn">Generate Binary</button>
+            </div>
+        </form>
+        <div id="status" class="status"></div>
+    </div><!-- /tab-configure -->
+
+    <!-- ================================================================
+         INSPECT TAB (Phase 3)
+         ================================================================ -->
+    <div class="tab-content" id="tab-inspect">
+        <div class="inspect-panel">
+            <div id="inspectPlaceholder" class="inspect-placeholder">
+                <div class="icon">&#128269;</div>
+                <p>Generate a binary or load an existing one to inspect it here.</p>
+                <p style="margin-top:8px;"><button class="btn btn-outline" onclick="switchTab('configure')">Go to Configure</button></p>
+            </div>
+            <div id="inspectContent" style="display:none;">
+                <h3 style="margin-bottom:12px;">CLI Command</h3>
+                <div class="cli-preview" id="cliPreview">
+                    <button class="copy-btn" onclick="copyCliCmd()">Copy</button>
+                    <code id="cliPreviewText"></code>
+                </div>
+                <div id="inspectOutput"></div>
+                <div style="margin-top:12px;">
+                    <button class="btn btn-outline" onclick="exportCsv()">Copy as CSV</button>
+                    <button class="btn btn-outline" onclick="switchTab('configure')">Back to Configure</button>
+                </div>
+            </div>
+        </div>
+    </div><!-- /tab-inspect -->
+</div><!-- /container -->
 
 <!-- File Path Dialog -->
 <div id="filePathModal" class="modal">
@@ -535,47 +1245,154 @@
 </div>
 
 <script>
-// Unit conversion
+// ============================================================
+// Utility
+// ============================================================
 function psToMHz(ps) { return ps > 0 ? Math.round(1000000 / ps) : 0; }
 function MHzToPs(mhz) { return mhz > 0 ? Math.round(1000000 / mhz) : 0; }
 
-function toggleSection(header) {
-    const content = header.nextElementSibling;
+// ============================================================
+// Tab Switching (Phase 3)
+// ============================================================
+function switchTab(tab) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    document.getElementById('tab-' + tab).classList.add('active');
+    document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add('active');
+}
+
+// ============================================================
+// Card Toggle
+// ============================================================
+function toggleCard(header) {
+    const body = header.nextElementSibling;
     const arrow = header.querySelector('.arrow');
-    content.classList.toggle('collapsed');
+    body.classList.toggle('collapsed');
     arrow.classList.toggle('open');
+    // Save state to localStorage (Phase 4)
+    saveCardStates();
+}
+
+function saveCardStates() {
+    const states = {};
+    document.querySelectorAll('.card').forEach((card, i) => {
+        const body = card.querySelector('.card-body');
+        if (body) states['card-' + i] = !body.classList.contains('collapsed');
+    });
+    try { localStorage.setItem('cardStates', JSON.stringify(states)); } catch(e) {}
+}
+
+function restoreCardStates() {
+    try {
+        const states = JSON.parse(localStorage.getItem('cardStates'));
+        if (!states) return;
+        document.querySelectorAll('.card').forEach((card, i) => {
+            const body = card.querySelector('.card-body');
+            const arrow = card.querySelector('.arrow');
+            if (body && states['card-' + i] !== undefined) {
+                body.classList.toggle('collapsed', !states['card-' + i]);
+                if (arrow) arrow.classList.toggle('open', states['card-' + i]);
+            }
+        });
+    } catch(e) {}
+}
+
+// ============================================================
+// Config Summary (Phase 1)
+// ============================================================
+function updateConfigSummary() {
+    const dramType = document.getElementById('dram-type-select').value;
+    const dqWidth = document.querySelector('select[name="dq-width"]').value;
+    const byteMode = document.querySelector('select[name="orbit-byte-mode"]');
+    const ranks = document.querySelector('select[name="orbit-num-rank"]').value;
+    const speedBin = document.querySelector('input[name="speed-bin"]').value;
+    const bmLabel = byteMode.value === '1' ? 'x8' : 'x16';
+    document.getElementById('configSummary').textContent =
+        `${dramType.toUpperCase()} \u00b7 ${bmLabel} \u00b7 ${ranks}-rank \u00b7 ${speedBin} MT/s`;
+}
+
+// ============================================================
+// DRAM Type Switching (Phase 2: confirmation flow)
+// ============================================================
+let pendingDramType = null;
+let previousDramType = 'lpddr4';
+
+function handleDramTypeChange(newType) {
+    if (newType === previousDramType) return;
+    pendingDramType = newType;
+    // Revert select while waiting for confirmation
+    document.getElementById('dram-type-select').value = previousDramType;
+    document.getElementById('dramConfirmBanner').classList.add('visible');
+}
+
+function confirmDramSwitch() {
+    document.getElementById('dramConfirmBanner').classList.remove('visible');
+    if (!pendingDramType) return;
+    document.getElementById('dram-type-select').value = pendingDramType;
+    previousDramType = pendingDramType;
+    applyDramTypeSwitch(pendingDramType);
+    pendingDramType = null;
+}
+
+function cancelDramSwitch() {
+    document.getElementById('dramConfirmBanner').classList.remove('visible');
+    pendingDramType = null;
+}
+
+function applyDramTypeSwitch(dramType) {
+    toggleDramOptions();
+    setFreqRatios();
+    updateDensityOptions();
+    updatePeriodsLabel();
+    updateDramTckDefault();
+    toggleDsmEn();
+    updateSpeedBin();
+    updateMinDramTck();
+    updatePeriodsFromDefaults();
+    updateFieldRanges();
+    updateConfigSummary();
+    updateAllDualReadouts();
+    updateFreqViz();
+}
+
+// ============================================================
+// DRAM Type Toggles
+// ============================================================
+function getDramType() {
+    return document.getElementById('dram-type-select').value;
 }
 
 function toggleDramOptions() {
-    const dramType = document.querySelector('select[name="dram-type"]').value;
-    document.getElementById('lpddr4-options').style.display = dramType === 'lpddr4' ? 'block' : 'none';
-    document.getElementById('lpddr5-options').style.display = dramType === 'lpddr5' ? 'block' : 'none';
-    
-    // Show/hide LECC fields based on DRAM type (only LPDDR5 supports ECC)
-    const leccFields = document.querySelectorAll('.lpddr5-only');
-    leccFields.forEach(field => {
-        field.style.display = dramType === 'lpddr5' ? 'flex' : 'none';
+    const dramType = getDramType();
+    const isLp5 = dramType === 'lpddr5';
+
+    // LP4/LP5 specific fields in the combined card
+    document.querySelectorAll('.lp4-field').forEach(f => f.style.display = isLp5 ? 'none' : '');
+    document.querySelectorAll('.lp5-field').forEach(f => f.style.display = isLp5 ? '' : 'none');
+
+    // LECC fields
+    document.querySelectorAll('.lpddr5-only').forEach(f => {
+        f.style.display = isLp5 ? 'flex' : 'none';
     });
+
+    // Update card title
+    document.getElementById('lp-specific-title').textContent = isLp5 ? 'LPDDR5 Options' : 'LPDDR4 Options';
 }
 
 function setFreqRatios() {
-    const dramType = document.querySelector('select[name="dram-type"]').value;
-    const ratio = dramType === 'lpddr4' ? 2 : 1;
+    const ratio = getDramType() === 'lpddr4' ? 2 : 1;
     document.getElementById('omc-freq-ratio').value = ratio;
     document.getElementById('phy-freq-ratio').value = ratio;
 }
 
 function updateDensityOptions() {
-    const dramType = document.querySelector('select[name="dram-type"]').value;
+    const dramType = getDramType();
     const densitySelect = document.getElementById('orbit-config-density');
     const currentValue = parseInt(densitySelect.value);
-    
-    const densities = dramType === 'lpddr4' 
+    const densities = dramType === 'lpddr4'
         ? [2, 3, 4, 6, 8, 12, 16]
         : [2, 3, 4, 6, 8, 12, 16, 24, 32];
-    
     const isValid = densities.includes(currentValue);
-    
     densitySelect.innerHTML = '';
     densities.forEach(d => {
         const option = document.createElement('option');
@@ -588,132 +1405,110 @@ function updateDensityOptions() {
 }
 
 function updatePeriodsLabel() {
-    const dramType = document.querySelector('select[name="dram-type"]').value;
+    const dramType = getDramType();
     document.getElementById('periods-unit').textContent = dramType === 'lpddr4' ? 'tCK' : 'tWCK';
-    const hint = document.getElementById('periods-limit-hint');
-    if (hint) hint.textContent = 'max ' + (dramType === 'lpddr5' ? 5 : 6);
+    document.getElementById('periods-limit-hint').textContent = dramType === 'lpddr5' ? '5' : '6';
 }
 
 function updateDramTckDefault() {
-    const dramType = document.querySelector('select[name="dram-type"]').value;
-    const dramTckField = document.getElementById('dram-tck');
-    if (dramTckField) {
-        // Only update if user hasn't modified it (keep their value)
-        const defaultLPDDR4 = '471';
-        const defaultLPDDR5 = '1256';
-        // If value matches the "other" type's default, update it
-        if (dramType === 'lpddr4' && dramTckField.value === '1256') {
-            dramTckField.value = defaultLPDDR4;
-        } else if (dramType === 'lpddr5' && dramTckField.value === '471') {
-            dramTckField.value = defaultLPDDR5;
-        } else if (dramTckField.value === '' || dramTckField.value === '471' || dramTckField.value === '1256') {
-            dramTckField.value = dramType === 'lpddr4' ? defaultLPDDR4 : defaultLPDDR5;
-        }
-    }
+    const dramType = getDramType();
+    const f = document.getElementById('dram-tck');
+    if (!f) return;
+    const d4 = '471', d5 = '1256';
+    if (dramType === 'lpddr4' && f.value === '1256') f.value = d4;
+    else if (dramType === 'lpddr5' && f.value === '471') f.value = d5;
+    else if (f.value === '' || f.value === '471' || f.value === '1256')
+        f.value = dramType === 'lpddr4' ? d4 : d5;
 }
 
 function updateMrrByteLane() {
     const dqWidth = parseInt(document.querySelector('select[name="dq-width"]').value);
-    const mrrMap = {32: '0x11', 16: '0x55', 8: '0xFF', 4: '0x55'};
-    document.getElementById('mrr-byte-lane').value = mrrMap[dqWidth] || '0x55';
+    const map = {32: '0x11', 16: '0x55', 8: '0xFF', 4: '0x55'};
+    document.getElementById('mrr-byte-lane').value = map[dqWidth] || '0x55';
 }
 
 function updateSpeedBin() {
-    const dramType = document.querySelector('select[name="dram-type"]').value;
+    const dramType = getDramType();
     const speedBin = dramType === 'lpddr4' ? '4266' : '6400';
-    const speedBinField = document.querySelector('input[name="speed-bin"]') || document.querySelector('select[name="speed-bin"]');
-    if (speedBinField) speedBinField.value = speedBin;
+    const f = document.querySelector('input[name="speed-bin"]') || document.querySelector('select[name="speed-bin"]');
+    if (f) f.value = speedBin;
     updateMinDramTck();
 }
 
 function updateMinDramTck() {
-    const speedBinField = document.querySelector('input[name="speed-bin"]') || document.querySelector('select[name="speed-bin"]');
-    const speedBin = parseInt(speedBinField.value);
+    const f = document.querySelector('input[name="speed-bin"]') || document.querySelector('select[name="speed-bin"]');
+    const speedBin = parseInt(f.value);
     if (!isNaN(speedBin) && speedBin > 0) {
-        const minTck = Math.round(2000000 / speedBin);
-        document.querySelector('input[name="min-dram-tck"]').value = minTck;
+        document.querySelector('input[name="min-dram-tck"]').value = Math.round(2000000 / speedBin);
     }
 }
 
 function updatePeriodsFromDefaults() {
-    const dramType = document.querySelector('select[name="dram-type"]').value;
-    const periods = dramType === 'lpddr4' 
-        ? ['471', '938', '1631', '2500'] 
+    const dramType = getDramType();
+    const periods = dramType === 'lpddr4'
+        ? ['471', '938', '1631', '2500']
         : ['314', '418', '556', '2500'];
     renderPeriodsFromString(periods.join(' '));
 }
 
-// Update HTML min/max attributes based on DRAM type.
-// Ranges derived from memcfg tables (lpddr4_config.py / lpddr5_config.py):
-//   LP4 periods/tCK: 468-5000ps  (memcfgs cover 468..99999, capped at 5000 for UI)
-//   LP5 tWCK:        235-5000ps  (min with ratio=4: ceil(938/4)=235)
-//   LP4 write-odt:   0-1249ps    (hard cap in gen_timing_params)
-//   LP5 write-odt:   0-10000ps   (no cap)
-//   DFS t_ck:        LP4 468-5000, LP5 938-5000 (internal t_ck, not tWCK)
+// ============================================================
+// Field Ranges (memcfg-derived)
+// ============================================================
 function updateFieldRanges() {
-    const dramType = document.querySelector('select[name="dram-type"]').value;
+    const dramType = getDramType();
     const isLp5 = (dramType === 'lpddr5');
     const periodMin = isLp5 ? 235 : 468;
 
-    // write-odt-upto: LP4 capped at 1249
     const odtField = document.querySelector('[name="write-odt-upto"]');
     if (odtField) {
         odtField.max = isLp5 ? 10000 : 1249;
-        // If switching to LP4 and value exceeds cap, clamp it
-        if (!isLp5 && parseInt(odtField.value) > 1249) {
-            odtField.value = 1249;
-        }
+        if (!isLp5 && parseInt(odtField.value) > 1249) odtField.value = 1249;
     }
 
-    // DFS levels: internal t_ck (LP4 min=468, LP5 min=938)
     const dfsMin = isLp5 ? 938 : 468;
     document.querySelectorAll('input[name^="dfs-lvl-t-ck-"]').forEach(el => {
         el.min = dfsMin; el.max = 5000;
     });
 
-    // Period inputs
     document.querySelectorAll('input[name^="periods-"]').forEach(el => {
         el.min = periodMin; el.max = 5000;
     });
 
-    // Update write-odt tooltip to show DRAM-type-specific cap
+    // Update write-odt tooltip
     const odtLabel = document.querySelector('label[title*="write ODT"]');
     if (odtLabel) odtLabel.title = isLp5
         ? 'Max tWCK (ps) to enable write ODT. Range: 0-10000ps'
         : 'Max tCK (ps) to enable write ODT. Capped at 1249ps by LPDDR4 spec. Range: 0-1249ps';
 }
 
-// Timing unit toggle (ps <-> MHz)
+// ============================================================
+// Timing Unit Toggle (Phase 2: dual readout, no destructive conversion)
+// ============================================================
 function setupTimingUnitToggle() {
-    const radios = document.getElementsByName('timing-unit');
-    radios.forEach(radio => {
+    document.getElementsByName('timing-unit').forEach(radio => {
         radio.addEventListener('change', handleTimingUnitChange);
     });
 }
 
 function handleTimingUnitChange(e) {
     const isMHz = e.target.value === 'MHz';
-
-    // Fields that use ps/MHz conversion (NOT wire-length which is in mil)
     const fieldsToConvert = [
         'write-odt-upto', 'read-dbi-upto', 'write-dbi-upto',
         'read-lecc-upto', 'write-lecc-upto',
         'wck-1to4-upto', 'wck-always-on-from', 'wck-always-on-upto',
         'dfs-lvl-t-ck-0', 'dfs-lvl-t-ck-1', 'dfs-lvl-t-ck-2',
         'dram-tck', 'min-dram-tck',
-        // LPDDR4 timing options
         'rpste-upto', 'wpste-upto',
-        // LPDDR5 timing options
         'nt-odt-upto', 'bg-mode-upto', 'wck-hf-upto',
         'wck-pst1-upto', 'wck-pst2-upto', 'rdqs-pst1-upto', 'rdqs-pst2-upto'
     ];
 
-    // Update unit labels only for fields that are ps-based (not wire-length)
     fieldsToConvert.forEach(name => {
         const field = document.querySelector(`[name="${name}"]`);
         if (field) {
             const unitLabel = field.parentElement.querySelector('.unit-label');
-            if (unitLabel) unitLabel.textContent = isMHz ? 'MHz' : 'ps';
+            if (unitLabel && !unitLabel.hasAttribute('data-fixed-unit'))
+                unitLabel.textContent = isMHz ? 'MHz' : 'ps';
             if (field.value) {
                 const val = parseFloat(field.value);
                 if (!isNaN(val) && val > 0) {
@@ -734,35 +1529,161 @@ function handleTimingUnitChange(e) {
             }
         }
     });
+
+    updateAllDualReadouts();
 }
 
-// Dynamic periods management
+// Dual readout display
+function updateDualReadout(fieldName) {
+    const field = document.querySelector(`[name="${fieldName}"]`);
+    const readout = document.getElementById(fieldName + '-readout');
+    if (!field || !readout) return;
+    const val = parseFloat(field.value);
+    if (isNaN(val) || val <= 0) { readout.textContent = ''; return; }
+    const isMHz = document.querySelector('input[name="timing-unit"]:checked')?.value === 'MHz';
+    if (isMHz) {
+        readout.textContent = `= ${MHzToPs(val)} ps`;
+    } else {
+        readout.textContent = `= ${psToMHz(val)} MHz`;
+    }
+}
+
+function updateAllDualReadouts() {
+    const fields = ['dram-tck', 'min-dram-tck', 'write-odt-upto', 'read-dbi-upto',
+        'write-dbi-upto', 'read-lecc-upto', 'write-lecc-upto',
+        'rpste-upto', 'wpste-upto', 'wck-1to4-upto'];
+    fields.forEach(updateDualReadout);
+}
+
+// Range bar update
+function updateRangeBar(field) {
+    const bar = field.parentElement.querySelector('.range-bar-fill');
+    if (!bar) return;
+    const min = parseFloat(field.min) || 0;
+    const max = parseFloat(field.max) || 10000;
+    const val = parseFloat(field.value) || 0;
+    const pct = Math.max(0, Math.min(100, ((val - min) / (max - min)) * 100));
+    bar.style.width = pct + '%';
+}
+
+// ============================================================
+// Inline Validation on Blur (Phase 2)
+// ============================================================
+const FIELD_RANGES = {};
+
+function buildFieldRanges() {
+    const dramType = getDramType();
+    const isLp5 = (dramType === 'lpddr5');
+    const periodMin = isLp5 ? 235 : 468;
+
+    Object.assign(FIELD_RANGES, {
+        'dram-tck': { min: 100, max: 5000 },
+        'min-dram-tck': { min: 100, max: 5000 },
+        'write-odt-upto': { min: 0, max: isLp5 ? 10000 : 1249 },
+        'read-dbi-upto': { min: 0, max: 10000 },
+        'write-dbi-upto': { min: 0, max: 10000 },
+        'read-lecc-upto': { min: 0, max: 10000 },
+        'write-lecc-upto': { min: 0, max: 10000 },
+        'rpste-upto': { min: 0, max: 10000 },
+        'wpste-upto': { min: 0, max: 10000 },
+    });
+
+    if (isLp5) {
+        FIELD_RANGES['wck-1to4-upto'] = { min: 0, max: 10000 };
+        FIELD_RANGES['wck-always-on-from'] = { min: 0, max: 10000 };
+        FIELD_RANGES['wck-always-on-upto'] = { min: 0, max: 10000 };
+        FIELD_RANGES['nt-odt-upto'] = { min: 0, max: 10000 };
+        FIELD_RANGES['bg-mode-upto'] = { min: 0, max: 10000 };
+        FIELD_RANGES['wck-hf-upto'] = { min: 0, max: 10000 };
+        FIELD_RANGES['wck-pst1-upto'] = { min: 0, max: 10000 };
+        FIELD_RANGES['wck-pst2-upto'] = { min: 0, max: 10000 };
+        FIELD_RANGES['rdqs-pst1-upto'] = { min: 0, max: 10000 };
+        FIELD_RANGES['rdqs-pst2-upto'] = { min: 0, max: 10000 };
+    }
+}
+
+function validateFieldOnBlur(field) {
+    const name = field.name;
+    const errMsg = field.parentElement.querySelector('.field-error-msg');
+
+    // Get value in ps
+    const isMHz = document.querySelector('input[name="timing-unit"]:checked')?.value === 'MHz';
+    let val = parseInt(field.value);
+    if (isNaN(val)) {
+        field.classList.remove('field-error', 'field-valid');
+        if (errMsg) { errMsg.textContent = ''; errMsg.style.display = 'none'; }
+        return;
+    }
+    if (isMHz && val > 0 && (name.includes('-upto') || name.includes('-from') || name === 'dram-tck' || name === 'min-dram-tck')) {
+        val = Math.round(1000000 / val);
+    }
+
+    // Check named ranges
+    let range = FIELD_RANGES[name];
+    // Check DFS fields
+    if (!range && name.startsWith('dfs-lvl-t-ck-')) {
+        const isLp5 = getDramType() === 'lpddr5';
+        range = { min: isLp5 ? 938 : 468, max: 5000 };
+    }
+    // Check period fields
+    if (!range && name.startsWith('periods-')) {
+        const isLp5 = getDramType() === 'lpddr5';
+        range = { min: isLp5 ? 235 : 468, max: 5000 };
+    }
+
+    if (range) {
+        if (val < range.min || val > range.max) {
+            field.classList.add('field-error');
+            field.classList.remove('field-valid');
+            if (errMsg) {
+                errMsg.textContent = `Valid: ${range.min}-${range.max} ps`;
+                errMsg.style.display = 'block';
+            }
+        } else {
+            field.classList.remove('field-error');
+            field.classList.add('field-valid');
+            if (errMsg) { errMsg.textContent = ''; errMsg.style.display = 'none'; }
+        }
+    }
+
+    updateRangeBar(field);
+    updateDualReadout(name);
+}
+
+function setupBlurValidation() {
+    document.querySelectorAll('input[type="number"]').forEach(field => {
+        field.addEventListener('blur', () => validateFieldOnBlur(field));
+        field.addEventListener('input', () => {
+            updateRangeBar(field);
+            updateDualReadout(field.name);
+        });
+    });
+}
+
+// ============================================================
+// Dynamic Periods
+// ============================================================
 const defaultPeriods = ['471', '938', '1631', '2500'];
 
 function renderPeriods() {
     const container = document.getElementById('periods-container');
     container.innerHTML = '';
-    defaultPeriods.forEach((val, idx) => {
-        addPeriodInput(val, idx);
-    });
+    defaultPeriods.forEach((val, idx) => addPeriodInput(val, idx));
+    updateFreqViz();
 }
 
 function renderPeriodsFromString(periodsStr) {
-    // periodsStr is space-separated: "471 938 1631 2500"
     const periods = periodsStr.split(' ').filter(v => v.trim());
     const maxPeriods = getMaxPeriods();
     const limited = periods.slice(0, maxPeriods);
     const container = document.getElementById('periods-container');
     container.innerHTML = '';
-    limited.forEach((val, idx) => {
-        addPeriodInput(val, idx);
-    });
+    limited.forEach((val, idx) => addPeriodInput(val, idx));
+    updateFreqViz();
 }
 
 function getPeriodMin() {
-    const dramType = document.querySelector('select[name="dram-type"]').value;
-    // LP4 memcfg min t_ck = 468ps; LP5 min tWCK = ceil(938/4) = 235ps
-    return dramType === 'lpddr5' ? 235 : 468;
+    return getDramType() === 'lpddr5' ? 235 : 468;
 }
 
 function addPeriodInput(value, index) {
@@ -772,20 +1693,20 @@ function addPeriodInput(value, index) {
     div.style.display = 'flex';
     div.style.alignItems = 'center';
     div.style.gap = '4px';
-    div.style.marginBottom = '4px';
     div.dataset.index = index;
     div.innerHTML = `
-        <input type="number" name="periods-${index}" value="${value}" step="1" min="${pMin}" max="5000" style="flex:1;">
-        <span class="unit-label">ps</span>
-        <button type="button" onclick="removePeriod(this)" style="padding:4px 8px; cursor:pointer; color:red;">x</button>
+        <input type="number" name="periods-${index}" value="${value}" step="1" min="${pMin}" max="5000"
+               style="width:100px; font-family:var(--font-mono);"
+               onblur="validateFieldOnBlur(this)" oninput="updateFreqViz()">
+        <span class="unit-label" style="position:static; transform:none;">ps</span>
+        <button type="button" onclick="removePeriod(this)" style="padding:4px 8px; cursor:pointer; color:var(--error); background:none; border:1px solid var(--border); border-radius:var(--radius-sm);">&times;</button>
+        <span class="field-error-msg" style="display:none;"></span>
     `;
     container.appendChild(div);
 }
 
 function getMaxPeriods() {
-    const dramType = document.querySelector('select[name="dram-type"]').value;
-    // LP4 entry=0x128(296B), LP5 entry=0x15C(348B); timing table region=0x800(2048B)
-    return dramType === 'lpddr5' ? 5 : 6;
+    return getDramType() === 'lpddr5' ? 5 : 6;
 }
 
 function addPeriod() {
@@ -793,112 +1714,122 @@ function addPeriod() {
     const count = container.querySelectorAll('div').length;
     const maxPeriods = getMaxPeriods();
     if (count >= maxPeriods) {
-        const dramType = document.querySelector('select[name="dram-type"]').value;
-        alert(`Maximum ${maxPeriods} periods for ${dramType.toUpperCase()} (limited by 0x800 timing table region / entry size)`);
+        showStatus(`Maximum ${maxPeriods} periods for ${getDramType().toUpperCase()}`, 'warning');
         return;
     }
-    const newDiv = document.createElement('div');
-    newDiv.style.display = 'flex';
-    newDiv.style.alignItems = 'center';
-    newDiv.style.gap = '4px';
-    newDiv.style.marginBottom = '4px';
-    newDiv.dataset.index = count;
-    const pMin = getPeriodMin();
-    newDiv.innerHTML = `
-        <input type="number" name="periods-${count}" value="2500" step="1" min="${pMin}" max="5000" style="flex:1;">
-        <span class="unit-label">ps</span>
-        <button type="button" onclick="removePeriod(this)" style="padding:4px 8px; cursor:pointer; color:red;">x</button>
-    `;
-    container.appendChild(newDiv);
+    addPeriodInput('2500', count);
+    updateFreqViz();
 }
 
 function removePeriod(btn) {
     const container = document.getElementById('periods-container');
     if (container.querySelectorAll('div').length > 1) {
         btn.parentElement.remove();
-        // Re-index remaining periods
         container.querySelectorAll('div').forEach((div, idx) => {
             const input = div.querySelector('input');
             input.name = `periods-${idx}`;
             div.dataset.index = idx;
         });
+        updateFreqViz();
     }
 }
 
 function getPeriodsValues() {
-    const container = document.getElementById('periods-container');
     const values = [];
-    container.querySelectorAll('input[name^="periods-"]').forEach(input => {
+    document.querySelectorAll('#periods-container input[name^="periods-"]').forEach(input => {
         if (input.value) values.push(input.value);
     });
     return values;
 }
 
+// ============================================================
+// Frequency Visualization (Phase 2)
+// ============================================================
+function updateFreqViz() {
+    const container = document.getElementById('freqViz');
+    const periods = getPeriodsValues().map(Number).filter(v => v > 0).sort((a, b) => a - b);
+    if (periods.length === 0) { container.innerHTML = ''; return; }
+
+    const maxFreq = 1000000 / periods[0];
+    container.innerHTML = '';
+    container.style.paddingBottom = '20px';
+    periods.forEach(p => {
+        const freq = 1000000 / p;
+        const pct = (freq / maxFreq) * 100;
+        const bar = document.createElement('div');
+        bar.className = 'freq-viz-bar';
+        bar.style.height = Math.max(4, pct * 0.35) + 'px';
+        bar.innerHTML = `<span class="freq-label">${Math.round(freq)} MHz</span>`;
+        container.appendChild(bar);
+    });
+}
+
+// ============================================================
+// Help Toggle (Phase 2)
+// ============================================================
+function toggleHelp(event, helpId) {
+    event.preventDefault();
+    event.stopPropagation();
+    const el = document.getElementById(helpId);
+    if (el) el.classList.toggle('visible');
+}
+
+// ============================================================
+// Toggle Functions
+// ============================================================
 function togglePeriodicTraining() {
     const cb = document.getElementById('periodic-training-cb');
-    const field = document.getElementById('periodic-training-period-field');
-    if (field) {
-        field.classList.toggle('hidden', !cb.checked);
-    }
+    const f = document.getElementById('periodic-training-period-field');
+    if (f) f.classList.toggle('hidden', !cb.checked);
 }
-
 function toggleTempSensing() {
     const cb = document.getElementById('temp-sensing-cb');
-    const field = document.getElementById('temp-sensing-period-field');
-    if (field) {
-        field.classList.toggle('hidden', !cb.checked);
-    }
+    const f = document.getElementById('temp-sensing-period-field');
+    if (f) f.classList.toggle('hidden', !cb.checked);
 }
-
 function toggleZqCalibration() {
     const cb = document.getElementById('zq-calibration-cb');
-    const field = document.getElementById('zq-calibration-period-field');
-    if (field) {
-        field.classList.toggle('hidden', !cb.checked);
-    }
+    const f = document.getElementById('zq-calibration-period-field');
+    if (f) f.classList.toggle('hidden', !cb.checked);
 }
-
 function toggleRankInterleaving() {
     const select = document.getElementById('orbit-num-rank-select');
-    const field = document.getElementById('orbit-rank-interleaving-field');
-    if (field && select) {
-        field.classList.toggle('hidden', select.value != '2');
-    }
+    const f = document.getElementById('orbit-rank-interleaving-field');
+    if (f && select) f.classList.toggle('hidden', select.value != '2');
 }
-
 function toggleDsmEn() {
-    const dramType = document.querySelector('select[name="dram-type"]').value;
-    const field = document.getElementById('orbit-dsm-en-field');
-    if (field) {
-        field.classList.toggle('hidden', dramType !== 'lpddr5');
-    }
+    const f = document.getElementById('orbit-dsm-en-field');
+    if (f) f.classList.toggle('hidden', getDramType() !== 'lpddr5');
 }
-
 function togglePhyLowPower() {
     const cb = document.getElementById('phy-low-power-cb');
-    const field = document.getElementById('phy-idle-cnt-th-field');
-    if (field) {
-        field.classList.toggle('hidden', !cb.checked);
-    }
+    const f = document.getElementById('phy-idle-cnt-th-field');
+    if (f) f.classList.toggle('hidden', !cb.checked);
 }
-
 function toggleDynamicPowerDown() {
     const cb = document.getElementById('dynamic-power-down-cb');
-    const field = document.getElementById('dynamic-power-down-threshold-field');
-    if (field) {
-        field.classList.toggle('hidden', !cb.checked);
-    }
+    const f = document.getElementById('dynamic-power-down-threshold-field');
+    if (f) f.classList.toggle('hidden', !cb.checked);
 }
-
 function toggleDynamicSelfRefresh() {
     const cb = document.getElementById('dynamic-self-refresh-cb');
-    const field = document.getElementById('dynamic-self-refresh-threshold-field');
-    if (field) {
-        field.classList.toggle('hidden', !cb.checked);
-    }
+    const f = document.getElementById('dynamic-self-refresh-threshold-field');
+    if (f) f.classList.toggle('hidden', !cb.checked);
 }
 
+// ============================================================
+// Status Helper
+// ============================================================
+function showStatus(msg, type) {
+    const el = document.getElementById('status');
+    el.className = 'status ' + type;
+    el.innerHTML = msg;
+    el.style.display = 'block';
+}
+
+// ============================================================
 // Load Binary via file path dialog
+// ============================================================
 function loadBinary() {
     openFilePathDialog('Load Binary', 'ddr_timing_table.bin', 'load_binary', '.bin', (filePath) => {
         analyzeBinaryFile(filePath);
@@ -906,59 +1837,45 @@ function loadBinary() {
 }
 
 async function analyzeBinaryFile(filePath) {
-    const statusEl = document.getElementById('status');
-    statusEl.className = 'status';
-    statusEl.innerHTML = 'Analyzing binary...';
-    
+    showStatus('Analyzing binary...', '');
+    document.getElementById('status').className = 'status';
+    document.getElementById('status').style.display = 'block';
+
     try {
         const response = await fetch('/analyze', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
                 file_path: filePath,
-                dram_type_override: document.getElementById('dram-type-override')?.value || 'auto'
+                dram_type_override: 'auto'
             })
         });
         const result = await response.json();
-        
+
         if (result.success) {
             fillGuiFromAnalysis(result.data);
-            showAnalysisModal(result.data);
-            
-            // Show non-parseable fields warning
+            showInspectorResults(result.data);
+            switchTab('inspect');
+
             if (result.data.orbit?.non_parseable_fields?.length > 0) {
-                const fields = result.data.orbit.non_parseable_fields;
-                const lp4 = fields.filter(f => ['variable-trrd','txsr-as-1st-ed'].includes(f));
-                const lp5 = fields.filter(f => ['enhanced-nt-odt','wck-always-on-from','wck-always-on-upto','wck-1to4-upto','wck-hf-upto','wck-pst1-upto','wck-pst2-upto','rdqs-pst1-upto','rdqs-pst2-upto','nt-odt-upto','bg-mode-upto'].includes(f));
-                const timing = fields.filter(f => ['wdqs-ctrl-mode','rpste-upto','wpste-upto'].includes(f));
-                const common = ['wire-length'];
-                
-                let warning = '\n⚠️ Non-parseable fields (generated at runtime):\n';
-                if (lp4.length) warning += '  LP4: ' + lp4.join(', ') + '\n';
-                if (lp5.length) warning += '  LP5: ' + lp5.join(', ') + '\n';
-                if (timing.length) warning += '  Timing: ' + timing.join(', ') + '\n';
-                warning += '  Common: ' + common.join(', ');
-                
-                statusEl.style.display = 'block';
-                statusEl.className = 'status';
-                statusEl.innerHTML = '<pre>' + warning + '</pre>';
+                showStatus('Binary loaded. Some fields are runtime-generated and cannot be parsed from binary.', 'warning');
             } else {
-                statusEl.style.display = 'none';
+                showStatus('Binary loaded and analyzed successfully.', 'success');
             }
         } else {
-            statusEl.className = 'status error';
-            statusEl.innerHTML = '<strong>Error:</strong> ' + result.message;
+            showStatus('<strong>Error:</strong> ' + result.message, 'error');
         }
     } catch (e) {
-        statusEl.className = 'status error';
-        statusEl.innerHTML = '<strong>Error:</strong> ' + e.message;
+        showStatus('<strong>Error:</strong> ' + e.message, 'error');
     }
 }
 
 function fillGuiFromAnalysis(data) {
-    // Fill Basic params
     if (data.basic) {
         setFieldValue('dram-type', data.basic.dram_type);
+        // Apply DRAM type directly (skip confirmation)
+        document.getElementById('dram-type-select').value = data.basic.dram_type;
+        previousDramType = data.basic.dram_type;
         setFieldValue('phy-name', data.basic.phy_name);
         setFieldValue('dq-width', data.basic.dq_width);
         setFieldValue('speed-bin', data.basic.speed_bin);
@@ -967,14 +1884,8 @@ function fillGuiFromAnalysis(data) {
         toggleDramOptions();
         updatePeriodsLabel();
         updateDensityOptions();
-        
-        // Render periods dynamically based on binary
-        if (data.basic.periods) {
-            renderPeriodsFromString(data.basic.periods);
-        }
+        if (data.basic.periods) renderPeriodsFromString(data.basic.periods);
     }
-    
-    // Fill Pipe params
     if (data.pipe) {
         setFieldValue('cpipe-depth', data.pipe.cpipe_depth);
         setFieldValue('dpipe-depth', data.pipe.dpipe_depth);
@@ -982,8 +1893,6 @@ function fillGuiFromAnalysis(data) {
         setFieldValue('phy-freq-ratio', data.pipe.phy_freq_ratio);
         setFieldValue('wire-length', data.pipe.wire_length);
     }
-    
-    // Fill Timing params
     if (data.timing) {
         setFieldValue('write-odt-upto', data.timing.write_odt_upto);
         setFieldValue('read-dbi-upto', data.timing.read_dbi_upto);
@@ -991,8 +1900,6 @@ function fillGuiFromAnalysis(data) {
         setFieldValue('read-lecc-upto', data.timing.read_lecc_upto);
         setFieldValue('write-lecc-upto', data.timing.write_lecc_upto);
     }
-    
-    // Fill Orbit config
     if (data.orbit) {
         setCheckboxValue('two-channel', data.orbit.two_channel);
         setFieldValue('orbit-config-density', data.orbit.density);
@@ -1004,15 +1911,11 @@ function fillGuiFromAnalysis(data) {
         setCheckboxValue('orbit-rfm-en', data.orbit.rfm_en);
         setCheckboxValue('orbit-dsm-en', data.orbit.dsm_en);
         setCheckboxValue('orbit-ca-odt', data.orbit.ca_odt);
-        
-        // DFS timing
         if (data.orbit.dfs_lvl_t_ck) {
             setFieldValue('dfs-lvl-t-ck-0', data.orbit.dfs_lvl_t_ck[0]);
             setFieldValue('dfs-lvl-t-ck-1', data.orbit.dfs_lvl_t_ck[1]);
             setFieldValue('dfs-lvl-t-ck-2', data.orbit.dfs_lvl_t_ck[2]);
         }
-        
-        // Training
         setCheckboxValue('eye-scan-rd-en', data.orbit.eye_scan_rd_en);
         setCheckboxValue('eye-scan-wr-en', data.orbit.eye_scan_wr_en);
         setCheckboxValue('eye-scan-prbs-rd-en', data.orbit.eye_scan_prbs_rd_en);
@@ -1030,37 +1933,26 @@ function fillGuiFromAnalysis(data) {
         setCheckboxValue('dfs-training', data.orbit.dfs_training);
         setCheckboxValue('periodic-training', data.orbit.periodic_training);
         setCheckboxValue('temp-sensing', data.orbit.temp_sensing);
-        
-        // LP4/LP5 specific
         setCheckboxValue('variable-trrd', data.orbit.variable_trrd);
         setCheckboxValue('txsr-as-1st-ed', data.orbit.txsr_as_1st_ed);
         setCheckboxValue('enhanced-nt-odt', data.orbit.enhanced_nt_odt);
-        
-        // Power
         setCheckboxValue('regional-clock-gating', data.orbit.regional_clock_gating);
         setCheckboxValue('dram-clock-gating', data.orbit.dram_clock_gating);
         setCheckboxValue('phy-clock-gating', data.orbit.phy_clock_gating);
-        
-        // Dynamic power management
         setCheckboxValue('phy-low-power', data.orbit.phy_low_power);
         setFieldValue('phy-idle-cnt-th', data.orbit.phy_idle_cnt_th);
         setCheckboxValue('dynamic-power-down', data.orbit.dynamic_power_down);
         setCheckboxValue('dynamic-self-refresh', data.orbit.dynamic_self_refresh);
         setFieldValue('dynamic-power-down-threshold', data.orbit.dynamic_power_down_threshold);
         setFieldValue('dynamic-self-refresh-threshold', data.orbit.dynamic_self_refresh_threshold);
-        
-        // Timing intervals
         setFieldValue('zq-calibration-period', data.orbit.zq_calibration_period);
         setFieldValue('periodic-training-period', data.orbit.periodic_training_period);
         setFieldValue('temp-sensing-period', data.orbit.temp_sensing_period);
         setFieldValue('t-refiab', data.orbit.t_refiab);
         setFieldValue('t-refipb', data.orbit.t_refipb);
         setFieldValue('t-zqcal', data.orbit.t_zqcal);
-        
-        // MRR
         setFieldValue('mrr-byte-lane', data.orbit.mrr_byte_lane);
-        
-        // Call toggle functions to show/hide dependent numeric fields
+
         toggleZqCalibration();
         togglePeriodicTraining();
         toggleTempSensing();
@@ -1068,160 +1960,66 @@ function fillGuiFromAnalysis(data) {
         toggleDynamicSelfRefresh();
         togglePhyLowPower();
     }
+    updateFieldRanges();
+    updateConfigSummary();
+    updateAllDualReadouts();
+    updateFreqViz();
 }
 
 function setFieldValue(name, value) {
     const field = document.querySelector(`[name="${name}"]`);
-    if (field && value !== undefined) {
-        field.value = value;
-    }
+    if (field && value !== undefined) field.value = value;
 }
 
 function setCheckboxValue(name, value) {
     const field = document.querySelector(`[name="${name}"]`);
-    if (field) {
-        field.checked = value === 1 || value === true || value === 'true';
-    }
+    if (field) field.checked = value === 1 || value === true || value === 'true';
 }
 
-async function generate() {
-    // Validate first
-    if (!validateForm()) return;
-    
-    // Validate timing ranges
-    if (!validateTimingRanges()) return;
-    
-    const form = document.getElementById('paramsForm');
-    const formData = new FormData(form);
-    const params = {};
-    
-    for (let [key, value] of formData.entries()) {
-        params[key] = value;
-    }
-    
-    const checkboxes = form.querySelectorAll('input[type="checkbox"]');
-    checkboxes.forEach(cb => {
-        params[cb.name] = cb.checked ? '1' : '0';
-    });
-    
-    // ============================================================
-    // FIX: Convert MHz values to ps (integer) before sending to CLI
-    // ============================================================
-    const isMHz = document.querySelector('input[name="timing-unit"]:checked')?.value === 'MHz';
-    
-    if (isMHz) {
-        const fieldsToConvert = [
-            'write-odt-upto', 'read-dbi-upto', 'write-dbi-upto',
-            'read-lecc-upto', 'write-lecc-upto', 'wck-1to4-upto',
-            'wck-always-on-from', 'wck-always-on-upto',
-            'dfs-lvl-t-ck-0', 'dfs-lvl-t-ck-1', 'dfs-lvl-t-ck-2',
-            'dram-tck', 'min-dram-tck',
-            'periods-0', 'periods-1', 'periods-2', 'periods-3'
-        ];
-        
-        fieldsToConvert.forEach(name => {
-            const field = document.querySelector(`[name="${name}"]`);
-            if (field && field.value) {
-                const mhz = parseFloat(field.value);
-                if (!isNaN(mhz) && mhz > 0) {
-                    // Convert MHz to ps (integer), e.g., 2123MHz → 471ps
-                    field.value = Math.round(1000000 / mhz);
-                }
-            }
-        });
-        
-        // Reset toggle to ps mode
-        document.querySelector('input[name="timing-unit"][value="ps"]').checked = true;
-        
-        // Update unit labels back to ps
-        document.querySelectorAll('.unit-label').forEach(label => {
-            label.textContent = 'ps';
-        });
-        
-        // Re-extract form data after conversion
-        const newFormData = new FormData(form);
-        for (let [key, value] of newFormData.entries()) {
-            params[key] = value;
-        }
-        checkboxes.forEach(cb => {
-            if (!cb.checked) params[cb.name] = 'false';
-        });
-    }
-    // ============================================================
-    // END FIX
-    // ============================================================
-    
-    const statusEl = document.getElementById('status');
-    statusEl.className = 'status';
-    statusEl.innerHTML = 'Generating...';
-    
-    try {
-        const response = await fetch('/generate', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(params)
-        });
-        const result = await response.json();
-        
-        if (result.success) {
-            statusEl.className = 'status success';
-            statusEl.innerHTML = '<strong>Generated successfully!</strong><br><pre>' + result.message + '</pre>';
-        } else {
-            statusEl.className = 'status error';
-            statusEl.innerHTML = '<strong>Error:</strong><br><pre>' + result.message + '</pre>';
-        }
-    } catch (e) {
-        statusEl.className = 'status error';
-        statusEl.innerHTML = '<strong>Error:</strong> ' + e.message;
-    }
-}
+// ============================================================
+// Inspector Results (Phase 3)
+// ============================================================
+let lastInspectData = null;
 
-async function analyzeBinary() {
-    loadBinary();
-}
+function showInspectorResults(data) {
+    lastInspectData = data;
+    document.getElementById('inspectPlaceholder').style.display = 'none';
+    document.getElementById('inspectContent').style.display = 'block';
+    document.getElementById('cliPreviewText').textContent = '(loaded from binary: ' + data.file_path + ')';
 
-function showAnalysisModal(data) {
-    const modal = document.getElementById('analysisModal');
-    const content = document.getElementById('analysisContent');
-    
-    let html = '<div class="analysis-section"><h3>Binary Info</h3>';
-    html += '<table class="analysis-table"><tr><th>Property</th><th>Value</th></tr>';
-    html += `<tr><td>File</td><td>${data.file_path}</td></tr>`;
-    html += `<tr><td>Size</td><td>${data.file_size} bytes</td></tr>`;
-    html += `<tr><td>DRAM Type</td><td>${data.dram_type.toUpperCase()}</td></tr>`;
-    html += `<tr><td>Dual Channel</td><td>${data.two_channel ? 'Yes' : 'No'}</td></tr>`;
-    html += '</table></div>';
-    
-    // Section 1: Per-Entry Params
+    let html = '';
+
+    // Summary cards
+    html += '<div class="inspector-summary">';
+    html += `<div class="stat"><div class="stat-value">${data.file_size}</div><div class="stat-label">File Size (bytes)</div></div>`;
+    html += `<div class="stat"><div class="stat-value">${data.dram_type.toUpperCase()}</div><div class="stat-label">DRAM Type</div></div>`;
+    html += `<div class="stat"><div class="stat-value">${data.two_channel ? 'Dual' : 'Single'}</div><div class="stat-label">Channel</div></div>`;
+    html += `<div class="stat"><div class="stat-value">${data.timing_entries?.entries?.length || 0}</div><div class="stat-label">Entries</div></div>`;
+    html += '</div>';
+
+    // Timing entries table
     if (data.timing_entries?.entries?.length > 0) {
         const entries = data.timing_entries.entries;
         const tp_names = ['t_rp','t_rcd','t_ras','t_rc','t_rrd','t_rrd_l','t_faw','t_ccd_l','t_ccd_l_wr','t_ccd_s',
                           't_rtw','t_wtr','t_wtr_l','t_wr','t_rp_ab','t_rcd_wr','t_cke','t_ckesr','t_xs','t_dqs0_qs','t_??'];
-        
-        html += '<div class="analysis-section"><h3>Timing Table - Per-Entry Params</h3>';
-        html += '<div style="overflow-x:auto;"><table class="analysis-table">';
-        
-        // Header row
+
+        html += '<div class="analysis-section"><h3>Timing Entries</h3>';
+        html += '<div class="analysis-table-wrap"><table class="analysis-table">';
         html += '<tr><th>Parameter</th>';
         entries.forEach((e, i) => {
-            html += `<th>Entry ${i}<br>t_ck=${e.t_ck}<br>freq=${e.freq}</th>`;
+            html += `<th>Entry ${i}<br>t_ck=${e.t_ck}<br>${e.freq} MHz</th>`;
         });
         html += '</tr>';
-        
-        // Per-entry fields
+
         const perEntryFields = ['rl','wl','mr_rl','mr_wl','mr_wr','mr_cal','mr_tccd_l','bank_mode','wck_fm','wck_ratio',
                                  'rdqs_pst_mode','rdqs_pst','rdqs_pre','wck_pst','wck_on','read_link_parity','write_link_parity',
                                  't_rtw','t_wtr_a','t_wtr','t_rc','trddata_en','freq','timing_zqcal'];
-        
         perEntryFields.forEach(field => {
             html += `<tr><td>${field}</td>`;
-            entries.forEach(e => {
-                html += `<td>${e[field] !== undefined ? e[field] : '-'}</td>`;
-            });
+            entries.forEach(e => { html += `<td>${e[field] !== undefined ? e[field] : '-'}</td>`; });
             html += '</tr>';
         });
-        
-        // timing_param rows
+
         for (let i = 0; i < 21; i++) {
             html += `<tr><td>tp[${i}] ${tp_names[i]}</td>`;
             entries.forEach(e => {
@@ -1230,22 +2028,19 @@ function showAnalysisModal(data) {
             });
             html += '</tr>';
         }
-        
-        // timing_derate
+
         html += '<tr><td>derate[0]</td>';
         entries.forEach(e => {
             const val = e.timing_derate?.[0];
             html += `<td>${val !== undefined ? '0x' + val.toString(16).padStart(8,'0') : '-'}</td>`;
         });
-        html += '</tr>';
-        html += '<tr><td>derate[1]</td>';
+        html += '</tr><tr><td>derate[1]</td>';
         entries.forEach(e => {
             const val = e.timing_derate?.[1];
             html += `<td>${val !== undefined ? '0x' + val.toString(16).padStart(8,'0') : '-'}</td>`;
         });
         html += '</tr>';
-        
-        // dfi_timing_param
+
         for (let i = 0; i < 8; i++) {
             html += `<tr><td>dfi[${i}]</td>`;
             entries.forEach(e => {
@@ -1254,165 +2049,181 @@ function showAnalysisModal(data) {
             });
             html += '</tr>';
         }
-        
         html += '</table></div></div>';
     }
-    
-    // Section 2: Common Params
-    if (data.timing_entries?.common) {
-        const common = data.timing_entries.common;
-        html += '<div class="analysis-section"><h3>Common Params (Same for All Entries)</h3>';
-        html += '<table class="analysis-table"><tr><th>Parameter</th><th>Value</th></tr>';
-        for (const [key, val] of Object.entries(common)) {
+
+    // Common & density-dependent params
+    if (data.timing_entries?.common && Object.keys(data.timing_entries.common).length > 0) {
+        html += '<div class="analysis-section"><h3>Common Params</h3>';
+        html += '<div class="analysis-table-wrap"><table class="analysis-table"><tr><th>Parameter</th><th>Value</th></tr>';
+        for (const [key, val] of Object.entries(data.timing_entries.common)) {
             html += `<tr><td>${key}</td><td>${val}</td></tr>`;
         }
-        html += '</table></div>';
+        html += '</table></div></div>';
     }
-    
-    // Section 3: Density-Dependent Params
+
     if (data.timing_entries?.density_dependent) {
         const dd = data.timing_entries.density_dependent;
         const density = data.timing_entries.selected_density || 16;
-        html += `<div class="analysis-section"><h3>Density-Dependent Params (Density: ${density} Gb)</h3>`;
-        html += '<table class="analysis-table"><tr><th>Parameter</th><th>Value</th></tr>';
+        html += `<div class="analysis-section"><h3>Density-Dependent Params (${density} Gb)</h3>`;
+        html += '<div class="analysis-table-wrap"><table class="analysis-table"><tr><th>Parameter</th><th>Value</th></tr>';
         for (const [key, val] of Object.entries(dd)) {
             html += `<tr><td>${key}</td><td>${val}</td></tr>`;
         }
-        html += '</table></div>';
+        html += '</table></div></div>';
     }
-    
-    // Orbit Config - New Fields
-    if (data.orbit) {
-        const newOrbitFields = {
-            'dram_t_ck': data.orbit.dram_t_ck,
-            'rclk_t_ck': data.orbit.rclk_t_ck,
-            'boot_t_ck': data.orbit.boot_t_ck,
-        };
-        html += '<div class="analysis-section"><h3>Orbit Config (New Fields)</h3>';
-        html += '<table class="analysis-table"><tr><th>Parameter</th><th>Value</th></tr>';
-        for (const [key, val] of Object.entries(newOrbitFields)) {
-            if (val !== undefined && val !== 0) {
-                html += `<tr><td>${key}</td><td>${val}</td></tr>`;
-            }
+
+    document.getElementById('inspectOutput').innerHTML = html;
+}
+
+function copyCliCmd() {
+    const text = document.getElementById('cliPreviewText').textContent;
+    navigator.clipboard.writeText(text).then(() => {
+        const btn = document.querySelector('.cli-preview .copy-btn');
+        btn.textContent = 'Copied!';
+        setTimeout(() => btn.textContent = 'Copy', 1500);
+    });
+}
+
+function exportCsv() {
+    if (!lastInspectData?.timing_entries?.entries?.length) return;
+    const entries = lastInspectData.timing_entries.entries;
+    const fields = ['t_ck','freq','rl','wl','mr_rl','mr_wl','mr_wr','mr_cal','mr_tccd_l','bank_mode','wck_ratio',
+                    'write_odt','write_dbi','read_dbi','t_rtw','t_wtr','t_rc','trddata_en','timing_zqcal'];
+    let csv = 'entry,' + fields.join(',') + '\n';
+    entries.forEach((e, i) => {
+        csv += i + ',' + fields.map(f => e[f] !== undefined ? e[f] : '').join(',') + '\n';
+    });
+    navigator.clipboard.writeText(csv).then(() => {
+        showStatus('CSV copied to clipboard.', 'success');
+    });
+}
+
+// ============================================================
+// Validation
+// ============================================================
+function validateForm() {
+    const form = document.getElementById('paramsForm');
+    const fields = form.querySelectorAll('input:not([type="checkbox"]):not([type="hidden"]):not([type="radio"]), select');
+    const emptyFields = [];
+    const errorFields = [];
+
+    fields.forEach(f => {
+        f.classList.remove('field-error');
+    });
+
+    fields.forEach(field => {
+        if (field.closest('.hidden') || field.offsetParent === null) return;
+        const value = field.value;
+        const isEmpty = value === '' || value === null || value === undefined;
+        if (isEmpty) {
+            emptyFields.push(field.name || field.id);
+            field.classList.add('field-error');
+        } else if (field.type === 'number' && isNaN(parseFloat(value))) {
+            errorFields.push(field.name || field.id);
+            field.classList.add('field-error');
         }
-        html += '</table></div>';
+    });
+
+    if (emptyFields.length > 0 || errorFields.length > 0) {
+        let msg = '<strong>Validation Error:</strong><br>';
+        if (emptyFields.length > 0) msg += `Empty required fields: ${emptyFields.join(', ')}<br>`;
+        if (errorFields.length > 0) msg += `Invalid number values: ${errorFields.join(', ')}`;
+        showStatus(msg, 'error');
+        return false;
     }
-    
-    html += '<div style="text-align:right; margin-top:20px;">';
-    html += '<button type="button" class="btn btn-primary" onclick="closeModal()">OK</button>';
-    html += '</div>';
-    
-    content.innerHTML = html;
-    modal.style.display = 'block';
+    return true;
 }
 
-function closeModal() {
-    document.getElementById('analysisModal').style.display = 'none';
-}
+function validateTimingRanges() {
+    const dramType = getDramType();
+    const timingUnit = document.querySelector('input[name="timing-unit"]:checked').value;
+    const isMhz = timingUnit === 'MHz';
+    const errors = [];
+    const isLp5 = (dramType === 'lpddr5');
+    const periodMin = isLp5 ? 235 : 468;
+    const periodMax = 5000;
 
-window.onclick = function(event) {
-    const modal = document.getElementById('analysisModal');
-    if (event.target == modal) modal.style.display = 'none';
+    buildFieldRanges();
+
+    for (const [fieldName, range] of Object.entries(FIELD_RANGES)) {
+        const field = document.querySelector(`[name="${fieldName}"]`);
+        if (!field || !field.value || field.offsetParent === null) continue;
+        let val = parseInt(field.value);
+        if (isNaN(val)) continue;
+        if (isMhz && val > 0 && (fieldName.includes('-upto') || fieldName.includes('-from') || fieldName === 'dram-tck' || fieldName === 'min-dram-tck')) {
+            val = Math.round(1000000 / val);
+        }
+        if (val < range.min || val > range.max) {
+            const display = isMhz ? `${field.value}MHz = ${val}ps` : `${val}ps`;
+            errors.push(`${fieldName}: ${display} (valid: ${range.min}-${range.max}ps)`);
+            field.classList.add('field-error');
+        } else {
+            field.classList.remove('field-error');
+        }
+    }
+
+    // DFS levels
+    const dfsMin = isLp5 ? 938 : 468;
+    document.querySelectorAll('input[name^="dfs-lvl-t-ck-"]').forEach(field => {
+        if (!field.value || field.offsetParent === null) return;
+        let val = parseInt(field.value);
+        if (isNaN(val)) return;
+        if (isMhz && val > 0) val = Math.round(1000000 / val);
+        if (val < dfsMin || val > 5000) {
+            errors.push(`${field.name}: ${val}ps (valid: ${dfsMin}-5000ps)`);
+            field.classList.add('field-error');
+        } else {
+            field.classList.remove('field-error');
+        }
+    });
+
+    // Periods
+    document.querySelectorAll('input[name^="periods-"]').forEach(field => {
+        if (!field.value || field.offsetParent === null) return;
+        let val = parseInt(field.value);
+        if (isNaN(val)) return;
+        if (isMhz && val > 0) val = Math.round(1000000 / val);
+        if (val < periodMin || val > periodMax) {
+            errors.push(`${field.name}: ${val}ps (valid: ${periodMin}-${periodMax}ps)`);
+            field.classList.add('field-error');
+        } else {
+            field.classList.remove('field-error');
+        }
+    });
+
+    // Density
+    const densityField = document.querySelector('input[name="orbit-config-density"]');
+    if (densityField && densityField.value) {
+        const density = parseInt(densityField.value);
+        const validDensities = {
+            'lpddr4': [2, 3, 4, 6, 8, 12, 16],
+            'lpddr5': [1, 2, 3, 4, 6, 8, 12, 16, 24, 32]
+        };
+        if (!validDensities[dramType].includes(density)) {
+            errors.push(`density: ${density} (valid: ${validDensities[dramType].join(', ')})`);
+        }
+    }
+
+    if (errors.length > 0) {
+        showStatus('<strong>Validation Error:</strong><br>' + errors.join('<br>'), 'error');
+        return false;
+    }
+    return true;
 }
 
 // ============================================================
-// File Path Dialog
+// Collect Form Params
 // ============================================================
-let fpCallback = null;  // called with chosen path when user clicks OK
-let fpActionKey = '';    // localStorage key for remembering path
-
-function openFilePathDialog(title, defaultName, storageKey, filter, callback) {
-    fpCallback = callback;
-    fpActionKey = storageKey;
-    document.getElementById('fpTitle').textContent = title;
-    const modal = document.getElementById('filePathModal');
-    modal.style.display = 'block';
-    const input = document.getElementById('fpPathInput');
-
-    // Restore saved path or use default
-    const saved = localStorage.getItem('fp_' + storageKey);
-    input.value = saved || defaultName;
-    document.getElementById('fpKeepPath').checked = !!saved;
-
-    // Store filter for browsing
-    modal.dataset.filter = filter || '';
-
-    // Browse the directory of the current path
-    const dir = input.value.includes('/') ? input.value.substring(0, input.value.lastIndexOf('/')) : '';
-    browsePath(dir || '.');
-}
-
-function closeFilePathDialog() {
-    document.getElementById('filePathModal').style.display = 'none';
-    fpCallback = null;
-}
-
-function confirmFilePath() {
-    const path = document.getElementById('fpPathInput').value.trim();
-    if (!path) return;
-    const keep = document.getElementById('fpKeepPath').checked;
-    if (keep) {
-        localStorage.setItem('fp_' + fpActionKey, path);
-    } else {
-        localStorage.removeItem('fp_' + fpActionKey);
-    }
-    closeFilePathDialog();
-    if (fpCallback) fpCallback(path);
-}
-
-async function browsePath(dir) {
-    const filter = document.getElementById('filePathModal').dataset.filter || '';
-    try {
-        const resp = await fetch('/browse', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({path: dir || '.', filter: filter})
-        });
-        const result = await resp.json();
-        if (!result.success) return;
-
-        document.getElementById('fpCwd').textContent = result.cwd;
-        const browser = document.getElementById('fpBrowser');
-        browser.innerHTML = '';
-        result.entries.forEach(entry => {
-            const div = document.createElement('div');
-            div.className = 'fp-entry' + (entry.is_dir ? ' fp-dir' : '');
-            div.textContent = (entry.is_dir ? '\uD83D\uDCC1 ' : '\uD83D\uDCC4 ') + entry.name;
-            div.onclick = () => {
-                if (entry.is_dir) {
-                    browsePath(entry.path);
-                } else {
-                    document.getElementById('fpPathInput').value = entry.path;
-                }
-            };
-            browser.appendChild(div);
-        });
-    } catch (e) {
-        console.error('Browse failed:', e);
-    }
-}
-
-// Handle Enter key in path input
-document.getElementById('fpPathInput').addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') {
-        e.preventDefault();
-        confirmFilePath();
-    }
-});
-
-// ============================================================
-// Save/Load/Generate with file path dialog
-// ============================================================
-
 function collectFormParams() {
     const form = document.getElementById('paramsForm');
     const formData = new FormData(form);
     const params = {};
     for (let [key, value] of formData.entries()) {
-        if (!key.startsWith('periods-')) {
-            params[key] = value;
-        }
+        if (!key.startsWith('periods-')) params[key] = value;
     }
+    // Add dram-type from header select
+    params['dram-type'] = getDramType();
     const checkboxes = form.querySelectorAll('input[type="checkbox"]');
     checkboxes.forEach(cb => params[cb.name] = cb.checked ? '1' : '0');
     const periodInputs = document.querySelectorAll('#periods-container input[name^="periods-"]');
@@ -1422,206 +2233,11 @@ function collectFormParams() {
     return params;
 }
 
-function saveJson() {
-    openFilePathDialog('Save JSON Config', 'ddr_config.json', 'save_json', '.json', async (filePath) => {
-        const params = collectFormParams();
-        const statusEl = document.getElementById('status');
-        try {
-            const resp = await fetch('/save-json', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({file_path: filePath, data: params})
-            });
-            const result = await resp.json();
-            statusEl.className = result.success ? 'status success' : 'status error';
-            statusEl.innerHTML = result.message;
-            statusEl.style.display = 'block';
-        } catch (e) {
-            statusEl.className = 'status error';
-            statusEl.innerHTML = 'Error: ' + e.message;
-            statusEl.style.display = 'block';
-        }
-    });
-}
-
-function validateForm() {
-    const form = document.getElementById('paramsForm');
-    const fields = form.querySelectorAll('input:not([type="checkbox"]):not([type="file"]), select');
-    const emptyFields = [];
-    const errorFields = [];
-    
-    // Clear previous error highlights
-    fields.forEach(f => f.style.borderColor = '#ddd');
-    
-    fields.forEach(field => {
-        const value = field.value;
-        const isEmpty = value === '' || value === null || value === undefined;
-        const isNumber = field.type === 'number';
-        
-        // Skip hidden fields (like periodic-training-period when disabled)
-        if (field.closest('.hidden')) return;
-        
-        if (isEmpty) {
-            emptyFields.push(field.name || field.id);
-            field.style.borderColor = 'red';
-        } else if (isNumber && isNaN(parseFloat(value))) {
-            errorFields.push(field.name || field.id);
-            field.style.borderColor = 'red';
-        }
-    });
-    
-    if (emptyFields.length > 0 || errorFields.length > 0) {
-        const statusEl = document.getElementById('status');
-        let msg = '<strong>Validation Error:</strong><br>';
-        if (emptyFields.length > 0) {
-            msg += `Empty required fields: ${emptyFields.join(', ')}<br>`;
-        }
-        if (errorFields.length > 0) {
-            msg += `Invalid number values: ${errorFields.join(', ')}`;
-        }
-        statusEl.className = 'status error';
-        statusEl.innerHTML = msg;
-        statusEl.style.display = 'block';
-        return false;
-    }
-    return true;
-}
-
-function validateTimingRanges() {
-    const dramType = document.querySelector('select[name="dram-type"]').value;
-    const timingUnit = document.querySelector('input[name="timing-unit"]:checked').value;
-    const isMhz = timingUnit === 'MHz';
-    const errors = [];
-    
-    // Valid ranges derived from memcfg tables in lpddr4_config.py / lpddr5_config.py
-    // and argparse constraints in gen_timing_params.
-    //
-    // Period ranges (fed to search_memcfgs → crash if out of range):
-    //   LP4: memcfgs cover t_ck 468..99999 ps (practical max 5000)
-    //   LP5: user enters tWCK; internal t_ck = tWCK * wck_ratio
-    //        ratio=4 (wck_1to4): t_ck 938..19999 → tWCK 235..4999
-    //        ratio=2:            t_ck 1250..9999  → tWCK 625..4999
-    //        Conservative min for LP5 = 235 (covers both ratios)
-    //
-    // dram-tck / min-dram-tck: stored in orbit_config / used for PHY config,
-    //   NOT fed to search_memcfgs. Use 100-5000 as reasonable UI guard.
-    //
-    // "upto"/"from" fields: simple >= comparisons, no argparse constraint.
-    // Only LP4 write-odt-upto is hard-capped at 1249 (gen_timing_params line 786).
-    const isLp5 = (dramType === 'lpddr5');
-    const periodMin = isLp5 ? 235 : 468;
-    const periodMax = 5000;
-
-    const timingRanges = {
-        'dram-tck':       { min: 100, max: 5000 },
-        'min-dram-tck':   { min: 100, max: 5000 },
-        'write-odt-upto': { min: 0, max: isLp5 ? 10000 : 1249 },
-        'read-dbi-upto':  { min: 0, max: 10000 },
-        'write-dbi-upto': { min: 0, max: 10000 },
-        'read-lecc-upto': { min: 0, max: 10000 },
-        'write-lecc-upto':{ min: 0, max: 10000 },
-        'rpste-upto':     { min: 0, max: 10000 },
-        'wpste-upto':     { min: 0, max: 10000 },
-    };
-
-    // Add LPDDR5-specific fields
-    if (isLp5) {
-        timingRanges['wck-1to4-upto'] = { min: 0, max: 10000 };
-        timingRanges['wck-always-on-from'] = { min: 0, max: 10000 };
-        timingRanges['wck-always-on-upto'] = { min: 0, max: 10000 };
-        timingRanges['nt-odt-upto'] = { min: 0, max: 10000 };
-        timingRanges['bg-mode-upto'] = { min: 0, max: 10000 };
-        timingRanges['wck-hf-upto'] = { min: 0, max: 10000 };
-        timingRanges['wck-pst1-upto'] = { min: 0, max: 10000 };
-        timingRanges['wck-pst2-upto'] = { min: 0, max: 10000 };
-        timingRanges['rdqs-pst1-upto'] = { min: 0, max: 10000 };
-        timingRanges['rdqs-pst2-upto'] = { min: 0, max: 10000 };
-    }
-
-    for (const [fieldName, range] of Object.entries(timingRanges)) {
-        const field = document.querySelector(`[name="${fieldName}"]`);
-        if (!field || !field.value) continue;
-
-        let val = parseInt(field.value);
-        if (isNaN(val)) continue;
-
-        let min = range.min;
-        let max = range.max;
-
-        // Convert MHz to ps for validation
-        if (isMhz && val > 0 && (fieldName.includes('-upto') || fieldName.includes('-from') || fieldName === 'dram-tck' || fieldName === 'min-dram-tck')) {
-            val = Math.round(1000000 / val);
-        }
-
-        if (val < min || val > max) {
-            const display = isMhz ? `${field.value}MHz = ${val}ps` : `${val}ps`;
-            errors.push(`${fieldName}: ${display} (valid: ${min}-${max}ps)`);
-            field.style.borderColor = 'red';
-        } else {
-            field.style.borderColor = '';
-        }
-    }
-
-    // Validate DFS level tCK fields (internal t_ck, not tWCK)
-    // LP4 memcfgs: t_ck 468..5000 (practical), LP5 memcfgs: t_ck 938..5000
-    const dfsMin = isLp5 ? 938 : 468;
-    const dfsMax = 5000;
-    document.querySelectorAll('input[name^="dfs-lvl-t-ck-"]').forEach(field => {
-        if (!field.value || field.offsetParent === null) return;
-        let val = parseInt(field.value);
-        if (isNaN(val)) return;
-        if (isMhz && val > 0) val = Math.round(1000000 / val);
-        if (val < dfsMin || val > dfsMax) {
-            errors.push(`${field.name}: ${val}ps (valid: ${dfsMin}-${dfsMax}ps)`);
-            field.style.borderColor = 'red';
-        } else {
-            field.style.borderColor = '';
-        }
-    });
-
-    // Validate period inputs (tCK for LP4, tWCK for LP5 — same as dram-tck)
-    document.querySelectorAll('input[name^="periods-"]').forEach(field => {
-        if (!field.value || field.offsetParent === null) return;
-        let val = parseInt(field.value);
-        if (isNaN(val)) return;
-        if (isMhz && val > 0) val = Math.round(1000000 / val);
-        if (val < periodMin || val > periodMax) {
-            errors.push(`${field.name}: ${val}ps (valid: ${periodMin}-${periodMax}ps)`);
-            field.style.borderColor = 'red';
-        } else {
-            field.style.borderColor = '';
-        }
-    });
-    
-    // Validate density
-    const densityField = document.querySelector('input[name="orbit-config-density"]');
-    if (densityField && densityField.value) {
-        const density = parseInt(densityField.value);
-        const validDensities = {
-            'lpddr4': [2, 3, 4, 6, 8, 12, 16],
-            'lpddr5': [1, 2, 3, 4, 6, 8, 12, 16, 24, 32]
-        };
-        if (!validDensities[dramType].includes(density)) {
-            errors.push(`density: ${density} (valid for ${dramType.toUpperCase()}: ${validDensities[dramType].join(', ')})`);
-            densityField.style.borderColor = 'red';
-        }
-    }
-    
-    if (errors.length > 0) {
-        const statusEl = document.getElementById('status');
-        statusEl.className = 'status error';
-        statusEl.innerHTML = '<strong>Validation Error:</strong><br>' + errors.join('<br>');
-        statusEl.style.display = 'block';
-        return false;
-    }
-    return true;
-}
-
+// ============================================================
+// Generate Binary
+// ============================================================
 function generate() {
-    // Validate first
     if (!validateForm()) return;
-
-    // Validate timing ranges
     if (!validateTimingRanges()) return;
 
     openFilePathDialog('Generate Binary', 'ddr_timing_table.bin', 'generate_binary', '.bin', async (outputPath) => {
@@ -1629,15 +2245,13 @@ function generate() {
         const formData = new FormData(form);
         const params = {};
         for (let [key, value] of formData.entries()) params[key] = value;
+        params['dram-type'] = getDramType();
         const checkboxes = form.querySelectorAll('input[type="checkbox"]');
         checkboxes.forEach(cb => params[cb.name] = cb.checked ? '1' : '0');
-
-        // Add periods values (dynamically named inputs)
         params['periods'] = getPeriodsValues().join(' ');
 
-        // Convert MHz values to ps (integer) before sending to CLI
+        // Convert MHz values to ps before sending
         const isMHz = document.querySelector('input[name="timing-unit"]:checked')?.value === 'MHz';
-
         if (isMHz) {
             const fieldsToConvert = [
                 'write-odt-upto', 'read-dbi-upto', 'write-dbi-upto',
@@ -1645,43 +2259,46 @@ function generate() {
                 'wck-always-on-from', 'wck-always-on-upto',
                 'dfs-lvl-t-ck-0', 'dfs-lvl-t-ck-1', 'dfs-lvl-t-ck-2',
                 'dram-tck', 'min-dram-tck',
-                'periods-0', 'periods-1', 'periods-2', 'periods-3'
+                'rpste-upto', 'wpste-upto',
+                'nt-odt-upto', 'bg-mode-upto', 'wck-hf-upto',
+                'wck-pst1-upto', 'wck-pst2-upto', 'rdqs-pst1-upto', 'rdqs-pst2-upto'
             ];
-
             fieldsToConvert.forEach(name => {
-                const field = document.querySelector(`[name="${name}"]`);
-                if (field && field.value) {
-                    const mhz = parseFloat(field.value);
-                    if (!isNaN(mhz) && mhz > 0) {
-                        field.value = Math.round(1000000 / mhz);
-                    }
+                if (params[name]) {
+                    const mhz = parseFloat(params[name]);
+                    if (!isNaN(mhz) && mhz > 0) params[name] = String(Math.round(1000000 / mhz));
                 }
             });
-
-            document.querySelector('input[name="timing-unit"][value="ps"]').checked = true;
-            document.querySelectorAll('.unit-label').forEach(label => {
-                label.textContent = 'ps';
-            });
-
-            const newFormData = new FormData(form);
-            for (let [key, value] of newFormData.entries()) {
-                params[key] = value;
-            }
-            checkboxes.forEach(cb => {
-                params[cb.name] = cb.checked ? 'true' : 'false';
-            });
-
-            params['periods'] = getPeriodsValues().join(' ');
+            // Convert period values
+            const periodValues = getPeriodsValues();
+            params['periods'] = periodValues.map(v => {
+                const mhz = parseFloat(v);
+                return (!isNaN(mhz) && mhz > 0) ? String(Math.round(1000000 / mhz)) : v;
+            }).join(' ');
         }
 
         params['output_path'] = outputPath;
 
-        const statusEl = document.getElementById('status');
-        statusEl.className = 'status';
-        statusEl.innerHTML = 'Generating...';
-        statusEl.style.display = 'block';
+        // Disable form during generation (Phase 4)
+        const genBtn = document.getElementById('generateBtn');
+        genBtn.disabled = true;
+        genBtn.innerHTML = '<span class="spinner"></span> Generating...';
+        showStatus('Generating...', '');
+        document.getElementById('status').className = 'status';
+        document.getElementById('status').style.display = 'block';
 
         try {
+            // Get CLI preview first
+            const previewResp = await fetch('/preview-cmd', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(params)
+            });
+            const previewResult = await previewResp.json();
+            if (previewResult.success) {
+                document.getElementById('cliPreviewText').textContent = previewResult.command;
+            }
+
             const response = await fetch('/generate', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
@@ -1690,15 +2307,64 @@ function generate() {
             const result = await response.json();
 
             if (result.success) {
-                statusEl.className = 'status success';
-                statusEl.innerHTML = '<strong>Generated successfully!</strong><br><pre>' + result.message + '</pre>';
+                showStatus('<strong>Generated successfully!</strong><pre>' + result.message + '</pre>', 'success');
+                // Show in inspect tab
+                document.getElementById('inspectPlaceholder').style.display = 'none';
+                document.getElementById('inspectContent').style.display = 'block';
+                document.getElementById('inspectOutput').innerHTML =
+                    '<div class="analysis-section"><h3>Generation Output</h3>' +
+                    '<pre style="background:var(--header-bg);color:#e5e7eb;padding:12px;border-radius:var(--radius);font-size:12px;font-family:var(--font-mono);">' +
+                    result.message.replace(/</g,'&lt;') + '</pre></div>';
+                switchTab('inspect');
             } else {
-                statusEl.className = 'status error';
-                statusEl.innerHTML = '<strong>Error:</strong><br><pre>' + result.message + '</pre>';
+                showStatus('<strong>Error:</strong><pre>' + result.message + '</pre>', 'error');
             }
         } catch (e) {
-            statusEl.className = 'status error';
-            statusEl.innerHTML = '<strong>Error:</strong> ' + e.message;
+            showStatus('<strong>Error:</strong> ' + e.message, 'error');
+        } finally {
+            genBtn.disabled = false;
+            genBtn.innerHTML = 'Generate Binary';
+        }
+    });
+}
+
+// ============================================================
+// Save / Load JSON
+// ============================================================
+function saveJson() {
+    openFilePathDialog('Save JSON Config', 'ddr_config.json', 'save_json', '.json', async (filePath) => {
+        const params = collectFormParams();
+        try {
+            const resp = await fetch('/save-json', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({file_path: filePath, data: params})
+            });
+            const result = await resp.json();
+            showStatus(result.message, result.success ? 'success' : 'error');
+        } catch (e) {
+            showStatus('Error: ' + e.message, 'error');
+        }
+    });
+}
+
+function loadJson() {
+    openFilePathDialog('Load JSON Config', 'ddr_config.json', 'load_json', '.json', async (filePath) => {
+        try {
+            const resp = await fetch('/load-json-path', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({file_path: filePath})
+            });
+            const result = await resp.json();
+            if (result.success) {
+                applyLoadedParams(result.data);
+                showStatus(`Configuration loaded from ${filePath}`, 'success');
+            } else {
+                showStatus('Error: ' + result.message, 'error');
+            }
+        } catch (e) {
+            showStatus('Error loading JSON: ' + e.message, 'error');
         }
     });
 }
@@ -1714,10 +2380,12 @@ function applyLoadedParams(params) {
             }
         }
     }
-    if (params.periods) {
-        renderPeriodsFromString(params.periods);
+    // Handle dram-type from header select
+    if (params['dram-type']) {
+        document.getElementById('dram-type-select').value = params['dram-type'];
+        previousDramType = params['dram-type'];
     }
-    // Re-run all UI toggles so conditional fields reflect loaded state
+    if (params.periods) renderPeriodsFromString(params.periods);
     toggleDramOptions();
     setFreqRatios();
     updateDensityOptions();
@@ -1731,40 +2399,109 @@ function applyLoadedParams(params) {
     togglePhyLowPower();
     toggleDynamicPowerDown();
     toggleDynamicSelfRefresh();
+    updateFieldRanges();
+    updateConfigSummary();
+    updateAllDualReadouts();
+    updateFreqViz();
 }
 
-function loadJson() {
-    openFilePathDialog('Load JSON Config', 'ddr_config.json', 'load_json', '.json', async (filePath) => {
-        const statusEl = document.getElementById('status');
-        try {
-            const resp = await fetch('/load-json-path', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({file_path: filePath})
-            });
-            const result = await resp.json();
-            if (result.success) {
-                applyLoadedParams(result.data);
-                statusEl.className = 'status success';
-                statusEl.innerHTML = `Configuration loaded from ${filePath}`;
-                statusEl.style.display = 'block';
-            } else {
-                statusEl.className = 'status error';
-                statusEl.innerHTML = 'Error: ' + result.message;
-                statusEl.style.display = 'block';
-            }
-        } catch (e) {
-            statusEl.className = 'status error';
-            statusEl.innerHTML = 'Error loading JSON: ' + e.message;
-            statusEl.style.display = 'block';
-        }
-    });
+// ============================================================
+// File Path Dialog
+// ============================================================
+let fpCallback = null;
+let fpActionKey = '';
+
+function openFilePathDialog(title, defaultName, storageKey, filter, callback) {
+    fpCallback = callback;
+    fpActionKey = storageKey;
+    document.getElementById('fpTitle').textContent = title;
+    const modal = document.getElementById('filePathModal');
+    modal.style.display = 'block';
+    const input = document.getElementById('fpPathInput');
+    const saved = localStorage.getItem('fp_' + storageKey);
+    input.value = saved || defaultName;
+    document.getElementById('fpKeepPath').checked = !!saved;
+    modal.dataset.filter = filter || '';
+    const dir = input.value.includes('/') ? input.value.substring(0, input.value.lastIndexOf('/')) : '';
+    browsePath(dir || '.');
 }
 
+function closeFilePathDialog() {
+    document.getElementById('filePathModal').style.display = 'none';
+    fpCallback = null;
+}
+
+function confirmFilePath() {
+    const path = document.getElementById('fpPathInput').value.trim();
+    if (!path) return;
+    const keep = document.getElementById('fpKeepPath').checked;
+    if (keep) localStorage.setItem('fp_' + fpActionKey, path);
+    else localStorage.removeItem('fp_' + fpActionKey);
+    closeFilePathDialog();
+    if (fpCallback) fpCallback(path);
+}
+
+async function browsePath(dir) {
+    const filter = document.getElementById('filePathModal').dataset.filter || '';
+    try {
+        const resp = await fetch('/browse', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({path: dir || '.', filter: filter})
+        });
+        const result = await resp.json();
+        if (!result.success) return;
+        document.getElementById('fpCwd').textContent = result.cwd;
+        const browser = document.getElementById('fpBrowser');
+        browser.innerHTML = '';
+        result.entries.forEach(entry => {
+            const div = document.createElement('div');
+            div.className = 'fp-entry' + (entry.is_dir ? ' fp-dir' : '');
+            div.textContent = (entry.is_dir ? '\uD83D\uDCC1 ' : '\uD83D\uDCC4 ') + entry.name;
+            div.onclick = () => {
+                if (entry.is_dir) browsePath(entry.path);
+                else document.getElementById('fpPathInput').value = entry.path;
+            };
+            browser.appendChild(div);
+        });
+    } catch (e) {
+        console.error('Browse failed:', e);
+    }
+}
+
+document.getElementById('fpPathInput').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); confirmFilePath(); }
+});
+
+// Close file path modal on backdrop click
+window.onclick = function(event) {
+    if (event.target === document.getElementById('filePathModal')) closeFilePathDialog();
+};
+
+// ============================================================
+// Phase 4: Keyboard Navigation
+// ============================================================
+document.addEventListener('keydown', function(e) {
+    // Shift+Enter anywhere triggers Generate
+    if (e.shiftKey && e.key === 'Enter') {
+        e.preventDefault();
+        generate();
+    }
+    // Escape closes help panels and modals
+    if (e.key === 'Escape') {
+        document.querySelectorAll('.help-text.visible').forEach(el => el.classList.remove('visible'));
+        closeFilePathDialog();
+    }
+});
+
+// ============================================================
 // Initialize
+// ============================================================
+buildFieldRanges();
 updateMrrByteLane();
 renderPeriods();
 setupTimingUnitToggle();
+setupBlurValidation();
 updateFieldRanges();
 togglePeriodicTraining();
 toggleTempSensing();
@@ -1773,6 +2510,10 @@ toggleRankInterleaving();
 toggleDsmEn();
 setFreqRatios();
 updateDensityOptions();
+updateConfigSummary();
+updateAllDualReadouts();
+updateFreqViz();
+restoreCardStates();
 </script>
 </body>
 </html>

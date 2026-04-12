@@ -380,5 +380,145 @@ class TestRangeCorrectness(unittest.TestCase):
         self.assertIn('function getPeriodMin', self.html)
 
 
+# ===========================================================================
+# Phase 3: build_generate_cmd and /preview-cmd endpoint
+# ===========================================================================
+class TestBuildGenerateCmd(unittest.TestCase):
+    """Test the extracted build_generate_cmd function."""
+
+    def test_lp4_basic_cmd(self):
+        from gui import build_generate_cmd
+        params = {
+            'dram-type': 'lpddr4',
+            'phy-name': 'sphy-v9r8',
+            'speed-bin': '4266',
+            'dq-width': '16',
+            'cpipe-depth': '1',
+            'dpipe-depth': '1',
+            'omc-freq-ratio': '2',
+            'phy-freq-ratio': '2',
+            'write-odt-upto': '1249',
+            'periods': '471 938 1631 2500',
+        }
+        cmd, json_path = build_generate_cmd(params)
+        self.assertIn('--dram-type', cmd)
+        self.assertIn('lpddr4', cmd)
+        self.assertIn('471', cmd)
+        self.assertTrue(json_path.endswith('.json'))
+
+    def test_lp5_basic_cmd(self):
+        from gui import build_generate_cmd
+        params = {
+            'dram-type': 'lpddr5',
+            'phy-name': 'sphy-v9r8',
+            'speed-bin': '6400',
+            'dq-width': '16',
+            'cpipe-depth': '1',
+            'dpipe-depth': '1',
+            'omc-freq-ratio': '1',
+            'phy-freq-ratio': '1',
+            'wck-1to4-upto': '2500',
+            'periods': '314 418 556 2500',
+        }
+        cmd, _ = build_generate_cmd(params)
+        self.assertIn('lpddr5', cmd)
+        self.assertIn('--wck-1to4-upto', cmd)
+
+
+# ===========================================================================
+# UI overhaul: new HTML structure tests
+# ===========================================================================
+class TestUiOverhaulHtml(unittest.TestCase):
+    """Verify the overhauled HTML has required structural elements."""
+
+    @classmethod
+    def setUpClass(cls):
+        html_path = os.path.join(ROOT, "templates", "gui.html")
+        with open(html_path, "r") as f:
+            cls.html = f.read()
+
+    def test_has_css_custom_properties(self):
+        self.assertIn('--primary:', self.html)
+        self.assertIn('--surface:', self.html)
+        self.assertIn('--error:', self.html)
+
+    def test_has_sticky_header(self):
+        self.assertIn('position: sticky', self.html)
+        self.assertIn('configSummary', self.html)
+
+    def test_has_card_layout(self):
+        self.assertIn('card-grid', self.html)
+        self.assertIn('card-header', self.html)
+        self.assertIn('card-body', self.html)
+
+    def test_has_tabs(self):
+        self.assertIn('tab-configure', self.html)
+        self.assertIn('tab-inspect', self.html)
+        self.assertIn('switchTab', self.html)
+
+    def test_has_dark_mode(self):
+        self.assertIn('prefers-color-scheme: dark', self.html)
+
+    def test_has_dual_readout(self):
+        self.assertIn('dual-readout', self.html)
+        self.assertIn('updateDualReadout', self.html)
+
+    def test_has_inline_validation(self):
+        self.assertIn('validateFieldOnBlur', self.html)
+        self.assertIn('field-error', self.html)
+
+    def test_has_freq_visualization(self):
+        self.assertIn('freqViz', self.html)
+        self.assertIn('updateFreqViz', self.html)
+
+    def test_has_help_icons(self):
+        self.assertIn('help-icon', self.html)
+        self.assertIn('toggleHelp', self.html)
+
+    def test_has_toggle_switches(self):
+        self.assertIn('toggle-switch', self.html)
+        self.assertIn('toggle-slider', self.html)
+
+    def test_has_keyboard_shortcuts(self):
+        self.assertIn('Shift', self.html)
+        self.assertIn('shiftKey', self.html)
+
+    def test_has_cli_preview(self):
+        self.assertIn('cliPreview', self.html)
+        self.assertIn('copyCliCmd', self.html)
+
+    def test_has_csv_export(self):
+        self.assertIn('exportCsv', self.html)
+
+    def test_has_loading_spinner(self):
+        self.assertIn('spinner', self.html)
+
+    def test_has_dram_confirm_banner(self):
+        self.assertIn('dramConfirmBanner', self.html)
+        self.assertIn('confirmDramSwitch', self.html)
+
+    def test_form_names_preserved(self):
+        """All critical field names must be preserved for gui.py compatibility."""
+        required_names = [
+            'phy-name', 'dq-width', 'speed-bin', 'dram-tck', 'min-dram-tck',
+            'wire-length', 'cpipe-depth', 'dpipe-depth', 'omc-freq-ratio', 'phy-freq-ratio',
+            'write-odt-upto', 'read-dbi-upto', 'write-dbi-upto',
+            'read-lecc-upto', 'write-lecc-upto',
+            'rpste-upto', 'wpste-upto', 'wdqs-ctrl-mode',
+            'wck-1to4-upto', 'nt-odt-upto', 'bg-mode-upto',
+            'orbit-config-density', 'orbit-byte-mode', 'orbit-num-rank',
+            'orbit-mixed', 'two-channel', 'mrr-byte-lane',
+            'regional-clock-gating', 'dram-clock-gating', 'phy-clock-gating',
+            'dfs-lvl-t-ck-0', 'dfs-lvl-t-ck-1', 'dfs-lvl-t-ck-2',
+        ]
+        for name in required_names:
+            self.assertIn(f'name="{name}"', self.html,
+                          f'Required field name "{name}" missing from HTML')
+
+    def test_update_field_ranges_called_in_load(self):
+        """loadJson / applyLoadedParams must call updateFieldRanges."""
+        self.assertIn('updateFieldRanges', self.html)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
