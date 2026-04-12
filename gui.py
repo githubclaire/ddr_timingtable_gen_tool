@@ -746,13 +746,21 @@ class DDRHandler(http.server.BaseHTTPRequestHandler):
             
             message.append(f"Running: {' '.join(cmd)}")
             
+            output_path = params.get('output_path', '')
+
             try:
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
                 if result.returncode != 0:
                     message.append(f"gen_timing_params failed: {result.stderr}")
                     success = False
                 else:
-                    message.append("ddr_timing_table.bin generated successfully")
+                    default_bin = 'ddr_timing_table.bin'
+                    if output_path and os.path.abspath(output_path) != os.path.abspath(default_bin):
+                        import shutil
+                        shutil.copy2(default_bin, output_path)
+                        message.append(f"Binary saved to {output_path}")
+                    else:
+                        message.append(f"Binary saved to {os.path.abspath(default_bin)}")
             except Exception as e:
                 message.append(f"Error running gen_timing_params: {e}")
                 success = False
@@ -766,17 +774,85 @@ class DDRHandler(http.server.BaseHTTPRequestHandler):
             content_length = int(self.headers.get('Content-Length', 0))
             body = self.rfile.read(content_length).decode('utf-8')
             params = json.loads(body)
-            
+
             file_path = params.get('file_path', 'ddr_timing_table.bin')
             dram_type_override = params.get('dram_type_override', 'auto')
             two_channel_override = params.get('two_channel_override', None)
             result = analyze_binary_file(file_path, dram_type_override, two_channel_override)
-            
+
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
             self.end_headers()
             self.wfile.write(json.dumps(result).encode())
-        
+
+        elif self.path == '/browse':
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length).decode('utf-8')
+            params = json.loads(body)
+            dir_path = params.get('path', os.getcwd())
+            file_filter = params.get('filter', '')  # e.g. '.json', '.bin'
+
+            try:
+                if not os.path.isdir(dir_path):
+                    dir_path = os.path.dirname(dir_path) or os.getcwd()
+                entries = []
+                # Parent directory
+                parent = os.path.dirname(os.path.abspath(dir_path))
+                if parent != os.path.abspath(dir_path):
+                    entries.append({'name': '..', 'path': parent, 'is_dir': True})
+                for name in sorted(os.listdir(dir_path)):
+                    if name.startswith('.'):
+                        continue
+                    full = os.path.join(dir_path, name)
+                    is_dir = os.path.isdir(full)
+                    if is_dir or not file_filter or name.endswith(file_filter):
+                        entries.append({'name': name, 'path': full, 'is_dir': is_dir})
+                result = {'success': True, 'cwd': os.path.abspath(dir_path), 'entries': entries}
+            except Exception as e:
+                result = {'success': False, 'message': str(e)}
+
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(result).encode())
+
+        elif self.path == '/save-json':
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length).decode('utf-8')
+            params = json.loads(body)
+            file_path = params.get('file_path', 'ddr_config.json')
+            data = params.get('data', {})
+
+            try:
+                with open(file_path, 'w') as f:
+                    json.dump(data, f, indent=2)
+                result = {'success': True, 'message': f'JSON saved to {file_path}'}
+            except Exception as e:
+                result = {'success': False, 'message': str(e)}
+
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(result).encode())
+
+        elif self.path == '/load-json-path':
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length).decode('utf-8')
+            params = json.loads(body)
+            file_path = params.get('file_path', '')
+
+            try:
+                with open(file_path, 'r') as f:
+                    data = json.load(f)
+                result = {'success': True, 'data': data}
+            except Exception as e:
+                result = {'success': False, 'message': str(e)}
+
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(result).encode())
+
         else:
             self.send_error(404)
 

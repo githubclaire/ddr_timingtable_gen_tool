@@ -80,9 +80,21 @@
         .analysis-table tr:nth-child(even) { background: #f9f9f9; }
         
         .hidden { display: none; }
-        
+
         /* Tooltip styling */
         label[title] { cursor: help; border-bottom: 1px dotted #999; }
+
+        /* File path dialog */
+        .fp-dialog { max-width: 600px; }
+        .fp-dialog .fp-path-row { display: flex; gap: 8px; margin-bottom: 10px; }
+        .fp-dialog .fp-path-input { flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-family: monospace; font-size: 13px; }
+        .fp-dialog .fp-browser { border: 1px solid #ddd; border-radius: 4px; max-height: 250px; overflow-y: auto; margin-bottom: 10px; }
+        .fp-dialog .fp-entry { padding: 6px 10px; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 13px; }
+        .fp-dialog .fp-entry:hover { background: #e8f4fd; }
+        .fp-dialog .fp-entry.fp-dir { font-weight: 600; }
+        .fp-dialog .fp-cwd { font-size: 11px; color: #888; margin-bottom: 6px; font-family: monospace; }
+        .fp-dialog .fp-actions { display: flex; gap: 8px; justify-content: flex-end; }
+        .fp-dialog .fp-keep-row { margin-bottom: 10px; display: flex; align-items: center; gap: 6px; font-size: 13px; }
     </style>
 </head>
 <body>
@@ -478,10 +490,9 @@
         </div>
 
         <div class="buttons">
-            <input type="file" id="binFileInput" accept=".bin" style="display:none">
             <button type="button" class="btn btn-outline" onclick="saveJson()">Save JSON</button>
             <button type="button" class="btn btn-outline" onclick="loadJson()">Load JSON</button>
-            <button type="button" class="btn btn-secondary" onclick="document.getElementById('binFileInput').click()">Load Binary</button>
+            <button type="button" class="btn btn-secondary" onclick="loadBinary()">Load Binary</button>
             <button type="button" class="btn btn-primary" onclick="generate()">Generate Binary</button>
         </div>
     </form>
@@ -496,6 +507,30 @@
             <span class="close" onclick="closeModal()">&times;</span>
         </div>
         <div id="analysisContent"></div>
+    </div>
+</div>
+
+<!-- File Path Dialog -->
+<div id="filePathModal" class="modal">
+    <div class="modal-content fp-dialog">
+        <div class="modal-header">
+            <h2 id="fpTitle">Select File</h2>
+            <span class="close" onclick="closeFilePathDialog()">&times;</span>
+        </div>
+        <div class="fp-path-row">
+            <input type="text" id="fpPathInput" class="fp-path-input" placeholder="Enter file path...">
+            <button class="btn btn-outline" onclick="browsePath(document.getElementById('fpPathInput').value)">Browse</button>
+        </div>
+        <div class="fp-cwd" id="fpCwd"></div>
+        <div class="fp-browser" id="fpBrowser"></div>
+        <div class="fp-keep-row">
+            <input type="checkbox" id="fpKeepPath" checked>
+            <label for="fpKeepPath">Remember this path for next time</label>
+        </div>
+        <div class="fp-actions">
+            <button class="btn btn-outline" onclick="closeFilePathDialog()">Cancel</button>
+            <button class="btn btn-primary" id="fpConfirmBtn" onclick="confirmFilePath()">OK</button>
+        </div>
     </div>
 </div>
 
@@ -863,12 +898,12 @@ function toggleDynamicSelfRefresh() {
     }
 }
 
-// File input handling
-document.getElementById('binFileInput').addEventListener('change', function(e) {
-    if (this.files.length > 0) {
-        analyzeBinaryFile(this.files[0].path || this.files[0].name);
-    }
-});
+// Load Binary via file path dialog
+function loadBinary() {
+    openFilePathDialog('Load Binary', 'ddr_timing_table.bin', 'load_binary', '.bin', (filePath) => {
+        analyzeBinaryFile(filePath);
+    });
+}
 
 async function analyzeBinaryFile(filePath) {
     const statusEl = document.getElementById('status');
@@ -1142,7 +1177,7 @@ async function generate() {
 }
 
 async function analyzeBinary() {
-    document.getElementById('binFileInput').click();
+    loadBinary();
 }
 
 function showAnalysisModal(data) {
@@ -1280,7 +1315,96 @@ window.onclick = function(event) {
     if (event.target == modal) modal.style.display = 'none';
 }
 
-function saveJson() {
+// ============================================================
+// File Path Dialog
+// ============================================================
+let fpCallback = null;  // called with chosen path when user clicks OK
+let fpActionKey = '';    // localStorage key for remembering path
+
+function openFilePathDialog(title, defaultName, storageKey, filter, callback) {
+    fpCallback = callback;
+    fpActionKey = storageKey;
+    document.getElementById('fpTitle').textContent = title;
+    const modal = document.getElementById('filePathModal');
+    modal.style.display = 'block';
+    const input = document.getElementById('fpPathInput');
+
+    // Restore saved path or use default
+    const saved = localStorage.getItem('fp_' + storageKey);
+    input.value = saved || defaultName;
+    document.getElementById('fpKeepPath').checked = !!saved;
+
+    // Store filter for browsing
+    modal.dataset.filter = filter || '';
+
+    // Browse the directory of the current path
+    const dir = input.value.includes('/') ? input.value.substring(0, input.value.lastIndexOf('/')) : '';
+    browsePath(dir || '.');
+}
+
+function closeFilePathDialog() {
+    document.getElementById('filePathModal').style.display = 'none';
+    fpCallback = null;
+}
+
+function confirmFilePath() {
+    const path = document.getElementById('fpPathInput').value.trim();
+    if (!path) return;
+    const keep = document.getElementById('fpKeepPath').checked;
+    if (keep) {
+        localStorage.setItem('fp_' + fpActionKey, path);
+    } else {
+        localStorage.removeItem('fp_' + fpActionKey);
+    }
+    closeFilePathDialog();
+    if (fpCallback) fpCallback(path);
+}
+
+async function browsePath(dir) {
+    const filter = document.getElementById('filePathModal').dataset.filter || '';
+    try {
+        const resp = await fetch('/browse', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({path: dir || '.', filter: filter})
+        });
+        const result = await resp.json();
+        if (!result.success) return;
+
+        document.getElementById('fpCwd').textContent = result.cwd;
+        const browser = document.getElementById('fpBrowser');
+        browser.innerHTML = '';
+        result.entries.forEach(entry => {
+            const div = document.createElement('div');
+            div.className = 'fp-entry' + (entry.is_dir ? ' fp-dir' : '');
+            div.textContent = (entry.is_dir ? '\uD83D\uDCC1 ' : '\uD83D\uDCC4 ') + entry.name;
+            div.onclick = () => {
+                if (entry.is_dir) {
+                    browsePath(entry.path);
+                } else {
+                    document.getElementById('fpPathInput').value = entry.path;
+                }
+            };
+            browser.appendChild(div);
+        });
+    } catch (e) {
+        console.error('Browse failed:', e);
+    }
+}
+
+// Handle Enter key in path input
+document.getElementById('fpPathInput').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        confirmFilePath();
+    }
+});
+
+// ============================================================
+// Save/Load/Generate with file path dialog
+// ============================================================
+
+function collectFormParams() {
     const form = document.getElementById('paramsForm');
     const formData = new FormData(form);
     const params = {};
@@ -1291,24 +1415,33 @@ function saveJson() {
     }
     const checkboxes = form.querySelectorAll('input[type="checkbox"]');
     checkboxes.forEach(cb => params[cb.name] = cb.checked ? '1' : '0');
-    
-    // Add periods as space-separated string
     const periodInputs = document.querySelectorAll('#periods-container input[name^="periods-"]');
     if (periodInputs.length > 0) {
-        const periods = Array.from(periodInputs).map(input => input.value).join(' ');
-        params['periods'] = periods;
+        params['periods'] = Array.from(periodInputs).map(input => input.value).join(' ');
     }
-    
-    // Blob download (works in all browsers)
-    const blob = new Blob([JSON.stringify(params, null, 2)], {type: 'application/json'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'ddr_config.json';
-    a.click();
-    document.getElementById('status').className = 'status success';
-    document.getElementById('status').innerHTML = 'JSON saved!';
-    document.getElementById('status').style.display = 'block';
+    return params;
+}
+
+function saveJson() {
+    openFilePathDialog('Save JSON Config', 'ddr_config.json', 'save_json', '.json', async (filePath) => {
+        const params = collectFormParams();
+        const statusEl = document.getElementById('status');
+        try {
+            const resp = await fetch('/save-json', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({file_path: filePath, data: params})
+            });
+            const result = await resp.json();
+            statusEl.className = result.success ? 'status success' : 'status error';
+            statusEl.innerHTML = result.message;
+            statusEl.style.display = 'block';
+        } catch (e) {
+            statusEl.className = 'status error';
+            statusEl.innerHTML = 'Error: ' + e.message;
+            statusEl.style.display = 'block';
+        }
+    });
 }
 
 function validateForm() {
@@ -1484,146 +1617,148 @@ function validateTimingRanges() {
     return true;
 }
 
-async function generate() {
+function generate() {
     // Validate first
     if (!validateForm()) return;
-    
+
     // Validate timing ranges
     if (!validateTimingRanges()) return;
-    
-    const form = document.getElementById('paramsForm');
-    const formData = new FormData(form);
-    const params = {};
-    for (let [key, value] of formData.entries()) params[key] = value;
-    const checkboxes = form.querySelectorAll('input[type="checkbox"]');
-    checkboxes.forEach(cb => params[cb.name] = cb.checked ? '1' : '0');
-    
-    // Add periods values (dynamically named inputs)
-    params['periods'] = getPeriodsValues().join(' ');
-    
-    // ============================================================
-    // FIX: Convert MHz values to ps (integer) before sending to CLI
-    // ============================================================
-    const isMHz = document.querySelector('input[name="timing-unit"]:checked')?.value === 'MHz';
-    
-    if (isMHz) {
-        const fieldsToConvert = [
-            'write-odt-upto', 'read-dbi-upto', 'write-dbi-upto',
-            'read-lecc-upto', 'write-lecc-upto', 'wck-1to4-upto',
-            'wck-always-on-from', 'wck-always-on-upto',
-            'dfs-lvl-t-ck-0', 'dfs-lvl-t-ck-1', 'dfs-lvl-t-ck-2',
-            'dram-tck', 'min-dram-tck',
-            'periods-0', 'periods-1', 'periods-2', 'periods-3'
-        ];
-        
-        fieldsToConvert.forEach(name => {
-            const field = document.querySelector(`[name="${name}"]`);
-            if (field && field.value) {
-                const mhz = parseFloat(field.value);
-                if (!isNaN(mhz) && mhz > 0) {
-                    // Convert MHz to ps (integer), e.g., 2123MHz → 471ps
-                    field.value = Math.round(1000000 / mhz);
-                }
-            }
-        });
-        
-        // Reset toggle to ps mode
-        document.querySelector('input[name="timing-unit"][value="ps"]').checked = true;
-        
-        // Update unit labels back to ps
-        document.querySelectorAll('.unit-label').forEach(label => {
-            label.textContent = 'ps';
-        });
-        
-        // Re-extract form data after conversion
-        const newFormData = new FormData(form);
-        for (let [key, value] of newFormData.entries()) {
-            params[key] = value;
-        }
-        checkboxes.forEach(cb => {
-            params[cb.name] = cb.checked ? 'true' : 'false';
-        });
-        
-        // Update periods value
+
+    openFilePathDialog('Generate Binary', 'ddr_timing_table.bin', 'generate_binary', '.bin', async (outputPath) => {
+        const form = document.getElementById('paramsForm');
+        const formData = new FormData(form);
+        const params = {};
+        for (let [key, value] of formData.entries()) params[key] = value;
+        const checkboxes = form.querySelectorAll('input[type="checkbox"]');
+        checkboxes.forEach(cb => params[cb.name] = cb.checked ? '1' : '0');
+
+        // Add periods values (dynamically named inputs)
         params['periods'] = getPeriodsValues().join(' ');
-    }
-    // ============================================================
-    // END FIX
-    // ============================================================
-    
-    // Send to server for binary generation
-    const statusEl = document.getElementById('status');
-    statusEl.className = 'status';
-    statusEl.innerHTML = 'Generating...';
-    
-    try {
-        const response = await fetch('/generate', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(params)
-        });
-        const result = await response.json();
-        
-        if (result.success) {
-            statusEl.className = 'status success';
-            statusEl.innerHTML = '<strong>Generated successfully!</strong><br><pre>' + result.message + '</pre>';
-        } else {
-            statusEl.className = 'status error';
-            statusEl.innerHTML = '<strong>Error:</strong><br><pre>' + result.message + '</pre>';
+
+        // Convert MHz values to ps (integer) before sending to CLI
+        const isMHz = document.querySelector('input[name="timing-unit"]:checked')?.value === 'MHz';
+
+        if (isMHz) {
+            const fieldsToConvert = [
+                'write-odt-upto', 'read-dbi-upto', 'write-dbi-upto',
+                'read-lecc-upto', 'write-lecc-upto', 'wck-1to4-upto',
+                'wck-always-on-from', 'wck-always-on-upto',
+                'dfs-lvl-t-ck-0', 'dfs-lvl-t-ck-1', 'dfs-lvl-t-ck-2',
+                'dram-tck', 'min-dram-tck',
+                'periods-0', 'periods-1', 'periods-2', 'periods-3'
+            ];
+
+            fieldsToConvert.forEach(name => {
+                const field = document.querySelector(`[name="${name}"]`);
+                if (field && field.value) {
+                    const mhz = parseFloat(field.value);
+                    if (!isNaN(mhz) && mhz > 0) {
+                        field.value = Math.round(1000000 / mhz);
+                    }
+                }
+            });
+
+            document.querySelector('input[name="timing-unit"][value="ps"]').checked = true;
+            document.querySelectorAll('.unit-label').forEach(label => {
+                label.textContent = 'ps';
+            });
+
+            const newFormData = new FormData(form);
+            for (let [key, value] of newFormData.entries()) {
+                params[key] = value;
+            }
+            checkboxes.forEach(cb => {
+                params[cb.name] = cb.checked ? 'true' : 'false';
+            });
+
+            params['periods'] = getPeriodsValues().join(' ');
         }
-    } catch (e) {
-        statusEl.className = 'status error';
-        statusEl.innerHTML = '<strong>Error:</strong> ' + e.message;
+
+        params['output_path'] = outputPath;
+
+        const statusEl = document.getElementById('status');
+        statusEl.className = 'status';
+        statusEl.innerHTML = 'Generating...';
+        statusEl.style.display = 'block';
+
+        try {
+            const response = await fetch('/generate', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(params)
+            });
+            const result = await response.json();
+
+            if (result.success) {
+                statusEl.className = 'status success';
+                statusEl.innerHTML = '<strong>Generated successfully!</strong><br><pre>' + result.message + '</pre>';
+            } else {
+                statusEl.className = 'status error';
+                statusEl.innerHTML = '<strong>Error:</strong><br><pre>' + result.message + '</pre>';
+            }
+        } catch (e) {
+            statusEl.className = 'status error';
+            statusEl.innerHTML = '<strong>Error:</strong> ' + e.message;
+        }
+    });
+}
+
+function applyLoadedParams(params) {
+    for (let key in params) {
+        const field = document.querySelector(`[name="${key}"]`);
+        if (field) {
+            if (field.type === 'checkbox') {
+                field.checked = (params[key] === '1' || params[key] === 'true' || params[key] === true);
+            } else {
+                field.value = params[key];
+            }
+        }
     }
+    if (params.periods) {
+        renderPeriodsFromString(params.periods);
+    }
+    // Re-run all UI toggles so conditional fields reflect loaded state
+    toggleDramOptions();
+    setFreqRatios();
+    updateDensityOptions();
+    updatePeriodsLabel();
+    toggleDsmEn();
+    updateMrrByteLane();
+    togglePeriodicTraining();
+    toggleTempSensing();
+    toggleZqCalibration();
+    toggleRankInterleaving();
+    togglePhyLowPower();
+    toggleDynamicPowerDown();
+    toggleDynamicSelfRefresh();
 }
 
 function loadJson() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.json';
-    input.onchange = async (e) => {
-        const file = e.target.files[0];
-        const text = await file.text();
+    openFilePathDialog('Load JSON Config', 'ddr_config.json', 'load_json', '.json', async (filePath) => {
+        const statusEl = document.getElementById('status');
         try {
-            const params = JSON.parse(text);
-            for (let key in params) {
-                const field = document.querySelector(`[name="${key}"]`);
-                if (field) {
-                    if (field.type === 'checkbox') {
-                        // Support both '1'/'0' (saveJson format) and 'true'/'false'
-                        field.checked = (params[key] === '1' || params[key] === 'true' || params[key] === true);
-                    } else {
-                        field.value = params[key];
-                    }
-                }
+            const resp = await fetch('/load-json-path', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({file_path: filePath})
+            });
+            const result = await resp.json();
+            if (result.success) {
+                applyLoadedParams(result.data);
+                statusEl.className = 'status success';
+                statusEl.innerHTML = `Configuration loaded from ${filePath}`;
+                statusEl.style.display = 'block';
+            } else {
+                statusEl.className = 'status error';
+                statusEl.innerHTML = 'Error: ' + result.message;
+                statusEl.style.display = 'block';
             }
-            if (params.periods) {
-                renderPeriodsFromString(params.periods);
-            }
-            // Re-run all UI toggles so conditional fields reflect loaded state
-            toggleDramOptions();
-            setFreqRatios();
-            updateDensityOptions();
-            updatePeriodsLabel();
-            toggleDsmEn();
-            updateMrrByteLane();
-            togglePeriodicTraining();
-            toggleTempSensing();
-            toggleZqCalibration();
-            toggleRankInterleaving();
-            togglePhyLowPower();
-            toggleDynamicPowerDown();
-            toggleDynamicSelfRefresh();
-            document.getElementById('status').className = 'status success';
-            document.getElementById('status').innerHTML = 'Configuration loaded!';
-            document.getElementById('status').style.display = 'block';
         } catch (e) {
-            document.getElementById('status').className = 'status error';
-            document.getElementById('status').innerHTML = 'Error loading JSON: ' + e.message;
-            document.getElementById('status').style.display = 'block';
+            statusEl.className = 'status error';
+            statusEl.innerHTML = 'Error loading JSON: ' + e.message;
+            statusEl.style.display = 'block';
         }
-    };
-    input.click();
+    });
 }
 
 // Initialize
