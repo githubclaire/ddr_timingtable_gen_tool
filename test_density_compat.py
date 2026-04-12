@@ -136,12 +136,23 @@ def test_density_compatibility(dram_type, densities):
 # Run tests
 if __name__ == '__main__':
     tests = [
-        ('lpddr4', [16]),
+        ('lpddr4', [2]),
+        ('lpddr4', [3]),
         ('lpddr4', [4]),
+        ('lpddr4', [6]),
         ('lpddr4', [8]),
-        ('lpddr5', [16]),
+        ('lpddr4', [12]),
+        ('lpddr4', [16]),
+        ('lpddr5', [1]),
+        ('lpddr5', [2]),
+        ('lpddr5', [3]),
         ('lpddr5', [4]),
+        ('lpddr5', [6]),
         ('lpddr5', [8]),
+        ('lpddr5', [12]),
+        ('lpddr5', [16]),
+        ('lpddr5', [24]),
+        ('lpddr5', [32]),
     ]
     
     all_pass = True

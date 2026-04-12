@@ -1002,11 +1002,11 @@ def test_load_modify_generate_compare():
     
     # Modify: density 4→8, num-rank 2→1
     modified_params = {
-        'dram-type': params.get('dram_type', 'lpddr4'),
+        'dram-type': str(params.get('dram_type', 'lpddr4')),
         'orbit-config-density': '8',
         'orbit-num-rank': '1',
         'periods': '471 938 1631 2500',
-        'dram-tck': params.get('dram_tck', '471'),
+        'dram-tck': str(params.get('dram_tck', '471')),
         'cpipe-depth': '1',
         'dpipe-depth': '1',
         'orbit-config-use-python': 'true',
@@ -1570,92 +1570,108 @@ def test_gui_vs_cli():
 # ============================================================================
 
 def generate_random_params(dram_type):
-    """Generate random valid parameters for testing."""
+    """Generate random valid parameters for testing - FULL random for ALL params."""
     random.seed(None)  # Use system time for randomness
     
-    # Valid period sets for each DDR type (must match speed bin profile)
-    lpddr4_periods = [
-        ('471', '938', '1631', '2500'),  # 4266 speed bin
-        ('625', '1250', '1875', '2500'), # slower
-    ]
+    # Periods: Random count (1-4) with random values in range
+    num_periods = random.randint(1, 4)
+    if dram_type == 'lpddr4':
+        periods = [str(random.randint(300, 2500)) for _ in range(num_periods)]
+        # Ensure last period is >= 2000 for valid timing
+        periods[-1] = str(max(2000, int(periods[-1])))
+    else:
+        periods = [str(random.randint(300, 2500)) for _ in range(num_periods)]
+        periods[-1] = str(max(2000, int(periods[-1])))
     
-    lpddr5_periods = [
-        ('314', '418', '556', '2500'),   # 6400 speed bin
-        ('500', '1000', '1500', '2500'), # slower
-    ]
-    
-    # Valid timing values
-    lpddr4_timing = [
-        {'dram_tck': 471, 'min_dram_tck': 938, 'write_odt': 1250, 'density': 4},
-        {'dram_tck': 471, 'min_dram_tck': 938, 'write_odt': 2500, 'density': 8},
-        {'dram_tck': 471, 'min_dram_tck': 938, 'write_odt': 1250, 'density': 16},
-        {'dram_tck': 625, 'min_dram_tck': 1250, 'write_odt': 1250, 'density': 4},
-    ]
-    
-    lpddr5_timing = [
-        {'dram_tck': 314, 'min_dram_tck': 418, 'write_odt': 10000, 'density': 4},
-        {'dram_tck': 314, 'min_dram_tck': 418, 'write_odt': 2500, 'density': 8},
-        {'dram_tck': 314, 'min_dram_tck': 418, 'write_odt': 10000, 'density': 16},
-        {'dram_tck': 500, 'min_dram_tck': 1000, 'write_odt': 1000, 'density': 4},
-    ]
-    
-    timing = random.choice(lpddr4_timing if dram_type == 'lpddr4' else lpddr5_timing)
-    periods = random.choice(lpddr4_periods if dram_type == 'lpddr4' else lpddr5_periods)
     speed_bin = '4266' if dram_type == 'lpddr4' else '6400'
     
-    # Fixed values for other params (known to work)
-    read_dbi = 10000
-    write_dbi = 10000
-    omc_ratio = 1
-    phy_ratio = 1
+    # Density ranges
+    lp4_densities = [2, 3, 4, 6, 8, 12, 16]
+    lp5_densities = [1, 2, 3, 4, 6, 8, 12, 16, 24, 32]
     
     params = {
         'dram-type': dram_type,
-        'dq-width': '16',
+        'dq-width': str(random.choice([16, 32])),
         'speed-bin': speed_bin,
-        'orbit-config-density': str(timing['density']),
+        'orbit-config-density': str(random.choice(lp4_densities if dram_type == 'lpddr4' else lp5_densities)),
         'periods': ' '.join(periods),
-        'dram-tck': str(timing['dram_tck']),
-        'min-dram-tck': str(timing['min_dram_tck']),
-        'cpipe-depth': '1',
-        'dpipe-depth': '1',
-        'read-dbi-upto': str(read_dbi),
-        'write-dbi-upto': str(write_dbi),
-        'write-odt-upto': str(timing['write_odt']),
-        'omc-freq-ratio': str(omc_ratio),
-        'phy-freq-ratio': str(phy_ratio),
+        'dram-tck': str(random.randint(300, 5000)),
+        'min-dram-tck': str(random.randint(200, 3000)),
+        'cpipe-depth': str(random.randint(1, 8)),
+        'dpipe-depth': str(random.randint(1, 8)),
+        'read-dbi-upto': str(random.randint(1000, 10000)),
+        'write-dbi-upto': str(random.randint(1000, 10000)),
+        'write-odt-upto': str(random.randint(1250, 10000)),
+        'read-lecc-upto': str(random.randint(500, 2500)),
+        'write-lecc-upto': str(random.randint(500, 2500)),
+        'omc-freq-ratio': str(random.choice([1, 2, 4])),
+        'phy-freq-ratio': str(random.choice([1, 2, 4])),
+        # Orbit config params - FULL random
+        'orbit-byte-mode': str(random.choice([0, 1])),
+        'orbit-mixed': str(random.choice([0, 1])),
+        'orbit-rank-interleaving': str(random.choice([0, 1])),
+        'orbit-num-rank': str(random.choice([1, 2])),
+        'orbit-reboot-with-mrw': str(random.choice([0, 1])),
+        'orbit-rfm-en': str(random.choice([0, 1])),
+        'orbit-ca-odt': str(random.choice([0, 1])),
+        # Late fields - FULL random
+        'orbit-dynamic-power-down': str(random.choice([0, 1])),
+        'orbit-dynamic-power-down-threshold': str(random.randint(0, 1000000)),
+        'orbit-dynamic-self-refresh': str(random.choice([0, 1])),
+        'orbit-dynamic-self-refresh-threshold': str(random.randint(0, 1000000)),
+        'orbit-phy-low-power': str(random.choice([0, 1])),
+        'orbit-phy-idle-cnt-th': str(random.randint(0, 100000)),
+        'orbit-periodic-training': str(random.choice([0, 1])),
+        'orbit-periodic-training-period': str(random.randint(5000, 50000)),
+        'orbit-temp-sensing': str(random.choice([0, 1])),
+        'orbit-temp-sensing-period': str(random.randint(5000, 50000)),
+        'orbit-zq-calibration-period': str(random.randint(10000, 100000)),
+        'orbit-t-refiab': str(random.randint(2000000, 5000000)),
+        'orbit-t-refipb': str(random.randint(200000, 600000)),
+        'orbit-t-zqcal': str(random.randint(500000, 2000000)),
         'orbit-config-use-python': 'true',
-        'orbit-byte-mode': '0',
-        'orbit-mixed': '0',
-        'orbit-rank-interleaving': 'true',
-        'orbit-num-rank': '2',
     }
     
     if dram_type == 'lpddr4':
-        params['wdqs-ctrl-mode'] = '1'
-        params['variable-trrd'] = 'true'
-        params['txsr-as-1st-ed'] = 'true'
+        # LP4 specific params - random
+        params['wdqs-ctrl-mode'] = str(random.choice([0, 1]))
+        params['variable-trrd'] = 'true' if random.choice([True, False]) else 'false'
+        params['txsr-as-1st-ed'] = 'true' if random.choice([True, False]) else 'false'
+        params['rpste-upto'] = str(random.randint(625, 2500))
+        params['wpste-upto'] = str(random.randint(625, 2500))
+        # DFS timing - random
+        params['dfs-lvl-t-ck-0'] = str(random.randint(300, 5000))
+        params['dfs-lvl-t-ck-1'] = str(random.randint(300, 5000))
+        params['dfs-lvl-t-ck-2'] = str(random.randint(300, 5000))
     else:
-        # LPDDR5 specific params - use fixed known-working values
-        params['wck-1to4-upto'] = '625'
-        params['wck-always-on-from'] = '0'
-        params['wck-always-on-upto'] = '314'
-        params['write-lecc-upto'] = '625'
-    
-    return params
+        # LP5 specific params - random
+        params['orbit-dsm-en'] = str(random.choice([0, 1]))
+        params['wck-1to4-upto'] = str(random.randint(625, 2500))
+        params['wck-always-on-from'] = str(random.randint(0, 100))
+        params['wck-always-on-upto'] = str(random.randint(314, 1256))
+        params['nt-odt-upto'] = str(random.randint(625, 2500))
+        params['bg-mode-upto'] = str(random.randint(625, 2500))
+        params['wck-hf-upto'] = str(random.randint(625, 2500))
+        params['wck-pst1-upto'] = str(random.randint(625, 2500))
+        params['wck-pst2-upto'] = str(random.randint(625, 2500))
+        params['rdqs-pst1-upto'] = str(random.randint(625, 2500))
+        params['rdqs-pst2-upto'] = str(random.randint(625, 2500))
+        # DFS timing - random
+        params['dfs-lvl-t-ck-0'] = str(random.randint(300, 5000))
+        params['dfs-lvl-t-ck-1'] = str(random.randint(300, 5000))
+        params['dfs-lvl-t-ck-2'] = str(random.randint(300, 5000))
     
     return params
 
 
 def build_cli_command(params, cli_bin):
-    """Build CLI command from params."""
-    # Use speed_bin based on DDR type
+    """Build CLI command from params - FULL random params."""
     speed_bin = '4266' if params['dram-type'] == 'lpddr4' else '6400'
     
     cmd = [
         sys.executable, 'gen_timing_params',
         '--dram-type', params['dram-type'],
-        '--densities', params['orbit-config-density'],  # Note: uses --densities not --orbit-config-density
+        '--densities', params['orbit-config-density'],
         '--phy-name', 'sphy-v9r8',
         '--speed-bin', speed_bin,
         '--dq-width', params['dq-width'],
@@ -1668,39 +1684,72 @@ def build_cli_command(params, cli_bin):
         '--read-dbi-upto', params['read-dbi-upto'],
         '--write-dbi-upto', params['write-dbi-upto'],
         '--write-odt-upto', params['write-odt-upto'],
+        '--read-lecc-upto', params.get('read-lecc-upto', '625'),
+        '--write-lecc-upto', params.get('write-lecc-upto', '625'),
         '--orbit-byte-mode', params['orbit-byte-mode'],
         '--orbit-mixed', params['orbit-mixed'],
-        '--orbit-rank-interleaving', '1',
+        '--orbit-rank-interleaving', params.get('orbit-rank-interleaving', '1'),
         '--orbit-num-rank', params['orbit-num-rank'],
+        '--orbit-reboot-with-mrw', params.get('orbit-reboot-with-mrw', '0'),
+        '--orbit-rfm-en', params.get('orbit-rfm-en', '0'),
+        '--orbit-ca-odt', params.get('orbit-ca-odt', '0'),
+        '--orbit-dynamic-power-down', params.get('orbit-dynamic-power-down', '0'),
+        '--orbit-dynamic-power-down-threshold', params.get('orbit-dynamic-power-down-threshold', '0'),
+        '--orbit-dynamic-self-refresh', params.get('orbit-dynamic-self-refresh', '0'),
+        '--orbit-dynamic-self-refresh-threshold', params.get('orbit-dynamic-self-refresh-threshold', '0'),
+        '--orbit-phy-low-power', params.get('orbit-phy-low-power', '0'),
+        '--orbit-phy-idle-cnt-th', params.get('orbit-phy-idle-cnt-th', '0'),
+        '--orbit-periodic-training', params.get('orbit-periodic-training', '0'),
+        '--orbit-periodic-training-period', params.get('orbit-periodic-training-period', '24000'),
+        '--orbit-temp-sensing', params.get('orbit-temp-sensing', '0'),
+        '--orbit-temp-sensing-period', params.get('orbit-temp-sensing-period', '32000'),
+        '--orbit-zq-calibration-period', params.get('orbit-zq-calibration-period', '48000'),
+        '--orbit-t-refiab', params.get('orbit-t-refiab', '3904000'),
+        '--orbit-t-refipb', params.get('orbit-t-refipb', '488000'),
+        '--orbit-t-zqcal', params.get('orbit-t-zqcal', '1000000'),
         '--orbit-config-use-python',
     ]
     
-    # Add two-channel if present
     if params.get('two-channel') == 'true':
         cmd.append('--two-channel')
     
     if params['dram-type'] == 'lpddr4':
-        cmd.extend(['--wdqs-ctrl-mode', params['wdqs-ctrl-mode']])
+        cmd.extend(['--wdqs-ctrl-mode', params.get('wdqs-ctrl-mode', '1')])
         if params.get('variable-trrd') == 'true':
             cmd.append('--variable-trrd')
         if params.get('txsr-as-1st-ed') == 'true':
             cmd.append('--txsr-as-1st-ed')
+        if 'rpste-upto' in params:
+            cmd.extend(['--rpste-upto', params['rpste-upto']])
+        if 'wpste-upto' in params:
+            cmd.extend(['--wpste-upto', params['wpste-upto']])
     else:
-        cmd.extend(['--wck-1to4-upto', params['wck-1to4-upto']])
-        cmd.extend(['--wck-always-on-from', params['wck-always-on-from']])
-        cmd.extend(['--wck-always-on-upto', params['wck-always-on-upto']])
-        cmd.extend(['--write-lecc-upto', params['write-lecc-upto']])
+        if 'orbit-dsm-en' in params:
+            cmd.extend(['--orbit-dsm-en', params['orbit-dsm-en']])
+        cmd.extend(['--wck-1to4-upto', params.get('wck-1to4-upto', '625')])
+        cmd.extend(['--wck-always-on-from', params.get('wck-always-on-from', '0')])
+        cmd.extend(['--wck-always-on-upto', params.get('wck-always-on-upto', '314')])
+        for p in ['nt-odt-upto', 'bg-mode-upto', 'wck-hf-upto', 'wck-pst1-upto', 'wck-pst2-upto', 'rdqs-pst1-upto', 'rdqs-pst2-upto']:
+            if p in params:
+                cmd.extend([f'--{p}', params[p]])
+    
+    if 'dfs-lvl-t-ck-0' in params:
+        cmd.extend(['--dfs-lvl-t-ck-0', params['dfs-lvl-t-ck-0']])
+    if 'dfs-lvl-t-ck-1' in params:
+        cmd.extend(['--dfs-lvl-t-ck-1', params['dfs-lvl-t-ck-1']])
+    if 'dfs-lvl-t-ck-2' in params:
+        cmd.extend(['--dfs-lvl-t-ck-2', params['dfs-lvl-t-ck-2']])
     
     cmd.extend(params['periods'].split())
     return cmd
 
 
 def test_random_param_comparison():
-    """Test GUI vs CLI with random parameters."""
+    """Test GUI vs CLI with random parameters - FULL random test."""
     print("\n=== Testing Random Param Comparison (GUI vs CLI) ===")
     
     results = []
-    iterations = 10
+    iterations = 100  # Increased from 10 to 100 for comprehensive testing
     
     for i in range(iterations):
         for dram_type in ['lpddr4', 'lpddr5']:

@@ -152,14 +152,14 @@ class TimingEntryTest:
         """Get reference binary path."""
         if dram_type == 'lpddr4':
             if two_channel:
-                return 'ddr_timing_table.lpddr4.dual.bin'
+                return 'ddr_timing_table.lpddr4.dual.ref.bin'
             else:
-                return 'ddr_timing_table.lpddr4.single.bin'
+                return 'ddr_timing_table.lpddr4.single.ref.bin'
         else:
             if two_channel:
-                return 'ddr_timing_table.lpddr5.dual.bin'
+                return 'ddr_timing_table.lpddr5.dual.ref.bin'
             else:
-                return 'ddr_timing_table.lpddr5.single.bin'
+                return 'ddr_timing_table.lpddr5.single.ref.bin'
     
     def parse_binary(self, bin_file):
         """Parse binary and return entries."""

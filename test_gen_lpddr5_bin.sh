@@ -12,7 +12,7 @@ rm -f ddr_timing_table.bin
     --orbit-config-density $ORBIT_DENSITY \
     --wire-length 10 --read-dbi-upto 10000 --write-dbi-upto 10000 --write-lecc-upto 625 --write-odt-upto 10000 \
     --cpipe-depth 1 --dpipe-depth 1 \
-    --omc-freq-ratio 1 --phy-freq-ratio 1 --wck-1to4-upto 625 --wck-always-on-from 0 --wck-always-on-upto 314 \
+    --omc-freq-ratio 1 --phy-freq-ratio 1 --wck-1to4-upto 625 --wck-always-on-from 0 --wck-always-on-upto 10000 \
     --orbit-config-use-python --orbit-byte-mode 0 --orbit-mixed 0 --orbit-rank-interleaving 1 --orbit-num-rank 2 \
     314 418 556 2500
 cp ddr_timing_table.bin ddr_timing_table.lpddr5.single.ref.bin
@@ -24,7 +24,7 @@ rm -f ddr_timing_table.bin
     --orbit-config-density $ORBIT_DENSITY \
     --wire-length 10 --read-dbi-upto 10000 --write-dbi-upto 10000 --write-lecc-upto 625 --write-odt-upto 10000 \
     --cpipe-depth 1 --dpipe-depth 1 \
-    --omc-freq-ratio 1 --phy-freq-ratio 1 --wck-1to4-upto 625 --wck-always-on-from 0 --wck-always-on-upto 314 \
+    --omc-freq-ratio 1 --phy-freq-ratio 1 --wck-1to4-upto 625 --wck-always-on-from 0 --wck-always-on-upto 10000 \
     --orbit-config-use-python --orbit-byte-mode 0 --orbit-mixed 0 --orbit-rank-interleaving 1 --orbit-num-rank 2 \
     --two-channel \
     314 418 556 2500

@@ -24,12 +24,17 @@ def check_gcc_installed() -> bool:
 def compile_test_c(ddr_type: str, two_channel: str, density: int, exec_file: str = "ddr_config_bin_exec") -> bool:
 
     if not os.path.exists("ddr_config_bin.c"):
-        print("错误：当前目录下未找到ddr_config_bin.c文件！")
+        print("error: ddr_config_bin.c not found in current directory")
         return False
 
-    header_dir       = "./"
-    header_dir_omc   = "../../arise2_gpu/product/arise2/module/arise2_omc/include"
-    header_dir_build = "../../build/arise2/include"
+    # P2-7: header search path used to be hardcoded to the upstream checkout
+    # layout (../../arise2_gpu/...). Accept overrides via $DDR_HEADER_DIRS
+    # (colon-separated) so external drivers can point at their own include
+    # tree without patching this script.
+    header_dirs = ["./"]
+    extra = os.environ.get("DDR_HEADER_DIRS", "")
+    if extra:
+        header_dirs.extend(p for p in extra.split(":") if p)
 
     gcc_command = [
         "gcc",
@@ -37,12 +42,10 @@ def compile_test_c(ddr_type: str, two_channel: str, density: int, exec_file: str
         "-D", f"DDR_TYPE={ddr_type}",
         "-D", f"DDR_TWO_CHANNEL={two_channel}",
         "-D", f"ORBIT_DENSITY={density}",
-        "-I", header_dir,
-        "-I", header_dir_omc,
-        "-I", header_dir_build,
-        "ddr_config_bin.c",
-        "-o", exec_file
     ]
+    for h in header_dirs:
+        gcc_command.extend(["-I", h])
+    gcc_command += ["ddr_config_bin.c", "-o", exec_file]
 
     try:
         compile_result = subprocess.run(
@@ -58,16 +61,16 @@ def compile_test_c(ddr_type: str, two_channel: str, density: int, exec_file: str
         if os.path.exists(exec_file):
             return True
         else:
-            print("编译失败：未生成可执行文件")
+            print("compile failed: executable not produced")
             return False
     except subprocess.CalledProcessError as e:
-        print(f"编译报错！错误信息如下：\n{e.output}")
+        print(f"compile error:\n{e.output}")
         return False
 
 def run_executable(exec_file: str = "ddr_config_bin_exec") -> bool:
 
     if not os.path.exists(exec_file):
-        print(f"错误：未找到可执行文件{exec_file}")
+        print(f"error: executable {exec_file} not found")
         return False
 
     try:
@@ -77,20 +80,20 @@ def run_executable(exec_file: str = "ddr_config_bin_exec") -> bool:
         )
         return True
     except subprocess.CalledProcessError as e:
-        print(f"生成ddr_config失败！返回码：{e.returncode}")
+        print(f"ddr_config generation failed: return code {e.returncode}")
         return False
 
 def main():
-    parser = argparse.ArgumentParser(description="编译生成ddr_config")
-    parser.add_argument("macro_ddr_type", help="宏定义DDR_TYPE")
-    parser.add_argument("macro_two_channel", help="宏定义DDR_TWO_CHANNEL的值（示例：2）")
-    parser.add_argument("--density", type=int, default=None, help="密度值 (Gb), 如果未指定则从orbit_init_gen.h读取")
-    parser.add_argument("--clean", action="store_true", help="运行后自动删除可执行文件")
+    parser = argparse.ArgumentParser(description="compile and generate ddr_config")
+    parser.add_argument("macro_ddr_type", help="DDR_TYPE macro value")
+    parser.add_argument("macro_two_channel", help="DDR_TWO_CHANNEL macro value (e.g. 2)")
+    parser.add_argument("--density", type=int, default=None, help="density (Gb); read from orbit_init_gen.h if unset")
+    parser.add_argument("--clean", action="store_true", help="remove the executable after running")
 
     args = parser.parse_args()
 
     if not check_gcc_installed():
-        print("错误：未检测到GCC编译器，请先安装（sudo apt install gcc）")
+        print("error: gcc not found; please install it (e.g. sudo apt install gcc)")
         return
 
     ddr_type = args.macro_ddr_type

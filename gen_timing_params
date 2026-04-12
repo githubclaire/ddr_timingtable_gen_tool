@@ -38,7 +38,7 @@ class GenTimingParam():
             self.dram = lpddr5_config(self)
 
         if self.args.dram_type in ('lpddr3', 'ddr3', 'ddr4') and 'dq_width' not in self.args:
-            parser.error('DQ width of each device should be specified if type of DRAM is DDR3 or DDR4')
+            sys.exit('DQ width of each device should be specified if type of DRAM is DDR3 or DDR4')
 
         self.has_converter = self.args.omc_freq_ratio != self.args.phy_freq_ratio
         self.p_t_xsr = OrderedDict()
@@ -145,16 +145,17 @@ class GenTimingParam():
             self.read_dbi = self.args.dram_type in ('ddr4', 'lpddr4', 'lpddr5') and self.args.read_dbi_upto >= t_ck
             self.write_lecc = self.args.dram_type in ('lpddr5', ) and self.args.write_lecc_upto > t_ck
             self.read_lecc = self.args.dram_type in ('lpddr5', ) and self.args.read_lecc_upto > t_ck
-            self.rpste = args.rpste_upto >= t_ck
-            self.wpste = args.wpste_upto >= t_ck
+            self.rpste = self.args.rpste_upto >= t_ck
+            self.wpste = self.args.wpste_upto >= t_ck
 
             self.nt_odt = self.args.nt_odt_upto >= t_ck
             self.bg_mode = self.args.bg_mode_upto >= t_ck
             self.wck_1to4 = self.args.wck_1to4_upto >= t_ck
             self.wck_hf = self.args.wck_hf_upto >= t_ck
-            wck_always_on_from = 1000000 if self.args.wck_always_on_from == 0 else self.args.wck_always_on_from
-            wck_always_on_upto = 1000000 if self.args.wck_always_on_upto == 0 else self.args.wck_always_on_upto
-            self.wck_always_on = wck_always_on_from >= t_ck and wck_always_on_upto <= t_ck
+            # wck_always_on is enabled when the current period t_ck falls inside the
+            # user-specified window [wck_always_on_from, wck_always_on_upto].
+            # A window where from > upto (default: from=1, upto=0) unambiguously disables it.
+            self.wck_always_on = (self.args.wck_always_on_from <= t_ck <= self.args.wck_always_on_upto)
             self.emulation = self.args.emulation
             if self.args.wck_pst2_upto >= t_ck:
                 self.wck_pst = 2
@@ -197,7 +198,7 @@ class GenTimingParam():
 
             self.tdram_clk_disable = 4
             self.tdram_clk_enable = 4
-            self.pipe_depth_diff = args.dpipe_depth - args.cpipe_depth
+            self.pipe_depth_diff = self.args.dpipe_depth - self.args.cpipe_depth
             self.pipe_delay = self.pipe_depth_diff*2*self.pipe_freq_ratio
             self.tlp_resp = 16
             self.tphyupd_req_dis = 0
@@ -213,7 +214,7 @@ class GenTimingParam():
                                  + ((self.tphy_wrdata//self.data_freq_ratio) if self.args.dram_type == 'lpddr5' else self.tphy_wrdata)
             if self.has_converter:
                 self.twrdata_delay += self.args.phy_freq_ratio
-            if args.meso_synchronizer:
+            if self.args.meso_synchronizer:
                 self.twrdata_delay += 4*self.args.phy_freq_ratio
 
             # in case of LPDDR5. input t_ck is tWCK and output t_ck is tCK
@@ -263,6 +264,9 @@ class GenTimingParam():
             self.mr_rl = self.memcfg.op
             self.mr_wl = self.memcfg.op
             self.mr_wr = self.memcfg.op
+            # mr_rtp is a distinct MR register for read-to-precharge timing.
+            # Kept as a separate attribute so it can be tuned independently of mr_wr.
+            self.mr_rtp = self.memcfg.op
 
             self.t_cacsh = self.p_t_cacsh.calc_ceil(t_ck)
             self.t_csh = self.p_t_csh.calc_ceil(t_ck)
@@ -523,7 +527,7 @@ class GenTimingParam():
       mr_rl=self.mr_rl,
       mr_wl=self.mr_wl,
       mr_wr=self.mr_wr,
-      mr_rtp=self.mr_wr,
+      mr_rtp=self.mr_rtp,
       mr_cal=self.mr_cal,
       mr_tccd_l=self.mr_tccd_l,
       bank_mode=self.bank_mode,
@@ -553,7 +557,7 @@ class GenTimingParam():
                 'OMC_NUM_DENSITIES': len(self.densities),
                 })
 
-        with open(args.output, 'w') as f:
+        with open(self.args.output, 'w') as f:
             f.write('struct timing_param timing_params[] = {\n')
             f.write(',\n'.join([x.replace('\n', '').replace(' ', '') for x in self.c_values]))
             f.write('\n};\n')
@@ -596,6 +600,11 @@ class GenTimingParam():
                 f.write('#define DENSITY_{:d}    {:d}\n'.format(d, code))
             # Add DEFAULT_DENSITY macro
             f.write('#define DEFAULT_DENSITY    {:d}\n'.format(orbit_config_density))
+            # Thread orbit byte_mode / mixed through to the C path so that
+            # gen_timing_params --orbit-byte-mode / --orbit-mixed take effect in
+            # ddr_config.h's orbit_update_chips() call.
+            f.write('#define ORBIT_BYTE_MODE    {:d}\n'.format(int(self.args.orbit_byte_mode)))
+            f.write('#define ORBIT_MIXED        {:d}\n'.format(int(self.args.orbit_mixed)))
             f.write('typedef unsigned int omc_dram_density_t;\n')
             
             f.write('\n#ifdef _ORBIT_GET_DENSITY_\n')
@@ -628,7 +637,8 @@ def parse_args():
     enable_opts = ('lpddr4-byte-mode', 'additive-latency')
 
     parser = ArgumentParser()
-    parser.add_argument('-d', '--dram-type', required=True, choices=('lpddr4', 'lpddr5'), help='target memory type')
+    parser.add_argument('--config', type=str, help='YAML or JSON file whose keys override CLI defaults (F4)')
+    parser.add_argument('-d', '--dram-type', choices=('lpddr4', 'lpddr5'), help='target memory type')
     parser.add_argument('--densities', type=str, nargs='+', help='list of target densities as Gb. It should be 1 in case of DDR3.')
     parser.add_argument('--orbit-config-density', type=int, help='density (Gb) for orbit_config. If not specified, uses first value from --densities or defaults to 16.')
     parser.add_argument('--phy-name', type=str, help='name of phy')
@@ -656,6 +666,9 @@ def parse_args():
     timing_grp.add_argument('--read-lecc-upto', type=int, default=0, help='maximum tCK/tWCK (ps) to enable read link ECC')
     timing_grp.add_argument('--write-lecc-upto', type=int, default=0, help='maximum tCK/tWCK (ps) to enable write link ECC')
     timing_grp.add_argument('--emulation', action='store_true', help='Setting emulation sequence')
+    timing_grp.add_argument('--check-jedec', action='store_true', help='Cross-check p_t_* reference values against jedec_limits.py tables')
+    timing_grp.add_argument('--emit-report', action='store_true', help='Write a sibling <output>.report.txt with per-frequency resolved timings')
+    timing_grp.add_argument('--emit-container', action='store_true', help='Also write ddr_timing_table.container (versioned DDRT header + payload, opt-in, does not change .bin)')
 
     ddr4_grp = parser.add_argument_group(title="DDR4 options", description="Options for DDR4")
     ddr4_grp.add_argument('--geardown-upto', action='store_true', help='maximum tCK (ps) to enable geardown mode')
@@ -671,8 +684,10 @@ def parse_args():
     lp5_grp.add_argument('--nt-odt-upto', type=int, default=0, help='maximum tWCK (ps) to enable NT-ODT')
     lp5_grp.add_argument('--enhanced-nt-odt', action='store_true', help='devices support the enhanced NT-ODT')
     lp5_grp.add_argument('--bg-mode-upto', type=int, default=625, help='maximum tWCK (ps) to enable bank-group mode')
-    lp5_grp.add_argument('--wck-always-on-from', type=int, default=1000000, help='minimum tWCK (ps) to enable WCK always-on mode')
-    lp5_grp.add_argument('--wck-always-on-upto', type=int, default=1000000, help='maximum tWCK (ps) to enable WCK always-on mode')
+    # Defaults form a degenerate window (from > upto) so WCK always-on is disabled
+    # unless the user explicitly specifies both bounds.
+    lp5_grp.add_argument('--wck-always-on-from', type=int, default=1, help='minimum tWCK (ps) to enable WCK always-on mode')
+    lp5_grp.add_argument('--wck-always-on-upto', type=int, default=0, help='maximum tWCK (ps) to enable WCK always-on mode')
     lp5_grp.add_argument('--wck-1to4-upto', type=int, default=625, help='maximum tWCK (ps) to enable WCK 1:4 mode')
     lp5_grp.add_argument('--wck-hf-upto', type=int, default=624, help='maximum tWCK (ps) to enable WCK high-frequency mode')
     lp5_grp.add_argument('--wck-pst1-upto', type=int, default=0, help='maximum tWCK (ps) to set WCK PST as 4.5*tWCK')
@@ -711,7 +726,43 @@ def parse_args():
     orbit_grp.add_argument('--orbit-t-refipb', type=int, default=488000, help='tREFI PB (in ps)')
     orbit_grp.add_argument('--orbit-t-zqcal', type=int, default=1000000, help='tZQCAL (in ps)')
 
+    # Phase 4: register any remaining fields from the orbit field registry.
+    # register_argparse is idempotent — only flags not already present are
+    # added, so the explicit add_argument calls above still take precedence.
+    try:
+        from orbit_field_registry import register_argparse as _reg_orbit
+        _reg_orbit(parser, group=orbit_grp)
+    except Exception:
+        pass
+
+    # F4: pre-scan for --config and fold its contents into parser defaults
+    # *before* parse_args(). This way CLI arguments still override the
+    # config (argparse takes explicit CLI args over set_defaults).
+    _pre = [a for a in sys.argv[1:]]
+    _cfg_path = None
+    for i, tok in enumerate(_pre):
+        if tok == "--config" and i + 1 < len(_pre):
+            _cfg_path = _pre[i + 1]
+            break
+        if tok.startswith("--config="):
+            _cfg_path = tok.split("=", 1)[1]
+            break
+    if _cfg_path:
+        try:
+            from config_loader import load as _cfg_load, apply_to_parser as _cfg_apply
+            _data = _cfg_load(_cfg_path)
+            _applied, _unknown = _cfg_apply(parser, _data)
+            if _unknown:
+                print("[warn] --config: ignoring unknown keys: %s" % ", ".join(_unknown))
+        except Exception as _e:
+            sys.exit("error: failed to load --config %s: %s" % (_cfg_path, _e))
+
     args = parser.parse_args()
+
+    # --dram-type is effectively required; we relaxed the argparse-level
+    # required=True so --config can supply it, but still enforce presence.
+    if not args.dram_type:
+        sys.exit("error: --dram-type is required (provide via CLI or --config)")
 
     # Convert densities from strings to integers
     if args.densities:
@@ -980,7 +1031,43 @@ def generate_orbit_config_bin(args):
 if __name__ == '__main__':
     args = parse_args()
     timing_param = GenTimingParam(args)
+
+    # F2: optional JEDEC cross-check on the reference Timing values the
+    # dram_config baked in. Errors are fatal, warnings are informational.
+    if getattr(args, "check_jedec", False):
+        try:
+            from jedec_limits import check_config, format_findings
+            findings = check_config(timing_param.dram, args.dram_type)
+            print(format_findings(findings))
+            if any(sev == "error" for sev, _ in findings):
+                sys.exit("JEDEC check failed — see findings above")
+        except ImportError:
+            print("[warn] jedec_limits not available; --check-jedec skipped")
+
     c_values = timing_param.calculate();
     timing_param.write();
     gen_timingtable_bin(c_values)
     generate_orbit_config_bin(args)
+
+    # F3/F6: optional versioned container wrapping the bare binary.
+    if getattr(args, "emit_container", False):
+        try:
+            from container_header import wrap as _container_wrap
+            density = getattr(args, "orbit_config_density", None) or 16
+            _container_wrap("ddr_timing_table.bin",
+                            "ddr_timing_table.container",
+                            args.dram_type,
+                            bool(getattr(args, "two_channel", False)),
+                            density, args.periods)
+            print("wrote ddr_timing_table.container")
+        except ImportError:
+            print("[warn] container_header not available; --emit-container skipped")
+
+    # F5: optional human-readable timing report alongside the binary.
+    if getattr(args, "emit_report", False):
+        try:
+            from timing_report import write_report
+            write_report(timing_param, c_values, "ddr_timing_table.bin.report.txt")
+            print("wrote ddr_timing_table.bin.report.txt")
+        except ImportError:
+            print("[warn] timing_report not available; --emit-report skipped")

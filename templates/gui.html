@@ -1093,13 +1093,12 @@ function showAnalysisModal(data) {
         // Header row
         html += '<tr><th>Parameter</th>';
         entries.forEach((e, i) => {
-            const display_t_ck = e.t_ck_display !== undefined ? e.t_ck_display : e.t_ck;
-            html += `<th>Entry ${i}<br>t_ck=${display_t_ck}<br>freq=${e.freq}</th>`;
+            html += `<th>Entry ${i}<br>t_ck=${e.t_ck}<br>freq=${e.freq}</th>`;
         });
         html += '</tr>';
         
         // Per-entry fields
-        const perEntryFields = ['rl','wl','mr_rl','mr_wl','mr_wr','mr_cal','mr_tccd_l','bank_mode','wck_fm',
+        const perEntryFields = ['rl','wl','mr_rl','mr_wl','mr_wr','mr_cal','mr_tccd_l','bank_mode','wck_fm','wck_ratio',
                                  'rdqs_pst_mode','rdqs_pst','rdqs_pre','wck_pst','wck_on','read_link_parity','write_link_parity',
                                  't_rtw','t_wtr_a','t_wtr','t_rc','trddata_en','freq','timing_zqcal'];
         

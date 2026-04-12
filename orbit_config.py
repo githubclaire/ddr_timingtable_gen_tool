@@ -39,37 +39,7 @@ DENSITY_24 = 8
 DENSITY_32 = 9
 # Note: density 1 not supported, default to DENSITY_2
 
-def get_density_code(density):
-    """Convert density in Gb to density code."""
-    # First try to read dynamic mapping from orbit_init_gen.h
-    try:
-        import os
-        if os.path.exists('orbit_init_gen.h'):
-            with open('orbit_init_gen.h', 'r') as f:
-                content = f.read()
-                import re
-                pattern = r'#define DENSITY_(\d+)\s+(\d+)'
-                matches = re.findall(pattern, content)
-                mapping = {int(dens): int(idx) for dens, idx in matches}
-                if density in mapping:
-                    return mapping[density]
-    except Exception:
-        pass  # Fall back to fixed mapping
-    
-    # Fixed mapping fallback (for backward compatibility)
-    mapping = {
-        1: DENSITY_1,
-        2: DENSITY_2,
-        3: DENSITY_3,
-        4: DENSITY_4,
-        6: DENSITY_6,
-        8: DENSITY_8,
-        12: DENSITY_12,
-        16: DENSITY_16,
-        24: DENSITY_24,
-        32: DENSITY_32,
-    }
-    return mapping.get(density, DENSITY_2)
+from orbit_tables import get_density_code  # noqa: E402  (canonical table)
 
 # Enums from arise2_omc.h (partial)
 CH_128 = 0

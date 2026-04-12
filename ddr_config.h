@@ -55,21 +55,14 @@ void orbit_update_chips(struct orbit_config *cfg, uint8_t byte_mode, uint8_t mix
   }
 }
 
+/* Phase 2: density code table is generated from orbit_tables.py into
+ * orbit_tables.gen.h. Keep the local static wrapper for legacy callers
+ * but delegate to the generated inline.
+ */
+#include "orbit_tables.gen.h"
 #ifndef _ORBIT_GET_DENSITY_
 static unsigned int get_density_code(unsigned int density) {
-  switch (density) {
-    case 1: return 0;
-    case 2: return 1;
-    case 3: return 2;
-    case 4: return 3;
-    case 6: return 4;
-    case 8: return 5;
-    case 12: return 6;
-    case 16: return 7;
-    case 24: return 8;
-    case 32: return 9;
-    default: return 0;
-  }
+  return orbit_get_density_code(density);
 }
 #endif
 
@@ -279,5 +272,11 @@ static void ddr_config_init(struct orbit_config *omc_config)
   omc_config->lp_wakeup[2] = 4;
   omc_config->half_dq_en = 0;
 
-  orbit_update_chips(omc_config, 0, 0);
+#ifndef ORBIT_BYTE_MODE
+#define ORBIT_BYTE_MODE 0
+#endif
+#ifndef ORBIT_MIXED
+#define ORBIT_MIXED 0
+#endif
+  orbit_update_chips(omc_config, ORBIT_BYTE_MODE, ORBIT_MIXED);
 }

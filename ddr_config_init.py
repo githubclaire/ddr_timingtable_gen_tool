@@ -3,6 +3,8 @@
 Implementation of ddr_config_init and orbit_update_chips.
 """
 
+import ctypes
+
 from orbit_config import orbit_config, chip_config, get_density_code, create_orbit_config, \
     DRAM0_BASE, DRAM0_SIZE, DRAM1_BASE, DRAM1_SIZE, \
     OMC_REGISTER_BASE0_0, OMC_REGISTER_BASE0_1, \
@@ -104,12 +106,9 @@ def ddr_config_init(cfg, dram_type='lpddr5', two_channel=False, density=16,
         cfg.region_end[1] //= 2
     
     # APB Base Address Configuration
-    # Note: Using direct file offset writes for compatibility with reference binary format
-    # base_addr at file offset 0x8C0 (struct offset 0xC0 in reference)
-    # base_addr_id[0-3] at file offsets 0x8C4-0x8D0
-    # phy_base_addr at file offset 0x8D4
-    # phy_base_addr_id[0-3] at file offsets 0x8D8-0x8E4
-    
+    # The ctypes struct layout (from make_orbit_config_class) already matches the C
+    # struct offsets for both single and dual channel modes. Assigning via ctypes
+    # attributes is correct and sufficient — no file-level patching is required.
     # Always set channel 0 (indices 0,1) for both single and dual channel
     cfg.base_addr_id[0] = OMC_REGISTER_BASE0_0
     cfg.base_addr_id[1] = OMC_REGISTER_BASE0_1
@@ -143,11 +142,16 @@ def ddr_config_init(cfg, dram_type='lpddr5', two_channel=False, density=16,
     cfg.dram_boot = BY_MC
     cfg.reqq_depth = 40
     cfg.ctrl_dq_width = 16
-    cfg.dq_width = 16
+    cfg.dq_width = kwargs.pop('dq_width', 16)
     cfg.ch_intr_size = CH_256
-    # mrr_byte_lane depends on physical_dq_width
-    # C code hardcodes 0x55 regardless of dq_width
-    cfg.mrr_byte_lane = 0x55  # matches C binary
+    # mrr_byte_lane depends on dq_width
+    dq_w = cfg.dq_width
+    if dq_w == 32:
+        cfg.mrr_byte_lane = kwargs.pop('mrr_byte_lane', 0x11)
+    elif dq_w == 8:
+        cfg.mrr_byte_lane = kwargs.pop('mrr_byte_lane', 0xFF)
+    else:
+        cfg.mrr_byte_lane = kwargs.pop('mrr_byte_lane', 0x55)
     cfg.byte_lane_inversion = 0
     cfg.chip[0].size = cfg.density * cfg.ctrl_dq_width // cfg.dq_width
     cfg.chip[1].size = cfg.density * cfg.ctrl_dq_width // cfg.dq_width
@@ -196,8 +200,13 @@ def ddr_config_init(cfg, dram_type='lpddr5', two_channel=False, density=16,
     cfg.periodic_training = kwargs.get('periodic_training', 0)
     cfg.periodic_training_period = kwargs.get('periodic_training_period', 24000)
     
-    # All level training control
-    if dram_type == 'lpddr5':
+    # All level training control (overridable via kwargs)
+    dfs_lvl = kwargs.pop('dfs_lvl_t_ck', None)
+    if dfs_lvl and len(dfs_lvl) >= 3:
+        cfg.dfs_lvl_t_ck[0] = int(dfs_lvl[0])
+        cfg.dfs_lvl_t_ck[1] = int(dfs_lvl[1])
+        cfg.dfs_lvl_t_ck[2] = int(dfs_lvl[2])
+    elif dram_type == 'lpddr5':
         cfg.dfs_lvl_t_ck[0] = 1672
         cfg.dfs_lvl_t_ck[1] = 2224
         cfg.dfs_lvl_t_ck[2] = 5000
@@ -246,13 +255,19 @@ def ddr_config_init(cfg, dram_type='lpddr5', two_channel=False, density=16,
     # Update chip geometry
     orbit_update_chips(cfg, byte_mode, mixed, dram_type)
     
-    # Apply any additional overrides (kwargs may contain other fields)
+    # Apply any additional overrides (kwargs may contain other fields).
+    # Skip ctypes Array/Structure fields — plain setattr crashes on them.
     for key, value in kwargs.items():
-        if hasattr(cfg, key):
-            setattr(cfg, key, value)
-        else:
-            # Try nested attributes (e.g., chip[0].size)
-            pass
+        if not hasattr(cfg, key):
+            continue
+        field_type = None
+        for fname, ftype in cfg._fields_:
+            if fname == key:
+                field_type = ftype
+                break
+        if field_type is not None and issubclass(field_type, (ctypes.Array, ctypes.Structure)):
+            continue
+        setattr(cfg, key, value)
 
 def generate_orbit_config_binary(dram_type='lpddr5', two_channel=False, density=16,
                                  byte_mode=0, mixed=0, output_file='ddr_timing_table.bin',
@@ -264,54 +279,17 @@ def generate_orbit_config_binary(dram_type='lpddr5', two_channel=False, density=
     ddr_config_init(cfg, dram_type=dram_type, two_channel=two_channel,
                     density=density, byte_mode=byte_mode, mixed=mixed, **kwargs)
     
-    # First write the ctypes struct
+    # Serialize the ctypes struct and write it at the target offset.
+    # The ctypes class layout (see make_orbit_config_class) matches the C
+    # struct layout in arise2_omc.h field-for-field, so writing the raw struct
+    # bytes produces a binary identical to the C gen_ddr_config output.
     import ctypes
-    import struct
-    
-    # Open file for read+write
+
     with open(output_file, 'r+b') as f:
-        # Write struct at offset
         f.seek(offset)
         struct_data = ctypes.string_at(ctypes.addressof(cfg), ctypes.sizeof(cfg))
         f.write(struct_data)
-        
-        # Now patch the specific field offsets to ensure correct values
-        # These are file offsets (not struct offsets)
-        
-        # base_addr at 0x8C0
-        f.seek(0x8C0)
-        f.write(struct.pack('<I', cfg.base_addr))
-        
-        # base_addr_id[0-3] at 0x8C4-0x8D0
-        # For single channel: only indices 0,1 exist in struct
-        # For dual channel: indices 0-3 exist
-        num_omc = 4 if two_channel else 2
-        for i in range(num_omc):
-            f.seek(0x8C4 + i*4)
-            f.write(struct.pack('<I', cfg.base_addr_id[i]))
-        # Fill remaining with 0 for single channel
-        if not two_channel:
-            f.seek(0x8CC)
-            f.write(struct.pack('<I', 0))
-            f.seek(0x8D0)
-            f.write(struct.pack('<I', 0))
-        
-        # phy_base_addr at 0x8D4
-        f.seek(0x8D4)
-        f.write(struct.pack('<I', cfg.phy_base_addr))
-        
-        # phy_base_addr_id[0-3] at 0x8D8-0x8E4
-        num_phy = 4 if two_channel else 2
-        for i in range(num_phy):
-            f.seek(0x8D8 + i*4)
-            f.write(struct.pack('<I', cfg.phy_base_addr_id[i]))
-        # Fill remaining with 0 for single channel
-        if not two_channel:
-            f.seek(0x8E0)
-            f.write(struct.pack('<I', 0))
-            f.seek(0x8E4)
-            f.write(struct.pack('<I', 0))
-    
+
     print("Written orbit_config to %s at offset 0x%x" % (output_file, offset))
 
 if __name__ == '__main__':

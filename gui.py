@@ -6,13 +6,60 @@ Runs locally without internet using Python standard library.
 
 import http.server
 import socketserver
+import ctypes
 import json
 import os
 import struct
 import subprocess
 import sys
 
-PORT = 5000
+from orbit_config import make_orbit_config_class, EMMC_CM4_TIME_TB_SIZE
+
+
+def _ctypes_value_to_python(value):
+    """Convert a ctypes field read to a plain Python value (scalar or list)."""
+    if isinstance(value, (int, float)):
+        return value
+    # ctypes arrays — convert recursively
+    try:
+        return [_ctypes_value_to_python(v) for v in value]
+    except TypeError:
+        # Nested Structure fallback (chip_config, prbs_result_t, train_result_t)
+        try:
+            return {
+                name: _ctypes_value_to_python(getattr(value, name))
+                for name, _ in value._fields_
+            }
+        except AttributeError:
+            return value
+
+
+def _identify_binary(file_size):
+    """Pick (dram_type, two_channel) by matching ctypes struct size to file size.
+
+    This replaces the old file-size-based heuristic with a structural lookup:
+    the file layout is EMMC_CM4_TIME_TB_SIZE (0x800) + sizeof(orbit_config),
+    and sizeof(orbit_config) is unique per (dram_type, two_channel).
+    Returns (dram_type, two_channel) or (None, None) if no match.
+    """
+    expected = file_size - EMMC_CM4_TIME_TB_SIZE
+    for dram_type in ("lpddr4", "lpddr5"):
+        for two_channel in (False, True):
+            if ctypes.sizeof(make_orbit_config_class(dram_type, two_channel)) == expected:
+                return dram_type, two_channel
+    return None, None
+
+
+def _read_orbit_ctypes(file_path, dram_type, two_channel):
+    """Read the orbit_config struct at offset 0x800 into a ctypes instance."""
+    cls = make_orbit_config_class(dram_type, two_channel)
+    cfg = cls()
+    with open(file_path, 'rb') as f:
+        f.seek(EMMC_CM4_TIME_TB_SIZE)
+        f.readinto(cfg)
+    return cfg
+
+PORT = 5010
 
 
 def get_mrr_byte_lane(dq_width):
@@ -183,20 +230,7 @@ def parse_timing_entries(data, dram_type):
         except:
             continue
     
-    # Get common params from first entry
     common = {}
-    if timing_entries:
-        first = timing_entries[0]
-        common = {
-            'tlp_resp': first.get('tlp_resp', 0),
-            'dll_enable': first.get('dll_enable', 0),
-            'write_odt': first.get('write_odt', 0),
-            'nt_odt': first.get('nt_odt', 0),
-            'write_dbi': first.get('write_dbi', 0),
-            'read_dbi': first.get('read_dbi', 0),
-            'wpste': first.get('wpste', 0),
-            'rpste': first.get('rpste', 0),
-        }
     
     return {
         'entries': timing_entries,
@@ -206,392 +240,103 @@ def parse_timing_entries(data, dram_type):
     }
 
 
-def analyze_binary_file(file_path, dram_type_override=None):
-    """Analyze binary file with optional DRAM type override."""
+def analyze_binary_file(file_path, dram_type_override=None, two_channel_override=None):
+    """Analyze a ddr_timing_table binary using the ctypes orbit_config class.
+
+    No more hand-rolled offset tables. Caller may pass explicit
+    ``dram_type_override`` / ``two_channel_override``; otherwise the
+    (dram_type, two_channel) pair is identified by matching
+    ``file_size - 0x800`` against ``ctypes.sizeof(make_orbit_config_class(...))``.
+    """
     if not os.path.exists(file_path):
         return {'success': False, 'message': f'File not found: {file_path}'}
-    
     try:
         with open(file_path, 'rb') as f:
             data = f.read()
     except Exception as e:
         return {'success': False, 'message': f'Error reading file: {str(e)}'}
-    
+
     file_size = len(data)
-    
-    # Determine DRAM type and size
-    # Methods: 1) file size (most reliable), 2) dual channel flag
-    is_lpddr5 = False
-    is_dual_channel = False
-    
-    # Method 1: File size thresholds (most reliable)
-    # LP4 single: 5096, LP5 single: 5104 (diff of 8 bytes for lp5 header)
-    # LP4 dual: 7864, LP5 dual: 7872
-    if file_size >= 7860:
-        is_dual_channel = True
-        # Single vs dual already detected, now check LP4 vs LP5
-        # Use tighter thresholds: LP4 dual: ~7864, LP5 dual: ~7872
-        if file_size >= 7870:
-            is_lpddr5 = True
-    elif file_size >= 5090 and file_size < 5200:
-        is_dual_channel = False
-        if file_size >= 5100:
-            is_lpddr5 = True  # 5104 = LP5 single
-        else:
-            is_lpddr5 = False  # 5096 = LP4 single
-    elif file_size >= 3050 and file_size < 4000:
-        is_dual_channel = False
-        is_lpddr5 = True  # Small LP5 files
-    elif file_size < 3000:
-        return {'success': False, 'message': 'File too small to be valid binary: %d bytes' % file_size}
-    
-    # Method 2: Verify dual channel via phy_base_addr_id[2]
-    # Only trust this if value is clearly non-zero (not just any value)
-    # LP4: 0x8E0, LP5: 0x8E8
-    if file_size > 0x800 + 0xE0:
-        dual_check_offset = 0x8E8 if is_lpddr5 else 0x8E0
-        phy_addr_id_2 = struct.unpack('<I', data[dual_check_offset:dual_check_offset+4])[0]
-        # Only mark as dual channel if value is >= 0x100000 (typical base address)
-        if phy_addr_id_2 >= 0x100000:
-            is_dual_channel = True
-    
-    dram_type = 'lpddr5' if is_lpddr5 else 'lpddr4'
-    
-    # Apply manual override if specified
-    if dram_type_override and dram_type_override != 'auto':
-        dram_type = dram_type_override
-    
-    # Parse timing table for periods and lecc settings
+    if file_size < EMMC_CM4_TIME_TB_SIZE + 32:
+        return {'success': False,
+                'message': 'File too small to be a valid binary: %d bytes' % file_size}
+
+    # Identify (dram_type, two_channel) from size unless overridden.
+    dram_type = dram_type_override if dram_type_override and dram_type_override != 'auto' else None
+    if two_channel_override is not None:
+        two_channel = bool(int(two_channel_override))
+    else:
+        two_channel = None
+    if dram_type is None or two_channel is None:
+        dt_auto, ch_auto = _identify_binary(file_size)
+        if dram_type is None:
+            dram_type = dt_auto
+        if two_channel is None:
+            two_channel = ch_auto
+    if dram_type is None:
+        return {'success': False,
+                'message': ('Unable to identify (dram_type, two_channel) from file '
+                            'size %d; pass dram_type_override explicitly.' % file_size)}
+
+    # Read the orbit_config region via ctypes.
+    try:
+        cfg = _read_orbit_ctypes(file_path, dram_type, bool(two_channel))
+    except Exception as e:
+        return {'success': False,
+                'message': 'Failed to read orbit_config via ctypes: %s' % e}
+
+    # Flatten every field into a plain dict.
+    orbit = {}
+    for name, _ in cfg._fields_:
+        orbit[name] = _ctypes_value_to_python(getattr(cfg, name))
+
+    # Parse timing entries for the periods / feature-flag ranges used by the GUI.
     periods = []
     read_lecc_upto = 0
     write_lecc_upto = 0
     write_odt_upto = 0
     read_dbi_upto = 0
     write_dbi_upto = 0
-    # LP5 uses different entry size than LP4
+    is_lpddr5 = (dram_type == 'lpddr5')
     entry_size = 0x15C if is_lpddr5 else 0x128
     max_entries = 8
-    
     for i in range(max_entries):
         offset = i * entry_size
-        if offset + 4 > len(data):
+        if offset + 8 > len(data):
             break
-        t_ck = struct.unpack('<I', data[offset+4:offset+8])[0] if len(data) >= offset + 8 else 0
-        
-        # Use raw t_ck for detection (t_ck values are in range 300-5000)
-        # But store converted t_wck for display
-        period_value = t_ck
-        
-        if 300 <= period_value <= 5000:
-            # For LP5: convert to t_wck for display (user input period)
-            # Use per-entry wck_ratio from offset 0x13c
-            if is_lpddr5:
-                wck_ratio = data[offset + 0x13c] if offset + 0x13c < len(data) else 4
-                if wck_ratio > 0:
-                    display_period = t_ck // wck_ratio
-                else:
-                    display_period = t_ck
-            else:
-                display_period = t_ck
-            periods.append(display_period)
-            if len(data) >= offset + 192:
-                # Timing feature flags
-                # write_odt at offset +0x9E (158)
-                # write_dbi at offset +0xA0 (160)
-                # read_dbi at offset +0xA1 (161)
-                # read_link_parity at offset +0x11F (191)
-                # write_link_parity at offset +0x120 (192)
-                write_odt_flag = data[offset + 158]
-                write_dbi_flag = data[offset + 160]
-                read_dbi_flag = data[offset + 161]
-                read_link_parity = data[offset + 0x11F]
-                write_link_parity = data[offset + 0x120]
-                
-                # Use flag > 0 to avoid false positives from garbage values in binary
-                if write_odt_flag > 0 and t_ck > write_odt_upto:
-                    write_odt_upto = t_ck
-                if write_dbi_flag > 0 and t_ck > write_dbi_upto:
-                    write_dbi_upto = t_ck
-                if read_dbi_flag > 0 and t_ck > read_dbi_upto:
-                    read_dbi_upto = t_ck
-                if read_link_parity > 0 and t_ck > read_lecc_upto:
-                    read_lecc_upto = t_ck
-                if write_link_parity > 0 and t_ck > write_lecc_upto:
-                    write_lecc_upto = t_ck
-    
-    if not periods:
-        periods = [471, 938, 1631, 2500]  # Default
-    
-    # If we only got 1 period (common for single-channel binaries), use defaults
-    if len(periods) == 1:
+        t_ck = struct.unpack('<I', data[offset+4:offset+8])[0]
+        if not (300 <= t_ck <= 5000):
+            continue
         if is_lpddr5:
-            # LPDDR5 default periods (t_wck values, before WCK conversion)
-            periods = [314, 418, 556, 2500]
+            wck_ratio = data[offset + 0x13c] if offset + 0x13c < len(data) else 4
+            display_period = t_ck // wck_ratio if wck_ratio else t_ck
         else:
-            # LPDDR4 default periods
-            periods = [471, 938, 1631, 2500]
-    
-    # Parse orbit config at offset 0x800
-    orbit_offset = 0x800
-    
-    # First, parse orbit config fields
-    orbit_data = {}
-    try:
-        with open(file_path, 'rb') as f:
-            # dfs_lvl_t_ck offsets differ by DRAM type
-            # LPDDR4: 0x85e, 0x860, 0x862 (orbit config area)
-            # LPDDR5: 0x864, 0x866, 0x868 (orbit config area)
-            # LPDDR5 struct has different offsets than LPDDR4
-            # Get offsets dynamically based on dram type
-            if is_lpddr5:
-                # LPDDR5: use correct struct offsets
-                # dfs_lvl_t_ck at 0x64, 0x66, 0x68 (not 0x63, 0x65, 0x67)
-                dfs_offsets = (0x64, 0x66, 0x68)
-                # Threshold offsets from C struct
-                # LP5 Single: dp_threshold=0xE6, ds_threshold=0xE2
-                # LP5 Dual: dp_threshold=0xF6, ds_threshold=0xF2
-                dp_thresh_offset = 0xf6 if is_dual_channel else 0xe6
-                ds_thresh_offset = 0xf2 if is_dual_channel else 0xe2
-                fields_to_read = [
-                    # Pipe config (LPDDR5 struct starts at offset 0x14)
-                    ('phy_freq_ratio', 0x14, '<H'),
-                    ('omc_freq_ratio', 0x16, '<H'),
-                    ('cpipe_depth', 0x18, '<H'),
-                    ('dpipe_depth', 0x1a, '<H'),
-                    ('dram_t_ck', 0x90, '<I'),  # LP5: value at 0x890 = 1256
-                    ('rclk_t_ck', 0x84, '<I'),  # LP5: value at 0x884 = 41666
-                    ('boot_t_ck', 0x88, '<I'),  # LP5: value at 0x888 = 20000
-                    
-                    # Basic geometry
-                    ('density', 0x24, '<H'),
-                    ('rank_interleaving', 0x26, '<H'),
-                    ('num_rank', 0x28, '<H'),
-                    ('ctrl_dq_width', 0x2a, '<H'),
-                    ('dq_width', 0x2c, '<H'),
-                    
-                    # Mode control
-                    ('reboot_with_mrw', 0x2a, '<H'),
-                    ('rfm_en', 0x40, '<H'),
-                    ('dsm_en', 0x42, '<H'),
-                    ('ca_odt', 0x4c, '<H'),
-                    
-                    # Training enable (LP5: +6 offset from LP4)
-                    ('eye_scan_rd_en', 0x44, '<H'),
-                    ('eye_scan_wr_en', 0x46, '<H'),
-                    ('eye_scan_prbs_rd_en', 0x48, '<H'),
-                    ('eye_scan_prbs_wr_en', 0x4a, '<H'),
-                    ('init_zq_calibration', 0x50, '<H'),
-                    ('command_bus_training', 0x6c, '<H'),
-                    ('ca_vref_training', 0x6e, '<H'),
-                    ('prbs_training', 0x70, '<H'),
-                    ('reboot_with_training', 0x72, '<H'),
-                    ('dfs_training', 0x74, '<H'),
-                    ('phy_vref_trn_mode', 0x76, '<H'),
-                    ('phy_duty_trn_mode', 0x78, '<H'),
-                    ('dram_vref_trn_mode', 0x7a, '<H'),
-                    ('dram_duty_trn_mode', 0x7c, '<H'),
-                    
-                    # Power management (LP5: +6 offset from LP4)
-                    ('regional_clock_gating', 0x5e, '<H'),
-                    ('phy_clock_gating', 0x60, '<H'),
-                    ('dram_clock_gating', 0x62, '<H'),
-                    
-                    # Dynamic power management (LP5: +6 offset from LP4)
-                    ('phy_low_power', 0x34, '<H'),
-                    ('phy_idle_cnt_th', 0x36, '<H'),
-                    ('dynamic_power_down', 0x5a, '<H'),
-                    ('dynamic_self_refresh', 0x5c, '<H'),
-                    ('dynamic_power_down_threshold', dp_thresh_offset, '<I'),
-                    ('dynamic_self_refresh_threshold', ds_thresh_offset, '<I'),
-                    
-                    # Timing features (LP5: +6 offset from LP4)
-                    ('temp_sensing', 0x52, '<H'),
-                    ('zq_calibration', 0x54, '<H'),
-                    ('periodic_training', 0x56, '<H'),
-                    ('periodic_training_period', 0x58, '<H'),
-                    
-                    # DFS timing
-                    ('dfs_lvl_t_ck_0', dfs_offsets[0], '<H'),
-                    ('dfs_lvl_t_ck_1', dfs_offsets[1], '<H'),
-                    ('dfs_lvl_t_ck_2', dfs_offsets[2], '<H'),
-                    
-                    # Late fields - using ctypes struct offsets for LPDDR5
-                    # LP5 density_code at 0x80 (not 0xA5)
-                    ('density_code', 0x80, '<I'),
-                    ('zq_calibration_period', 0xFC if is_dual_channel else 0xEC, '<I'),
-                    ('temp_sensing_period', 0x104 if is_dual_channel else 0xF4, '<I'),
-                    ('t_refipb', 0x108 if is_dual_channel else 0xF8, '<I'),
-                    ('t_refiab', 0x10C if is_dual_channel else 0xFC, '<I'),
-                    ('t_zqcal', 0x110 if is_dual_channel else 0x100, '<I'),
-                    ('mrr_byte_lane', 0x118 if is_dual_channel else 0x108, '<H'),
-                ]
-            else:
-                # LPDDR4: use LPDDR4 struct offsets (no lp5 header)
-                # Correct offsets from ctypes struct
-                dfs_offsets = (0x5E, 0x60, 0x62)
-                # Threshold offsets - verify against binary data
-                # LP4 Single: dp=0xE0 (file 0x8E0), ds=0xDC (file 0x8DC) - both should read 0
-                # LP4 Dual: unknown, try 0xEC/0xF0
-                dp_thresh_offset = 0xf0 if is_dual_channel else 0xe0
-                ds_thresh_offset = 0xec if is_dual_channel else 0xdc
-                fields_to_read = [
-                    # Pipe config
-                    ('phy_freq_ratio', 0x0C, '<H'),
-                    ('omc_freq_ratio', 0x0E, '<H'),
-                    ('cpipe_depth', 0x14, '<H'),
-                    ('dpipe_depth', 0x16, '<H'),
-                    ('dram_t_ck', 0x88, '<I'),
-                    ('rclk_t_ck', 0x7C, '<I'),
-                    ('boot_t_ck', 0x80, '<I'),
-                    
-                    # Basic geometry
-                    ('density', 0x1C, '<H'),
-                    ('rank_interleaving', 0x1E, '<H'),
-                    ('num_rank', 0x20, '<H'),
-                    ('ctrl_dq_width', 0x24, '<H'),
-                    ('dq_width', 0x24, '<H'),
-                    
-                    # Mode control
-                    ('reboot_with_mrw', 0x22, '<H'),
-                    ('rfm_en', 0x3A, '<H'),
-                    ('dsm_en', 0x3C, '<H'),
-                    ('ca_odt', 0x46, '<H'),
-                    
-                    # Training enable
-                    ('eye_scan_rd_en', 0x3E, '<H'),
-                    ('eye_scan_wr_en', 0x40, '<H'),
-                    ('eye_scan_prbs_rd_en', 0x42, '<H'),
-                    ('eye_scan_prbs_wr_en', 0x44, '<H'),
-                    ('init_zq_calibration', 0x4A, '<H'),
-                    ('command_bus_training', 0x66, '<H'),
-                    ('ca_vref_training', 0x68, '<H'),
-                    ('prbs_training', 0x6A, '<H'),
-                    ('reboot_with_training', 0x6C, '<H'),
-                    ('dfs_training', 0x6E, '<H'),
-                    ('phy_vref_trn_mode', 0x70, '<H'),
-                    ('phy_duty_trn_mode', 0x72, '<H'),
-                    ('dram_vref_trn_mode', 0x74, '<H'),
-                    ('dram_duty_trn_mode', 0x76, '<H'),
-                    
-                    # Power management
-                    ('regional_clock_gating', 0x58, '<H'),
-                    ('phy_clock_gating', 0x5A, '<H'),
-                    ('dram_clock_gating', 0x5C, '<H'),
-                    
-                    # Dynamic power management
-                    ('phy_low_power', 0x2C, '<H'),
-                    ('phy_idle_cnt_th', 0x2E, '<H'),
-                    ('dynamic_power_down', 0x54, '<H'),
-                    ('dynamic_self_refresh', 0x56, '<H'),
-                    ('dynamic_power_down_threshold', dp_thresh_offset, '<I'),
-                    ('dynamic_self_refresh_threshold', ds_thresh_offset, '<I'),
-                    
-                    # Timing features
-                    ('temp_sensing', 0x4C, '<H'),
-                    ('zq_calibration', 0x4E, '<H'),
-                    ('periodic_training', 0x50, '<H'),
-                    ('periodic_training_period', 0x52, '<H'),
-                    
-                    # DFS timing
-                    ('dfs_lvl_t_ck_0', dfs_offsets[0], '<H'),
-                    ('dfs_lvl_t_ck_1', dfs_offsets[1], '<H'),
-                    ('dfs_lvl_t_ck_2', dfs_offsets[2], '<H'),
-                    
-                    # Late fields - using ctypes struct offsets
-                    # These are STRUCT offsets (relative to 0x800 orbit config start)
-                    # Correct ctypes struct offsets:
-                    # LP4 Single: zq=0xE3, temp=0xEB, t_refipb=0xEF, t_refiab=0xF3, t_zq=0xF7, mrr=0xFF
-                    # LP4 Dual: zq=0xF3, temp=0xFB, t_refipb=0xFF, t_refiab=0x103, t_zq=0x107, mrr=0x10F
-                    # ctypes struct offsets (LP4: no lp5 header, LP5: has lp5 header)
-                    # LP4 Single: zq=0xE4, temp=0xEC, t_refipb=0xF0, t_refiab=0xF4, t_zq=0xF8, mrr=0x100
-                    # LP4 Dual: zq=0xF4, temp=0xFC, t_refipb=0x100, t_refiab=0x104, t_zq=0x108, mrr=0x110
-                    # LP5 Single: zq=0xEC, temp=0xF4, t_refipb=0xF8, t_refiab=0xFC, t_zq=0x100, mrr=0x108
-                    # LP5 Dual: zq=0xFC, temp=0x104, t_refipb=0x108, t_refiab=0x10C, t_zq=0x110, mrr=0x118
-                    ('zq_calibration_period', 
-                     0xFC if (is_lpddr5 and is_dual_channel) else 
-                     0xEC if is_lpddr5 else
-                     0xF4 if is_dual_channel else 0xE4, '<I'),
-                    ('temp_sensing_period', 
-                     0x104 if (is_lpddr5 and is_dual_channel) else
-                     0xF4 if is_lpddr5 else
-                     0xFC if is_dual_channel else 0xEC, '<I'),
-                    ('t_refipb', 
-                     0x108 if (is_lpddr5 and is_dual_channel) else
-                     0xF8 if is_lpddr5 else
-                     0x100 if is_dual_channel else 0xF0, '<I'),
-                    ('t_refiab', 
-                     0x10C if (is_lpddr5 and is_dual_channel) else
-                     0xFC if is_lpddr5 else
-                     0x104 if is_dual_channel else 0xF4, '<I'),
-                    ('t_zqcal', 
-                     0x110 if (is_lpddr5 and is_dual_channel) else
-                     0x100 if is_lpddr5 else
-                     0x108 if is_dual_channel else 0xF8, '<I'),
-                    ('mrr_byte_lane', 
-                     0x118 if (is_lpddr5 and is_dual_channel) else
-                     0x108 if is_lpddr5 else
-                     0x110 if is_dual_channel else 0x100, '<H'),
-                ]
-            
-            for field_name, field_offset, fmt in fields_to_read:
-                # All fields use orbit_offset base (0x800)
-                f.seek(orbit_offset + field_offset)
-                bytes_read = f.read(struct.calcsize(fmt))
-                if bytes_read:
-                    value = struct.unpack(fmt, bytes_read)[0]
-                    if 'dfs_lvl_t_ck' in field_name:
-                        # Only include valid values (300-5000 ps range)
-                        if 300 <= value <= 5000:
-                            if 'dfs_lvl_t_ck' not in orbit_data:
-                                orbit_data['dfs_lvl_t_ck'] = []
-                            orbit_data['dfs_lvl_t_ck'].append(value)
-                    else:
-                        orbit_data[field_name] = value
-    except Exception as e:
-        pass  # Use defaults if parsing fails
-    
-    result = {
-        'success': True,
-        'data': {
-            'file_path': file_path,
-            'file_size': file_size,
-            'dram_type': dram_type,
-            'two_channel': is_dual_channel,
-            
-            'basic': {
-                'dram_type': dram_type,
-                'phy_name': 'sphy-v9r8',
-                'dq_width': orbit_data.get('dq_width', 16),
-                'speed_bin': '4266' if dram_type == 'lpddr4' else '6400',
-                'periods': ' '.join(map(str, periods)),
-                'min_dram_tck': 314,
-                'dram_tck': orbit_data.get('dram_t_ck', periods[0] if periods else 471),
-            },
-            
-            'pipe': {
-                'cpipe_depth': orbit_data.get('cpipe_depth', 1),
-                'dpipe_depth': orbit_data.get('dpipe_depth', 1),
-                'omc_freq_ratio': orbit_data.get('omc_freq_ratio', 1 if dram_type == 'lpddr5' else 2),
-                'phy_freq_ratio': orbit_data.get('phy_freq_ratio', 1 if dram_type == 'lpddr5' else 2),
-                'wire_length': 10,
-            },
-            
-            'timing': {
-                'write_odt_upto': 1250 if dram_type == 'lpddr4' else 10000,
-                'read_dbi_upto': 10000,
-                'write_dbi_upto': 10000,
-                'read_lecc_upto': read_lecc_upto,
-                'write_lecc_upto': write_lecc_upto,
-            },
-            
-            'timing_entries': parse_timing_entries(data, dram_type),
-            
-            'orbit': {}
-        }
-    }
-    
-    # Set orbit config - use parsed values from binary
-    # Non-parseable fields (not in binary, generated at runtime):
+            display_period = t_ck
+        periods.append(display_period)
+        if len(data) >= offset + 192:
+            write_odt_flag = data[offset + 158]
+            write_dbi_flag = data[offset + 160]
+            read_dbi_flag = data[offset + 161]
+            read_link_parity = data[offset + 0x11F]
+            write_link_parity = data[offset + 0x120]
+            if write_odt_flag > 0 and t_ck > write_odt_upto:
+                write_odt_upto = t_ck
+            if write_dbi_flag > 0 and t_ck > write_dbi_upto:
+                write_dbi_upto = t_ck
+            if read_dbi_flag > 0 and t_ck > read_dbi_upto:
+                read_dbi_upto = t_ck
+            if read_link_parity > 0 and t_ck > read_lecc_upto:
+                read_lecc_upto = t_ck
+            if write_link_parity > 0 and t_ck > write_lecc_upto:
+                write_lecc_upto = t_ck
+    if not periods:
+        periods = [314, 418, 556, 2500] if is_lpddr5 else [471, 938, 1631, 2500]
+    if len(periods) == 1:
+        periods = [314, 418, 556, 2500] if is_lpddr5 else [471, 938, 1631, 2500]
+
+    # Collapse dfs_lvl_t_ck to a list of valid entries (300..5000 range).
+    dfs_list = [v for v in orbit.get('dfs_lvl_t_ck', []) if 300 <= v <= 5000]
+
     non_parseable_fields = [
         'variable-trrd', 'txsr-as-1st-ed', 'enhanced-nt-odt', 'wire-length',
         'wdqs-ctrl-mode', 'rpste-upto', 'wpste-upto', 'nt-odt-upto',
@@ -599,62 +344,96 @@ def analyze_binary_file(file_path, dram_type_override=None):
         'wck-1to4-upto', 'wck-hf-upto', 'wck-pst1-upto', 'wck-pst2-upto',
         'rdqs-pst1-upto', 'rdqs-pst2-upto',
     ]
-    
-    result['data']['orbit'] = {
-        'density': orbit_data.get('density', 16),
-        'density_code': orbit_data.get('density_code', 0),
-        'cpipe_depth': orbit_data.get('cpipe_depth', 1),
-        'dpipe_depth': orbit_data.get('dpipe_depth', 1),
-        'rank_interleaving': orbit_data.get('rank_interleaving', 1),
-        'num_rank': orbit_data.get('num_rank', 2),
-        'dfs_lvl_t_ck': orbit_data.get('dfs_lvl_t_ck', [938, 1631, 2500]),
-        'two_channel': 1 if is_dual_channel else 0,
-        'ctrl_dq_width': orbit_data.get('ctrl_dq_width', 16),
-        'dq_width': orbit_data.get('dq_width', 16),
-        'dram_t_ck': orbit_data.get('dram_t_ck', 0),
-        'rclk_t_ck': orbit_data.get('rclk_t_ck', 0),
-        'boot_t_ck': orbit_data.get('boot_t_ck', 0),
-        'reboot_with_mrw': orbit_data.get('reboot_with_mrw', 0),
-        'rfm_en': orbit_data.get('rfm_en', 0),
-        'dsm_en': orbit_data.get('dsm_en', 0),
-        'ca_odt': orbit_data.get('ca_odt', 0),
-        'eye_scan_rd_en': orbit_data.get('eye_scan_rd_en', 0),
-        'eye_scan_wr_en': orbit_data.get('eye_scan_wr_en', 0),
-        'eye_scan_prbs_rd_en': orbit_data.get('eye_scan_prbs_rd_en', 0),
-        'eye_scan_prbs_wr_en': orbit_data.get('eye_scan_prbs_wr_en', 0),
-        'init_zq_calibration': orbit_data.get('init_zq_calibration', 0),
-        'command_bus_training': orbit_data.get('command_bus_training', 0),
-        'ca_vref_training': orbit_data.get('ca_vref_training', 0),
-        'prbs_training': orbit_data.get('prbs_training', 0),
-        'reboot_with_training': orbit_data.get('reboot_with_training', 0),
-        'dfs_training': orbit_data.get('dfs_training', 0),
-        'phy_vref_trn_mode': orbit_data.get('phy_vref_trn_mode', 0),
-        'phy_duty_trn_mode': orbit_data.get('phy_duty_trn_mode', 0),
-        'dram_vref_trn_mode': orbit_data.get('dram_vref_trn_mode', 0),
-        'dram_duty_trn_mode': orbit_data.get('dram_duty_trn_mode', 0),
-        'regional_clock_gating': orbit_data.get('regional_clock_gating', 0),
-        'phy_clock_gating': orbit_data.get('phy_clock_gating', 0),
-        'dram_clock_gating': orbit_data.get('dram_clock_gating', 0),
-        'temp_sensing': orbit_data.get('temp_sensing', 0),
-        'zq_calibration': orbit_data.get('zq_calibration', 0),
-        'periodic_training': orbit_data.get('periodic_training', 0),
-        'periodic_training_period': orbit_data.get('periodic_training_period', 0),
-        'zq_calibration_period': orbit_data.get('zq_calibration_period') or 48000,
-        'temp_sensing_period': orbit_data.get('temp_sensing_period', 32000),
-        't_refiab': orbit_data.get('t_refiab', 3904000),
-        't_refipb': orbit_data.get('t_refipb', 488000),
-        't_zqcal': orbit_data.get('t_zqcal', 1000000),
-        'mrr_byte_lane': hex(orbit_data.get('mrr_byte_lane', 0x55)),
-        'phy_low_power': orbit_data.get('phy_low_power', 0),
-        'phy_idle_cnt_th': orbit_data.get('phy_idle_cnt_th', 0),
-        'dynamic_power_down': orbit_data.get('dynamic_power_down', 0),
-        'dynamic_self_refresh': orbit_data.get('dynamic_self_refresh', 0),
-        'dynamic_power_down_threshold': orbit_data.get('dynamic_power_down_threshold', 0),
-        'dynamic_self_refresh_threshold': orbit_data.get('dynamic_self_refresh_threshold', 0),
-        'non_parseable_fields': non_parseable_fields,
+
+    result = {
+        'success': True,
+        'data': {
+            'file_path': file_path,
+            'file_size': file_size,
+            'dram_type': dram_type,
+            'two_channel': bool(two_channel),
+            'basic': {
+                'dram_type': dram_type,
+                'phy_name': 'sphy-v9r8',
+                'dq_width': orbit.get('dq_width', 16),
+                'speed_bin': '4266' if dram_type == 'lpddr4' else '6400',
+                'periods': ' '.join(map(str, periods)),
+                'min_dram_tck': 314,
+                'dram_tck': orbit.get('dram_t_ck', periods[0] if periods else 471),
+            },
+            'pipe': {
+                'cpipe_depth': orbit.get('cpipe_depth', 1),
+                'dpipe_depth': orbit.get('dpipe_depth', 1),
+                'omc_freq_ratio': orbit.get('omc_freq_ratio', 1 if is_lpddr5 else 2),
+                'phy_freq_ratio': orbit.get('phy_freq_ratio', 1 if is_lpddr5 else 2),
+                'wire_length': 10,
+            },
+            'timing': {
+                'write_odt_upto': write_odt_upto or (1250 if dram_type == 'lpddr4' else 10000),
+                'read_dbi_upto': read_dbi_upto or 10000,
+                'write_dbi_upto': write_dbi_upto or 10000,
+                'read_lecc_upto': read_lecc_upto,
+                'write_lecc_upto': write_lecc_upto,
+            },
+            'timing_entries': parse_timing_entries(data, dram_type),
+            'orbit': {
+                'density': orbit.get('density', 16),
+                'density_code': orbit.get('density_code', 0),
+                'cpipe_depth': orbit.get('cpipe_depth', 1),
+                'dpipe_depth': orbit.get('dpipe_depth', 1),
+                'rank_interleaving': orbit.get('rank_interleaving', 1),
+                'num_rank': orbit.get('num_rank', 2),
+                'dfs_lvl_t_ck': dfs_list or ([1672, 2224, 5000] if is_lpddr5 else [938, 1631, 2500]),
+                'two_channel': 1 if two_channel else 0,
+                'ctrl_dq_width': orbit.get('ctrl_dq_width', 16),
+                'dq_width': orbit.get('dq_width', 16),
+                'dram_t_ck': orbit.get('dram_t_ck', 0),
+                'rclk_t_ck': orbit.get('rclk_t_ck', 0),
+                'boot_t_ck': orbit.get('boot_t_ck', 0),
+                'reboot_with_mrw': orbit.get('reboot_with_mrw', 0),
+                'rfm_en': orbit.get('rfm_en', 0),
+                'dsm_en': orbit.get('dsm_en', 0),
+                'ca_odt': orbit.get('ca_odt', 0),
+                'eye_scan_rd_en': orbit.get('eye_scan_rd_en', 0),
+                'eye_scan_wr_en': orbit.get('eye_scan_wr_en', 0),
+                'eye_scan_prbs_rd_en': orbit.get('eye_scan_prbs_rd_en', 0),
+                'eye_scan_prbs_wr_en': orbit.get('eye_scan_prbs_wr_en', 0),
+                'init_zq_calibration': orbit.get('init_zq_calibration', 0),
+                'command_bus_training': orbit.get('command_bus_training', 0),
+                'ca_vref_training': orbit.get('ca_vref_training', 0),
+                'prbs_training': orbit.get('prbs_training', 0),
+                'reboot_with_training': orbit.get('reboot_with_training', 0),
+                'dfs_training': orbit.get('dfs_training', 0),
+                'phy_vref_trn_mode': orbit.get('phy_vref_trn_mode', 0),
+                'phy_duty_trn_mode': orbit.get('phy_duty_trn_mode', 0),
+                'dram_vref_trn_mode': orbit.get('dram_vref_trn_mode', 0),
+                'dram_duty_trn_mode': orbit.get('dram_duty_trn_mode', 0),
+                'regional_clock_gating': orbit.get('regional_clock_gating', 0),
+                'phy_clock_gating': orbit.get('phy_clock_gating', 0),
+                'dram_clock_gating': orbit.get('dram_clock_gating', 0),
+                'temp_sensing': orbit.get('temp_sensing', 0),
+                'zq_calibration': orbit.get('zq_calibration', 0),
+                'periodic_training': orbit.get('periodic_training', 0),
+                'periodic_training_period': orbit.get('periodic_training_period', 0),
+                'zq_calibration_period': orbit.get('zq_calibration_period') or 48000,
+                'temp_sensing_period': orbit.get('temp_sensing_period', 32000),
+                't_refiab': orbit.get('t_refiab', 3904000),
+                't_refipb': orbit.get('t_refipb', 488000),
+                't_zqcal': orbit.get('t_zqcal', 1000000),
+                'mrr_byte_lane': hex(orbit.get('mrr_byte_lane', 0x55)),
+                'phy_low_power': orbit.get('phy_low_power', 0),
+                'phy_idle_cnt_th': orbit.get('phy_idle_cnt_th', 0),
+                'dynamic_power_down': orbit.get('dynamic_power_down', 0),
+                'dynamic_self_refresh': orbit.get('dynamic_self_refresh', 0),
+                'dynamic_power_down_threshold': orbit.get('dynamic_power_down_threshold', 0),
+                'dynamic_self_refresh_threshold': orbit.get('dynamic_self_refresh_threshold', 0),
+                'non_parseable_fields': non_parseable_fields,
+            },
+        },
     }
-    
     return result
+
+
 
 
 class DDRHandler(http.server.BaseHTTPRequestHandler):
@@ -693,7 +472,8 @@ class DDRHandler(http.server.BaseHTTPRequestHandler):
             # Build gen_timing_params command
             cmd = [sys.executable, 'gen_timing_params']
             cmd.extend(['--dram-type', params.get('dram-type', 'lpddr4')])
-            cmd.extend(['--densities', str(to_int(params.get('orbit-config-density')) or 16)])
+            # --densities is NOT set from orbit-config-density; let
+            # gen_timing_params use its default (all densities array).
             cmd.extend(['--phy-name', params.get('phy-name', 'sphy-v9r8')])
             cmd.extend(['--speed-bin', params.get('speed-bin', '4266')])
             dq_width = params.get('dq-width', '16')
@@ -820,40 +600,11 @@ class DDRHandler(http.server.BaseHTTPRequestHandler):
             if is_checked(params.get('orbit-ca-odt')):
                 cmd.extend(['--orbit-ca-odt', '1'])
             
-            # Training enable parameters (newly added CLI mappings)
-            if is_checked(params.get('eye-scan-rd-en')):
-                cmd.extend(['--orbit-eye-scan-rd-en', '1'])
-            if is_checked(params.get('eye-scan-wr-en')):
-                cmd.extend(['--orbit-eye-scan-wr-en', '1'])
-            if is_checked(params.get('eye-scan-prbs-rd-en')):
-                cmd.extend(['--orbit-eye-scan-prbs-rd-en', '1'])
-            if is_checked(params.get('eye-scan-prbs-wr-en')):
-                cmd.extend(['--orbit-eye-scan-prbs-wr-en', '1'])
-            if is_checked(params.get('phy-vref-trn-mode')):
-                cmd.extend(['--orbit-phy-vref-trn-mode', '1'])
-            if is_checked(params.get('phy-duty-trn-mode')):
-                cmd.extend(['--orbit-phy-duty-trn-mode', '1'])
-            if is_checked(params.get('dram-vref-trn-mode')):
-                cmd.extend(['--orbit-dram-vref-trn-mode', '1'])
-            if is_checked(params.get('dram-duty-trn-mode')):
-                cmd.extend(['--orbit-dram-duty-trn-mode', '1'])
-            if is_checked(params.get('command-bus-training')):
-                cmd.extend(['--orbit-command-bus-training', '1'])
-            if is_checked(params.get('ca-vref-training')):
-                cmd.extend(['--orbit-ca-vref-training', '1'])
-            if is_checked(params.get('prbs-training')):
-                cmd.extend(['--orbit-prbs-training', '1'])
-            if is_checked(params.get('reboot-with-training')):
-                cmd.extend(['--orbit-reboot-with-training', '1'])
-            if is_checked(params.get('init-zq-calibration')):
-                cmd.extend(['--orbit-init-zq-calibration', '1'])
-            if is_checked(params.get('zq-calibration')):
-                cmd.extend(['--orbit-zq-calibration', '1'])
-            if is_checked(params.get('dfs-training')):
-                cmd.extend(['--orbit-dfs-training', '1'])
-            if is_checked(params.get('phy-clock-gating')):
-                cmd.extend(['--orbit-phy-clock-gating', '1'])
-            
+            # Training enable and clock-gating flags are sent via the JSON override
+            # path below (P0-6). Do NOT emit them as individual --orbit-* CLI flags:
+            # gen_timing_params.parse_args() does not define those flags and
+            # argparse would reject the command line.
+
             # PHY idle counter threshold
             phy_idle_cnt_th = to_int(params.get('phy-idle-cnt-th'))
             if phy_idle_cnt_th is not None:
@@ -921,7 +672,8 @@ class DDRHandler(http.server.BaseHTTPRequestHandler):
                 'num_rank': to_int(params.get('orbit-num-rank')) or 2,
                 'reboot_with_mrw': 1 if is_checked(params.get('orbit-reboot-with-mrw')) else 0,
                 'rfm_en': 1 if is_checked(params.get('orbit-rfm-en')) else 0,
-                'dsm_en': 1 if is_checked(params.get('orbit-dsm-en')) else 0 if dram_type == 'lpddr4' else (1 if is_checked(params.get('orbit-dsm-en')) else 0),
+                # DSM is LPDDR5-only; always force 0 on LPDDR4.
+                'dsm_en': (1 if is_checked(params.get('orbit-dsm-en')) else 0) if dram_type == 'lpddr5' else 0,
                 'ca_odt': 1 if is_checked(params.get('orbit-ca-odt')) else 0,
                 'dynamic_power_down': 1 if is_checked(params.get('dynamic-power-down')) else 0,
                 'dynamic_power_down_threshold': to_int(params.get('dynamic-power-down-threshold')) or 0,
@@ -938,6 +690,12 @@ class DDRHandler(http.server.BaseHTTPRequestHandler):
                 'regional_clock_gating': 1 if is_checked(params.get('regional-clock-gating')) else 0,
                 'dram_clock_gating': 1 if is_checked(params.get('dram-clock-gating')) else 0,
                 'phy_low_power': 1 if is_checked(params.get('phy-low-power')) else 0,
+                'dfs_lvl_t_ck': [
+                    to_int(params.get('dfs-lvl-t-ck-0')) or (1672 if dram_type == 'lpddr5' else 938),
+                    to_int(params.get('dfs-lvl-t-ck-1')) or (2224 if dram_type == 'lpddr5' else 1631),
+                    to_int(params.get('dfs-lvl-t-ck-2')) or (5000 if dram_type == 'lpddr5' else 2500),
+                ],
+                'dq_width': to_int(params.get('dq-width')) or 16,
             }
             json_path = os.path.join(os.path.dirname(__file__), 'orbit_config_override.json')
             with open(json_path, 'w') as f:
@@ -978,7 +736,8 @@ class DDRHandler(http.server.BaseHTTPRequestHandler):
             
             file_path = params.get('file_path', 'ddr_timing_table.bin')
             dram_type_override = params.get('dram_type_override', 'auto')
-            result = analyze_binary_file(file_path, dram_type_override)
+            two_channel_override = params.get('two_channel_override', None)
+            result = analyze_binary_file(file_path, dram_type_override, two_channel_override)
             
             self.send_response(200)
             self.send_header('Content-type', 'application/json')

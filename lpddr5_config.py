@@ -194,7 +194,6 @@ class lpddr5_config(dram_config):
             self.ref.p_t_wtr_l = Timing(14 + 4*self.ref.write_lecc, 4, 0)
         else:
             self.ref.p_t_wr = Timing(34 + 4*self.ref.write_lecc, 3, 0)
-            self.ref.p_t_wtr = Timing(10, 8, 0)
             if self.ref.bg_mode:
                 self.ref.p_t_wtr = Timing(6.25 + 4*self.ref.write_lecc, 4, 0)
             else:

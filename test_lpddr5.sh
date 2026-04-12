@@ -14,7 +14,7 @@ $SRC_DIR/gen_timing_params --dram-type lpddr5 --phy-name sphy-v9r8 --speed-bin 6
                            --orbit-config-density $ORBIT_DENSITY \
                            --wire-length 10 --read-dbi-upto 10000 --write-dbi-upto 10000 --write-lecc-upto 625 --write-odt-upto 10000 \
                            --cpipe-depth 1 --dpipe-depth 1 \
-                           --omc-freq-ratio 1 --phy-freq-ratio 1 --wck-1to4-upto 625 --wck-always-on-from 0 --wck-always-on-upto 314 \
+                           --omc-freq-ratio 1 --phy-freq-ratio 1 --wck-1to4-upto 625 --wck-always-on-from 0 --wck-always-on-upto 10000 \
                            314 418 556 2500
 
 echo "3. Generate C reference binary (single channel)..."
@@ -35,7 +35,7 @@ $SRC_DIR/gen_timing_params --dram-type lpddr5 --phy-name sphy-v9r8 --speed-bin 6
                            --orbit-config-density $ORBIT_DENSITY \
                            --wire-length 10 --read-dbi-upto 10000 --write-dbi-upto 10000 --write-lecc-upto 625 --write-odt-upto 10000 \
                            --cpipe-depth 1 --dpipe-depth 1 \
-                           --omc-freq-ratio 1 --phy-freq-ratio 1 --wck-1to4-upto 625 --wck-always-on-from 0 --wck-always-on-upto 314 \
+                           --omc-freq-ratio 1 --phy-freq-ratio 1 --wck-1to4-upto 625 --wck-always-on-from 0 --wck-always-on-upto 10000 \
                            --orbit-config-use-python --orbit-byte-mode 0 --orbit-mixed 0 --orbit-rank-interleaving 1 --orbit-num-rank 2 \
                            314 418 556 2500
 
@@ -74,7 +74,7 @@ $SRC_DIR/gen_timing_params --dram-type lpddr5 --phy-name sphy-v9r8 --speed-bin 6
                            --orbit-config-density $ORBIT_DENSITY \
                            --wire-length 10 --read-dbi-upto 10000 --write-dbi-upto 10000 --write-lecc-upto 625 --write-odt-upto 10000 \
                            --cpipe-depth 1 --dpipe-depth 1 \
-                           --omc-freq-ratio 1 --phy-freq-ratio 1 --wck-1to4-upto 625 --wck-always-on-from 0 --wck-always-on-upto 314 \
+                           --omc-freq-ratio 1 --phy-freq-ratio 1 --wck-1to4-upto 625 --wck-always-on-from 0 --wck-always-on-upto 10000 \
                            314 418 556 2500
 /usr/bin/python3 ./gen_ddr_config 5 1
 if [ -f "ddr_timing_table.bin" ]; then
@@ -92,7 +92,7 @@ $SRC_DIR/gen_timing_params --dram-type lpddr5 --phy-name sphy-v9r8 --speed-bin 6
                            --orbit-config-density $ORBIT_DENSITY \
                            --wire-length 10 --read-dbi-upto 10000 --write-dbi-upto 10000 --write-lecc-upto 625 --write-odt-upto 10000 \
                            --cpipe-depth 1 --dpipe-depth 1 \
-                           --omc-freq-ratio 1 --phy-freq-ratio 1 --wck-1to4-upto 625 --wck-always-on-from 0 --wck-always-on-upto 314 \
+                           --omc-freq-ratio 1 --phy-freq-ratio 1 --wck-1to4-upto 625 --wck-always-on-from 0 --wck-always-on-upto 10000 \
                            --orbit-config-use-python --orbit-byte-mode 0 --orbit-mixed 0 --orbit-rank-interleaving 1 --orbit-num-rank 2 \
                            --two-channel \
                            314 418 556 2500
