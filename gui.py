@@ -146,18 +146,22 @@ def parse_timing_entries(data, dram_type):
     
     timing_entries = []
     
+    # LP4 common params at 0x106, LP5 at 0x13c; per-entry LP4 at 0x110, LP5 at 0x146
+    common_offset_base = 0x13c if dram_type == 'lpddr5' else 0x106
+    per_entry_base = 0x146 if dram_type == 'lpddr5' else 0x110
+
     for idx in range(num_entries):
         entry_offset = idx * entry_size
-        if entry_offset + 0x126 > len(data):
+        if entry_offset + entry_size > len(data):
             break
-        
-        # Check enable flags (OR logic)
-        write_odt = data[entry_offset + 0x10A] if entry_offset + 0x10A < len(data) else 0
-        write_dbi = data[entry_offset + 0x10C] if entry_offset + 0x10C < len(data) else 0
-        read_dbi = data[entry_offset + 0x10D] if entry_offset + 0x10D < len(data) else 0
-        read_link_parity = data[entry_offset + 0x11F] if entry_offset + 0x11F < len(data) else 0
-        write_link_parity = data[entry_offset + 0x120] if entry_offset + 0x120 < len(data) else 0
-        
+
+        # Check enable flags using correct offsets per DRAM type
+        write_odt = data[entry_offset + common_offset_base + 4] if entry_offset + common_offset_base + 4 < len(data) else 0
+        write_dbi = data[entry_offset + common_offset_base + 6] if entry_offset + common_offset_base + 6 < len(data) else 0
+        read_dbi = data[entry_offset + common_offset_base + 7] if entry_offset + common_offset_base + 7 < len(data) else 0
+        read_link_parity = data[entry_offset + per_entry_base + 15] if entry_offset + per_entry_base + 15 < len(data) else 0
+        write_link_parity = data[entry_offset + per_entry_base + 16] if entry_offset + per_entry_base + 16 < len(data) else 0
+
         if not (write_odt > 0 or write_dbi > 0 or read_dbi > 0 or read_link_parity > 0 or write_link_parity > 0):
             continue
         
@@ -299,6 +303,8 @@ def analyze_binary_file(file_path, dram_type_override=None, two_channel_override
     write_dbi_upto = 0
     is_lpddr5 = (dram_type == 'lpddr5')
     entry_size = 0x15C if is_lpddr5 else 0x128
+    # LP4 common params at 0x106, LP5 at 0x13c within each entry
+    common_off = 0x13c if is_lpddr5 else 0x106
     max_entries = 8
     for i in range(max_entries):
         offset = i * entry_size
@@ -313,12 +319,16 @@ def analyze_binary_file(file_path, dram_type_override=None, two_channel_override
         else:
             display_period = t_ck
         periods.append(display_period)
-        if len(data) >= offset + 192:
-            write_odt_flag = data[offset + 158]
-            write_dbi_flag = data[offset + 160]
-            read_dbi_flag = data[offset + 161]
-            read_link_parity = data[offset + 0x11F]
-            write_link_parity = data[offset + 0x120]
+        # write_odt is at common_off+4, write_dbi at common_off+6,
+        # read_dbi at common_off+7 within each entry
+        if len(data) >= offset + common_off + 10:
+            write_odt_flag = data[offset + common_off + 4]
+            write_dbi_flag = data[offset + common_off + 6]
+            read_dbi_flag = data[offset + common_off + 7]
+            # Per-entry params: LP4 at 0x110+15/+16, LP5 at 0x146+15/+16
+            per_entry_off = 0x146 if is_lpddr5 else 0x110
+            read_link_parity = data[offset + per_entry_off + 15] if len(data) > offset + per_entry_off + 16 else 0
+            write_link_parity = data[offset + per_entry_off + 16] if len(data) > offset + per_entry_off + 16 else 0
             if write_odt_flag > 0 and t_ck > write_odt_upto:
                 write_odt_upto = t_ck
             if write_dbi_flag > 0 and t_ck > write_dbi_upto:
@@ -329,6 +339,29 @@ def analyze_binary_file(file_path, dram_type_override=None, two_channel_override
                 read_lecc_upto = t_ck
             if write_link_parity > 0 and t_ck > write_lecc_upto:
                 write_lecc_upto = t_ck
+    # For LP5, the binary stores t_ck = tWCK * wck_ratio internally.
+    # Convert the "upto" values back to tWCK units for the GUI.
+    if is_lpddr5:
+        # Use the wck_ratio from the first valid entry (typically 4)
+        first_wck_ratio = 4
+        for i in range(max_entries):
+            off = i * entry_size
+            if off + 0x13c < len(data):
+                wr = data[off + 0x13c]
+                if wr in (2, 4):
+                    first_wck_ratio = wr
+                    break
+        if write_odt_upto > 0:
+            write_odt_upto = write_odt_upto // first_wck_ratio
+        if read_dbi_upto > 0:
+            read_dbi_upto = read_dbi_upto // first_wck_ratio
+        if write_dbi_upto > 0:
+            write_dbi_upto = write_dbi_upto // first_wck_ratio
+        if read_lecc_upto > 0:
+            read_lecc_upto = read_lecc_upto // first_wck_ratio
+        if write_lecc_upto > 0:
+            write_lecc_upto = write_lecc_upto // first_wck_ratio
+
     if not periods:
         periods = [314, 418, 556, 2500] if is_lpddr5 else [471, 938, 1631, 2500]
     if len(periods) == 1:

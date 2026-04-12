@@ -102,7 +102,7 @@
                 <div class="section-content">
                     <div class="field">
                         <label title="DRAM memory type selection">DRAM Type</label>
-                        <select name="dram-type" onchange="toggleDramOptions(); setFreqRatios(); updateDensityOptions(); updatePeriodsLabel(); updateDramTckDefault(); toggleDsmEn(); updateSpeedBin(); updateMinDramTck(); updatePeriodsFromDefaults();">
+                        <select name="dram-type" onchange="toggleDramOptions(); setFreqRatios(); updateDensityOptions(); updatePeriodsLabel(); updateDramTckDefault(); toggleDsmEn(); updateSpeedBin(); updateMinDramTck(); updatePeriodsFromDefaults(); updateFieldRanges();">
                             <option value="lpddr4">LPDDR4</option>
                             <option value="lpddr5">LPDDR5</option>
                         </select>
@@ -125,22 +125,23 @@
                         <input type="text" name="speed-bin" value="4266" onchange="updateMinDramTck();">
                     </div>
                     <div class="field">
-                        <label title="Target tCK/tWCK periods in ps for timing table generation">Periods (<span id="periods-unit">tCK</span>)</label>
+                        <label title="Target tCK/tWCK periods in ps. Max: LP4=6, LP5=5 (limited by 0x800 timing table / entry size). Range: 100-10000ps">Periods (<span id="periods-unit">tCK</span>)</label>
                         <div id="periods-container" style="display:flex; flex-direction:column; gap:4px;">
                             <!-- Dynamic periods will be added here -->
                         </div>
                         <div style="margin-top:4px;">
                             <button type="button" onclick="addPeriod()" style="padding:4px 8px; cursor:pointer;">+ Add Period</button>
+                            <span id="periods-limit-hint" style="font-size:11px; color:#888; margin-left:6px;">max 6</span>
                         </div>
                     </div>
                     <div class="field field-unit">
-                        <label title="Min tCK/tWCK in ps. Range: 200-3000ps (333-5000MHz)">Min tCK/tWCK</label>
-                        <input type="number" name="min-dram-tck" value="314" step="any">
+                        <label title="Min tCK/tWCK in ps (max operating frequency). Range: 100-5000ps">Min tCK/tWCK</label>
+                        <input type="number" name="min-dram-tck" value="314" step="1" min="100" max="5000">
                         <span class="unit-label">ps</span>
                     </div>
                     <div class="field field-unit">
-                        <label title="Base DRAM timing in ps. Range: 300-5000ps (200-3333MHz)">dram_t_ck</label>
-                        <input type="number" name="dram-tck" value="471" step="any" id="dram-tck">
+                        <label title="Base DRAM timing (tCK/tWCK) in ps. Range: 100-5000ps">dram_t_ck</label>
+                        <input type="number" name="dram-tck" value="471" step="1" min="100" max="5000" id="dram-tck">
                         <span class="unit-label">ps</span>
                     </div>
                 </div>
@@ -170,9 +171,9 @@
                         <input type="number" name="phy-freq-ratio" value="2" id="phy-freq-ratio" readonly>
                     </div>
                     <div class="field field-unit">
-                        <label title="Wire length in mil (milli-inch), not ps">wire-length</label>
-                        <input type="number" name="wire-length" value="10" step="0.1">
-                        <span class="unit-label">mil</span>
+                        <label title="PCB trace length in mil (milli-inch). Used for board delay calculation (0.07 ns/mil). Not affected by ps/MHz toggle.">wire-length</label>
+                        <input type="number" name="wire-length" value="10" step="0.1" min="0">
+                        <span class="unit-label" data-fixed-unit="mil">mil</span>
                     </div>
                 </div>
             </div>
@@ -189,28 +190,28 @@
                         <label><input type="radio" name="timing-unit" value="MHz"> MHz</label>
                     </div>
                     <div class="field field-unit">
-                        <label title="Max ps for write ODT. LPDDR4: 1250ps max, LPDDR5: 10000ps max">write-odt-upto</label>
-                        <input type="number" name="write-odt-upto" value="1250" step="any">
+                        <label title="Max tCK/tWCK (ps) to enable write ODT. LPDDR4: capped at 1249ps by spec. Range: LP4 0-1249ps, LP5 0-10000ps">write-odt-upto</label>
+                        <input type="number" name="write-odt-upto" value="1249" step="1" min="0" max="1249">
                         <span class="unit-label">ps</span>
                     </div>
                     <div class="field field-unit">
-                        <label title="Max ps for read DBI. Range: 1000-10000ps (100-1000MHz)">read-dbi-upto</label>
-                        <input type="number" name="read-dbi-upto" value="10000" step="any">
+                        <label title="Max tCK/tWCK (ps) to enable read DBI. Range: 0-10000ps">read-dbi-upto</label>
+                        <input type="number" name="read-dbi-upto" value="10000" step="1" min="0" max="10000">
                         <span class="unit-label">ps</span>
                     </div>
                     <div class="field field-unit">
-                        <label title="Max ps for write DBI. Range: 1000-10000ps (100-1000MHz)">write-dbi-upto</label>
-                        <input type="number" name="write-dbi-upto" value="10000" step="any">
+                        <label title="Max tCK/tWCK (ps) to enable write DBI. Range: 0-10000ps">write-dbi-upto</label>
+                        <input type="number" name="write-dbi-upto" value="10000" step="1" min="0" max="10000">
                         <span class="unit-label">ps</span>
                     </div>
                     <div class="field field-unit lpddr5-only">
-                        <label title="Max ps for read ECC. Range: 500-2500ps (400-2000MHz)">read-lecc-upto</label>
-                        <input type="number" name="read-lecc-upto" value="0" step="any">
+                        <label title="Max tWCK (ps) to enable read link ECC (LPDDR5 only). Range: 0-10000ps">read-lecc-upto</label>
+                        <input type="number" name="read-lecc-upto" value="0" step="1" min="0" max="10000">
                         <span class="unit-label">ps</span>
                     </div>
                     <div class="field field-unit lpddr5-only">
-                        <label title="Max ps for write ECC. Range: 500-2500ps (400-2000MHz)">write-lecc-upto</label>
-                        <input type="number" name="write-lecc-upto" value="0" step="any">
+                        <label title="Max tWCK (ps) to enable write link ECC (LPDDR5 only). Range: 0-10000ps">write-lecc-upto</label>
+                        <input type="number" name="write-lecc-upto" value="0" step="1" min="0" max="10000">
                         <span class="unit-label">ps</span>
                     </div>
                 </div>
@@ -224,17 +225,17 @@
                 </div>
                 <div class="section-content">
                     <div class="field">
-                        <label>wdqs-ctrl-mode</label>
-                        <input type="number" name="wdqs-ctrl-mode" value="1">
+                        <label title="Write DQS control mode. Range: 0-3">wdqs-ctrl-mode</label>
+                        <input type="number" name="wdqs-ctrl-mode" value="1" min="0" max="3">
                     </div>
                     <div class="field field-unit">
-                        <label title="Max tCK (ps) to enable extended read post-amble">rpste-upto</label>
-                        <input type="number" name="rpste-upto" value="625" step="any">
+                        <label title="Max tCK (ps) to enable extended read post-amble. Range: 0-10000ps">rpste-upto</label>
+                        <input type="number" name="rpste-upto" value="625" step="1" min="0" max="10000">
                         <span class="unit-label">ps</span>
                     </div>
                     <div class="field field-unit">
-                        <label title="Max tCK (ps) to enable extended write post-amble">wpste-upto</label>
-                        <input type="number" name="wpste-upto" value="625" step="any">
+                        <label title="Max tCK (ps) to enable extended write post-amble. Range: 0-10000ps">wpste-upto</label>
+                        <input type="number" name="wpste-upto" value="625" step="1" min="0" max="10000">
                         <span class="unit-label">ps</span>
                     </div>
                     <div class="field checkbox">
@@ -256,53 +257,53 @@
                 </div>
                 <div class="section-content">
                     <div class="field field-unit">
-                        <label title="Max tWCK for WCK 1:4 mode (LPDDR5). Range: 625-2500ps (400-1600MHz)">wck-1to4-upto</label>
-                        <input type="number" name="wck-1to4-upto" value="2500" step="any">
+                        <label title="Max tWCK (ps) to enable WCK 1:4 mode (LPDDR5). Range: 0-10000ps. Default: 625">wck-1to4-upto</label>
+                        <input type="number" name="wck-1to4-upto" value="2500" step="1" min="0" max="10000">
                         <span class="unit-label">ps</span>
                     </div>
                     <div class="field field-unit">
-                        <label title="Min tWCK for WCK always-on mode (LPDDR5). Range: 0-1000ps">wck-always-on-from</label>
-                        <input type="number" name="wck-always-on-from" value="10000" step="any">
+                        <label title="Min tWCK (ps) for WCK always-on window. Set from > upto to disable. Range: 0-10000ps. Default: 1 (disabled)">wck-always-on-from</label>
+                        <input type="number" name="wck-always-on-from" value="10000" step="1" min="0" max="10000">
                         <span class="unit-label">ps</span>
                     </div>
                     <div class="field field-unit">
-                        <label title="Max tWCK for WCK always-on (LPDDR5). Range: 314-1256ps (796-3185MHz)">wck-always-on-upto</label>
-                        <input type="number" name="wck-always-on-upto" value="314" step="any">
+                        <label title="Max tWCK (ps) for WCK always-on window. Set from > upto to disable. Range: 0-10000ps. Default: 0 (disabled)">wck-always-on-upto</label>
+                        <input type="number" name="wck-always-on-upto" value="314" step="1" min="0" max="10000">
                         <span class="unit-label">ps</span>
                     </div>
                     <div class="field field-unit">
-                        <label title="Max tWCK (ps) to enable NT-ODT">nt-odt-upto</label>
-                        <input type="number" name="nt-odt-upto" value="625" step="any">
+                        <label title="Max tWCK (ps) to enable NT-ODT. Range: 0-10000ps. Default: 0">nt-odt-upto</label>
+                        <input type="number" name="nt-odt-upto" value="625" step="1" min="0" max="10000">
                         <span class="unit-label">ps</span>
                     </div>
                     <div class="field field-unit">
-                        <label title="Max tWCK (ps) to enable bank-group mode">bg-mode-upto</label>
-                        <input type="number" name="bg-mode-upto" value="625" step="any">
+                        <label title="Max tWCK (ps) to enable bank-group mode. Range: 0-10000ps. Default: 625">bg-mode-upto</label>
+                        <input type="number" name="bg-mode-upto" value="625" step="1" min="0" max="10000">
                         <span class="unit-label">ps</span>
                     </div>
                     <div class="field field-unit">
-                        <label title="Max tWCK (ps) to enable WCK high-frequency mode">wck-hf-upto</label>
-                        <input type="number" name="wck-hf-upto" value="625" step="any">
+                        <label title="Max tWCK (ps) to enable WCK high-frequency mode. Range: 0-10000ps. Default: 624">wck-hf-upto</label>
+                        <input type="number" name="wck-hf-upto" value="625" step="1" min="0" max="10000">
                         <span class="unit-label">ps</span>
                     </div>
                     <div class="field field-unit">
-                        <label title="Max tWCK (ps) to set WCK PST as 4.5*tWCK">wck-pst1-upto</label>
-                        <input type="number" name="wck-pst1-upto" value="1250" step="any">
+                        <label title="Max tWCK (ps) to set WCK PST as 4.5*tWCK. Range: 0-10000ps. Default: 0">wck-pst1-upto</label>
+                        <input type="number" name="wck-pst1-upto" value="1250" step="1" min="0" max="10000">
                         <span class="unit-label">ps</span>
                     </div>
                     <div class="field field-unit">
-                        <label title="Max tWCK (ps) to set WCK PST as 6.5*tWCK">wck-pst2-upto</label>
-                        <input type="number" name="wck-pst2-upto" value="625" step="any">
+                        <label title="Max tWCK (ps) to set WCK PST as 6.5*tWCK. Range: 0-10000ps. Default: 0">wck-pst2-upto</label>
+                        <input type="number" name="wck-pst2-upto" value="625" step="1" min="0" max="10000">
                         <span class="unit-label">ps</span>
                     </div>
                     <div class="field field-unit">
-                        <label title="Max tWCK (ps) to set RDQS PST as 2.5*tWCK">rdqs-pst1-upto</label>
-                        <input type="number" name="rdqs-pst1-upto" value="1250" step="any">
+                        <label title="Max tWCK (ps) to set RDQS PST as 2.5*tWCK. Range: 0-10000ps. Default: 0">rdqs-pst1-upto</label>
+                        <input type="number" name="rdqs-pst1-upto" value="1250" step="1" min="0" max="10000">
                         <span class="unit-label">ps</span>
                     </div>
                     <div class="field field-unit">
-                        <label title="Max tWCK (ps) to set RDQS PST as 4.5*tWCK">rdqs-pst2-upto</label>
-                        <input type="number" name="rdqs-pst2-upto" value="625" step="any">
+                        <label title="Max tWCK (ps) to set RDQS PST as 4.5*tWCK. Range: 0-10000ps. Default: 0">rdqs-pst2-upto</label>
+                        <input type="number" name="rdqs-pst2-upto" value="625" step="1" min="0" max="10000">
                         <span class="unit-label">ps</span>
                     </div>
                     <div class="field checkbox">
@@ -435,18 +436,18 @@
                     <div class="subsection">
                         <div class="subsection-title">DFS Timing</div>
                         <div class="field field-unit">
-                            <label title="DFS timing level 0 in ps. Range: 500-3000ps (333-2000MHz)">dfs_lvl_t_ck[0]</label>
-                            <input type="number" name="dfs-lvl-t-ck-0" value="938" step="any" id="dfs0">
+                            <label title="DFS timing level 0 in ps. Range: 300-5000ps">dfs_lvl_t_ck[0]</label>
+                            <input type="number" name="dfs-lvl-t-ck-0" value="938" step="1" min="300" max="5000" id="dfs0">
                             <span class="unit-label">ps</span>
                         </div>
                         <div class="field field-unit">
-                            <label title="DFS timing level 1 in ps. Range: 500-3000ps (333-2000MHz)">dfs_lvl_t_ck[1]</label>
-                            <input type="number" name="dfs-lvl-t-ck-1" value="1631" step="any" id="dfs1">
+                            <label title="DFS timing level 1 in ps. Range: 300-5000ps">dfs_lvl_t_ck[1]</label>
+                            <input type="number" name="dfs-lvl-t-ck-1" value="1631" step="1" min="300" max="5000" id="dfs1">
                             <span class="unit-label">ps</span>
                         </div>
                         <div class="field field-unit">
-                            <label title="DFS timing level 2 in ps. Range: 500-5000ps (200-2000MHz)">dfs_lvl_t_ck[2]</label>
-                            <input type="number" name="dfs-lvl-t-ck-2" value="2500" step="any" id="dfs2">
+                            <label title="DFS timing level 2 in ps. Range: 300-5000ps">dfs_lvl_t_ck[2]</label>
+                            <input type="number" name="dfs-lvl-t-ck-2" value="2500" step="1" min="300" max="5000" id="dfs2">
                             <span class="unit-label">ps</span>
                         </div>
                     </div>
@@ -554,6 +555,8 @@ function updateDensityOptions() {
 function updatePeriodsLabel() {
     const dramType = document.querySelector('select[name="dram-type"]').value;
     document.getElementById('periods-unit').textContent = dramType === 'lpddr4' ? 'tCK' : 'tWCK';
+    const hint = document.getElementById('periods-limit-hint');
+    if (hint) hint.textContent = 'max ' + (dramType === 'lpddr5' ? 5 : 6);
 }
 
 function updateDramTckDefault() {
@@ -605,6 +608,46 @@ function updatePeriodsFromDefaults() {
     renderPeriodsFromString(periods.join(' '));
 }
 
+// Update HTML min/max attributes based on DRAM type.
+// Ranges derived from memcfg tables (lpddr4_config.py / lpddr5_config.py):
+//   LP4 periods/tCK: 468-5000ps  (memcfgs cover 468..99999, capped at 5000 for UI)
+//   LP5 tWCK:        235-5000ps  (min with ratio=4: ceil(938/4)=235)
+//   LP4 write-odt:   0-1249ps    (hard cap in gen_timing_params)
+//   LP5 write-odt:   0-10000ps   (no cap)
+//   DFS t_ck:        LP4 468-5000, LP5 938-5000 (internal t_ck, not tWCK)
+function updateFieldRanges() {
+    const dramType = document.querySelector('select[name="dram-type"]').value;
+    const isLp5 = (dramType === 'lpddr5');
+    const periodMin = isLp5 ? 235 : 468;
+
+    // write-odt-upto: LP4 capped at 1249
+    const odtField = document.querySelector('[name="write-odt-upto"]');
+    if (odtField) {
+        odtField.max = isLp5 ? 10000 : 1249;
+        // If switching to LP4 and value exceeds cap, clamp it
+        if (!isLp5 && parseInt(odtField.value) > 1249) {
+            odtField.value = 1249;
+        }
+    }
+
+    // DFS levels: internal t_ck (LP4 min=468, LP5 min=938)
+    const dfsMin = isLp5 ? 938 : 468;
+    document.querySelectorAll('input[name^="dfs-lvl-t-ck-"]').forEach(el => {
+        el.min = dfsMin; el.max = 5000;
+    });
+
+    // Period inputs
+    document.querySelectorAll('input[name^="periods-"]').forEach(el => {
+        el.min = periodMin; el.max = 5000;
+    });
+
+    // Update write-odt tooltip to show DRAM-type-specific cap
+    const odtLabel = document.querySelector('label[title*="write ODT"]');
+    if (odtLabel) odtLabel.title = isLp5
+        ? 'Max tWCK (ps) to enable write ODT. Range: 0-10000ps'
+        : 'Max tCK (ps) to enable write ODT. Capped at 1249ps by LPDDR4 spec. Range: 0-1249ps';
+}
+
 // Timing unit toggle (ps <-> MHz)
 function setupTimingUnitToggle() {
     const radios = document.getElementsByName('timing-unit');
@@ -615,30 +658,41 @@ function setupTimingUnitToggle() {
 
 function handleTimingUnitChange(e) {
     const isMHz = e.target.value === 'MHz';
-    
-    // Update unit labels
-    document.querySelectorAll('.unit-label').forEach(label => {
-        label.textContent = isMHz ? 'MHz' : 'ps';
-    });
-    
-    // Convert values
+
+    // Fields that use ps/MHz conversion (NOT wire-length which is in mil)
     const fieldsToConvert = [
-        'write-odt-upto', 'read-dbi-upto', 'write-dbi-upto', 
+        'write-odt-upto', 'read-dbi-upto', 'write-dbi-upto',
         'read-lecc-upto', 'write-lecc-upto',
         'wck-1to4-upto', 'wck-always-on-from', 'wck-always-on-upto',
         'dfs-lvl-t-ck-0', 'dfs-lvl-t-ck-1', 'dfs-lvl-t-ck-2',
         'dram-tck', 'min-dram-tck',
-        'periods-0', 'periods-1', 'periods-2', 'periods-3',
         // LPDDR4 timing options
         'rpste-upto', 'wpste-upto',
         // LPDDR5 timing options
-        'nt-odt-upto', 'bg-mode-upto', 'wck-hf-upto', 
+        'nt-odt-upto', 'bg-mode-upto', 'wck-hf-upto',
         'wck-pst1-upto', 'wck-pst2-upto', 'rdqs-pst1-upto', 'rdqs-pst2-upto'
     ];
-    
+
+    // Update unit labels only for fields that are ps-based (not wire-length)
     fieldsToConvert.forEach(name => {
         const field = document.querySelector(`[name="${name}"]`);
-        if (field && field.value) {
+        if (field) {
+            const unitLabel = field.parentElement.querySelector('.unit-label');
+            if (unitLabel) unitLabel.textContent = isMHz ? 'MHz' : 'ps';
+            if (field.value) {
+                const val = parseFloat(field.value);
+                if (!isNaN(val) && val > 0) {
+                    field.value = isMHz ? psToMHz(val) : MHzToPs(val);
+                }
+            }
+        }
+    });
+
+    // Also convert dynamic period inputs
+    document.querySelectorAll('#periods-container input[name^="periods-"]').forEach(field => {
+        const unitLabel = field.parentElement.querySelector('.unit-label');
+        if (unitLabel) unitLabel.textContent = isMHz ? 'MHz' : 'ps';
+        if (field.value) {
             const val = parseFloat(field.value);
             if (!isNaN(val) && val > 0) {
                 field.value = isMHz ? psToMHz(val) : MHzToPs(val);
@@ -661,15 +715,24 @@ function renderPeriods() {
 function renderPeriodsFromString(periodsStr) {
     // periodsStr is space-separated: "471 938 1631 2500"
     const periods = periodsStr.split(' ').filter(v => v.trim());
+    const maxPeriods = getMaxPeriods();
+    const limited = periods.slice(0, maxPeriods);
     const container = document.getElementById('periods-container');
     container.innerHTML = '';
-    periods.forEach((val, idx) => {
+    limited.forEach((val, idx) => {
         addPeriodInput(val, idx);
     });
 }
 
+function getPeriodMin() {
+    const dramType = document.querySelector('select[name="dram-type"]').value;
+    // LP4 memcfg min t_ck = 468ps; LP5 min tWCK = ceil(938/4) = 235ps
+    return dramType === 'lpddr5' ? 235 : 468;
+}
+
 function addPeriodInput(value, index) {
     const container = document.getElementById('periods-container');
+    const pMin = getPeriodMin();
     const div = document.createElement('div');
     div.style.display = 'flex';
     div.style.alignItems = 'center';
@@ -677,24 +740,37 @@ function addPeriodInput(value, index) {
     div.style.marginBottom = '4px';
     div.dataset.index = index;
     div.innerHTML = `
-        <input type="number" name="periods-${index}" value="${value}" step="any" style="flex:1;">
+        <input type="number" name="periods-${index}" value="${value}" step="1" min="${pMin}" max="5000" style="flex:1;">
         <span class="unit-label">ps</span>
         <button type="button" onclick="removePeriod(this)" style="padding:4px 8px; cursor:pointer; color:red;">x</button>
     `;
     container.appendChild(div);
 }
 
+function getMaxPeriods() {
+    const dramType = document.querySelector('select[name="dram-type"]').value;
+    // LP4 entry=0x128(296B), LP5 entry=0x15C(348B); timing table region=0x800(2048B)
+    return dramType === 'lpddr5' ? 5 : 6;
+}
+
 function addPeriod() {
     const container = document.getElementById('periods-container');
     const count = container.querySelectorAll('div').length;
+    const maxPeriods = getMaxPeriods();
+    if (count >= maxPeriods) {
+        const dramType = document.querySelector('select[name="dram-type"]').value;
+        alert(`Maximum ${maxPeriods} periods for ${dramType.toUpperCase()} (limited by 0x800 timing table region / entry size)`);
+        return;
+    }
     const newDiv = document.createElement('div');
     newDiv.style.display = 'flex';
     newDiv.style.alignItems = 'center';
     newDiv.style.gap = '4px';
     newDiv.style.marginBottom = '4px';
     newDiv.dataset.index = count;
+    const pMin = getPeriodMin();
     newDiv.innerHTML = `
-        <input type="number" name="periods-${count}" value="2500" step="any" style="flex:1;">
+        <input type="number" name="periods-${count}" value="2500" step="1" min="${pMin}" max="5000" style="flex:1;">
         <span class="unit-label">ps</span>
         <button type="button" onclick="removePeriod(this)" style="padding:4px 8px; cursor:pointer; color:red;">x</button>
     `;
@@ -1284,53 +1360,105 @@ function validateTimingRanges() {
     const isMhz = timingUnit === 'MHz';
     const errors = [];
     
-    // Valid ranges for timing fields (in ps)
+    // Valid ranges derived from memcfg tables in lpddr4_config.py / lpddr5_config.py
+    // and argparse constraints in gen_timing_params.
+    //
+    // Period ranges (fed to search_memcfgs → crash if out of range):
+    //   LP4: memcfgs cover t_ck 468..99999 ps (practical max 5000)
+    //   LP5: user enters tWCK; internal t_ck = tWCK * wck_ratio
+    //        ratio=4 (wck_1to4): t_ck 938..19999 → tWCK 235..4999
+    //        ratio=2:            t_ck 1250..9999  → tWCK 625..4999
+    //        Conservative min for LP5 = 235 (covers both ratios)
+    //
+    // dram-tck / min-dram-tck: stored in orbit_config / used for PHY config,
+    //   NOT fed to search_memcfgs. Use 100-5000 as reasonable UI guard.
+    //
+    // "upto"/"from" fields: simple >= comparisons, no argparse constraint.
+    // Only LP4 write-odt-upto is hard-capped at 1249 (gen_timing_params line 786).
+    const isLp5 = (dramType === 'lpddr5');
+    const periodMin = isLp5 ? 235 : 468;
+    const periodMax = 5000;
+
     const timingRanges = {
-        'dram-tck': { min: 300, max: 5000 },
-        'min-dram-tck': { min: 200, max: 3000 },
-        'write-odt-upto': { min: 1250, max: 10000, lpddr4_max: 1250 },
-        'read-dbi-upto': { min: 1000, max: 10000 },
-        'write-dbi-upto': { min: 1000, max: 10000 },
+        'dram-tck':       { min: 100, max: 5000 },
+        'min-dram-tck':   { min: 100, max: 5000 },
+        'write-odt-upto': { min: 0, max: isLp5 ? 10000 : 1249 },
+        'read-dbi-upto':  { min: 0, max: 10000 },
+        'write-dbi-upto': { min: 0, max: 10000 },
+        'read-lecc-upto': { min: 0, max: 10000 },
+        'write-lecc-upto':{ min: 0, max: 10000 },
+        'rpste-upto':     { min: 0, max: 10000 },
+        'wpste-upto':     { min: 0, max: 10000 },
     };
-    
+
     // Add LPDDR5-specific fields
-    if (dramType === 'lpddr5') {
-        timingRanges['wck-1to4-upto'] = { min: 625, max: 2500 };
-        timingRanges['wck-always-on-upto'] = { min: 314, max: 1256 };
+    if (isLp5) {
+        timingRanges['wck-1to4-upto'] = { min: 0, max: 10000 };
+        timingRanges['wck-always-on-from'] = { min: 0, max: 10000 };
+        timingRanges['wck-always-on-upto'] = { min: 0, max: 10000 };
+        timingRanges['nt-odt-upto'] = { min: 0, max: 10000 };
+        timingRanges['bg-mode-upto'] = { min: 0, max: 10000 };
+        timingRanges['wck-hf-upto'] = { min: 0, max: 10000 };
+        timingRanges['wck-pst1-upto'] = { min: 0, max: 10000 };
+        timingRanges['wck-pst2-upto'] = { min: 0, max: 10000 };
+        timingRanges['rdqs-pst1-upto'] = { min: 0, max: 10000 };
+        timingRanges['rdqs-pst2-upto'] = { min: 0, max: 10000 };
     }
-    
+
     for (const [fieldName, range] of Object.entries(timingRanges)) {
         const field = document.querySelector(`[name="${fieldName}"]`);
         if (!field || !field.value) continue;
-        
-        // Skip LECC validation (no range limits)
-        if (fieldName === 'read-lecc-upto' || fieldName === 'write-lecc-upto') {
-            continue;
-        }
-        
+
         let val = parseInt(field.value);
         if (isNaN(val)) continue;
-        
+
         let min = range.min;
         let max = range.max;
-        
-        // LPDDR4 specific limit for write-odt-upto
-        if (fieldName === 'write-odt-upto' && dramType === 'lpddr4') {
-            max = range.lpddr4_max;
-        }
-        
+
         // Convert MHz to ps for validation
         if (isMhz && val > 0 && (fieldName.includes('-upto') || fieldName.includes('-from') || fieldName === 'dram-tck' || fieldName === 'min-dram-tck')) {
             val = Math.round(1000000 / val);
         }
-        
+
         if (val < min || val > max) {
-            errors.push(`${fieldName}: ${val} (valid: ${min}-${max}ps)`);
+            const display = isMhz ? `${field.value}MHz = ${val}ps` : `${val}ps`;
+            errors.push(`${fieldName}: ${display} (valid: ${min}-${max}ps)`);
             field.style.borderColor = 'red';
         } else {
             field.style.borderColor = '';
         }
     }
+
+    // Validate DFS level tCK fields (internal t_ck, not tWCK)
+    // LP4 memcfgs: t_ck 468..5000 (practical), LP5 memcfgs: t_ck 938..5000
+    const dfsMin = isLp5 ? 938 : 468;
+    const dfsMax = 5000;
+    document.querySelectorAll('input[name^="dfs-lvl-t-ck-"]').forEach(field => {
+        if (!field.value || field.offsetParent === null) return;
+        let val = parseInt(field.value);
+        if (isNaN(val)) return;
+        if (isMhz && val > 0) val = Math.round(1000000 / val);
+        if (val < dfsMin || val > dfsMax) {
+            errors.push(`${field.name}: ${val}ps (valid: ${dfsMin}-${dfsMax}ps)`);
+            field.style.borderColor = 'red';
+        } else {
+            field.style.borderColor = '';
+        }
+    });
+
+    // Validate period inputs (tCK for LP4, tWCK for LP5 — same as dram-tck)
+    document.querySelectorAll('input[name^="periods-"]').forEach(field => {
+        if (!field.value || field.offsetParent === null) return;
+        let val = parseInt(field.value);
+        if (isNaN(val)) return;
+        if (isMhz && val > 0) val = Math.round(1000000 / val);
+        if (val < periodMin || val > periodMax) {
+            errors.push(`${field.name}: ${val}ps (valid: ${periodMin}-${periodMax}ps)`);
+            field.style.borderColor = 'red';
+        } else {
+            field.style.borderColor = '';
+        }
+    });
     
     // Validate density
     const densityField = document.querySelector('input[name="orbit-config-density"]');
@@ -1461,21 +1589,38 @@ function loadJson() {
             for (let key in params) {
                 const field = document.querySelector(`[name="${key}"]`);
                 if (field) {
-                    if (field.type === 'checkbox') field.checked = params[key] === 'true';
-                    else field.value = params[key];
+                    if (field.type === 'checkbox') {
+                        // Support both '1'/'0' (saveJson format) and 'true'/'false'
+                        field.checked = (params[key] === '1' || params[key] === 'true' || params[key] === true);
+                    } else {
+                        field.value = params[key];
+                    }
                 }
             }
             if (params.periods) {
                 renderPeriodsFromString(params.periods);
             }
+            // Re-run all UI toggles so conditional fields reflect loaded state
             toggleDramOptions();
             setFreqRatios();
             updateDensityOptions();
+            updatePeriodsLabel();
+            toggleDsmEn();
+            updateMrrByteLane();
+            togglePeriodicTraining();
+            toggleTempSensing();
+            toggleZqCalibration();
+            toggleRankInterleaving();
+            togglePhyLowPower();
+            toggleDynamicPowerDown();
+            toggleDynamicSelfRefresh();
             document.getElementById('status').className = 'status success';
             document.getElementById('status').innerHTML = 'Configuration loaded!';
             document.getElementById('status').style.display = 'block';
         } catch (e) {
-            alert('Error loading JSON: ' + e.message);
+            document.getElementById('status').className = 'status error';
+            document.getElementById('status').innerHTML = 'Error loading JSON: ' + e.message;
+            document.getElementById('status').style.display = 'block';
         }
     };
     input.click();
@@ -1485,6 +1630,7 @@ function loadJson() {
 updateMrrByteLane();
 renderPeriods();
 setupTimingUnitToggle();
+updateFieldRanges();
 togglePeriodicTraining();
 toggleTempSensing();
 toggleZqCalibration();
