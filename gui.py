@@ -165,9 +165,11 @@ def parse_timing_entries(data, dram_type):
         if not (write_odt > 0 or write_dbi > 0 or read_dbi > 0 or read_link_parity > 0 or write_link_parity > 0):
             continue
         
-        # Validate t_ck range (must be between 100-10000 ps for valid entry)
+        # Validate t_ck range — binary stores internal tCK which is
+        # tWCK * data_freq_ratio for LP5.  Memcfg tables go up to 20000ps
+        # (LP5 4:1) / 10000ps (LP5 2:1) / 5000ps (LP4).
         t_ck = struct.unpack('<I', data[entry_offset+0x04:entry_offset+0x08])[0]
-        if not (100 < t_ck < 10000):
+        if not (100 < t_ck <= 20000):
             continue
         
         # LP5 has different entry structure than LP4 - use LP5-specific offsets
@@ -311,7 +313,9 @@ def analyze_binary_file(file_path, dram_type_override=None, two_channel_override
         if offset + 8 > len(data):
             break
         t_ck = struct.unpack('<I', data[offset+4:offset+8])[0]
-        if not (300 <= t_ck <= 5000):
+        # Binary stores internal tCK (= tWCK * wck_ratio for LP5).
+        # LP5 4:1 memcfgs go up to 20000ps internal tCK.
+        if not (100 < t_ck <= 20000):
             continue
         if is_lpddr5:
             wck_ratio = data[offset + 0x13c] if offset + 0x13c < len(data) else 4

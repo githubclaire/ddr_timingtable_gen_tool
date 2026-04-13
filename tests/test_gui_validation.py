@@ -209,7 +209,7 @@ class TestGuiHtmlValidation(unittest.TestCase):
 
     # Bug 2: wire-length has fixed-unit marker
     def test_wire_length_fixed_unit(self):
-        self.assertIn('data-fixed-unit="mil"', self.html)
+        self.assertIn('data-fixed-unit="cm"', self.html)
 
     # Bug 3: HTML min/max on upto fields
     def test_upto_fields_have_min_max(self):

@@ -65,4 +65,4 @@ LP5 binary stores internal `t_ck = tWCK * wck_ratio`. The GUI uses tWCK units. A
 
 ### Wire-Length Unit
 
-Wire-length is in mil (milli-inch), not ps/MHz. It must never be affected by the timing unit toggle. The unit label has `data-fixed-unit="mil"` to prevent accidental conversion.
+Wire-length is in cm (centimeter), not ps/MHz. It must never be affected by the timing unit toggle. The unit label has `data-fixed-unit="cm"` to prevent accidental conversion.
