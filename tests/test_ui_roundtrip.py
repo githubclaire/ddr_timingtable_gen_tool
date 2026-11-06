@@ -412,8 +412,8 @@ class TimingFlagsRoundTrip(unittest.TestCase):
         thresholds = {
             'wck-1to4-upto': 625,
             'wck-hf-upto': 938,
-            'wck-always-on-from': 0,
-            'wck-always-on-upto': 3000,
+            'wck-always-on-from': 1000,
+            'wck-always-on-upto': 625,
         }
         p = base_params('lpddr5')
         p['periods'] = '625 938 2500'
@@ -425,8 +425,11 @@ class TimingFlagsRoundTrip(unittest.TestCase):
             self.assertEqual(entry['wck_ratio'], expected_ratio)
             self.assertEqual(entry['wck_fm'],
                              1 if thresholds['wck-hf-upto'] >= tck else 0)
-            expected_on = (thresholds['wck-always-on-from'] <= tck
-                           <= thresholds['wck-always-on-upto'])
+            from_eff = (1000000 if thresholds['wck-always-on-from'] == 0
+                        else thresholds['wck-always-on-from'])
+            upto_eff = (1000000 if thresholds['wck-always-on-upto'] == 0
+                        else thresholds['wck-always-on-upto'])
+            expected_on = from_eff >= tck and upto_eff <= tck
             self.assertEqual(bool(entry['wck_on']), expected_on)
 
 

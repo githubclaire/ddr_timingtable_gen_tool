@@ -28,7 +28,7 @@ class DefaultsAndOverrides(unittest.TestCase):
         self.assertEqual(cfg.timingtable_size, 4)
         self.assertEqual(list(cfg.dfs_lvl_t_ck), [1428, 1672, 2512])
         self.assertEqual(cfg.density, 16)
-        self.assertEqual(cfg.density_code, 7)
+        self.assertEqual(cfg.density_code, 7)  # LP5 positional == canonical
         self.assertEqual(cfg.num_rank, 1)
         self.assertEqual(cfg.phy_odt, 5)
         self.assertEqual(cfg.link_err_cnt_th, 2)
@@ -40,6 +40,8 @@ class DefaultsAndOverrides(unittest.TestCase):
     def test_lp4_defaults(self):
         cfg = create_orbit_config('lpddr4', False)
         ddr_config_init(cfg, dram_type='lpddr4', density=8)
+        # Original SCP toolchain positional mapping: [2,3,4,6,8,12,16]
+        self.assertEqual(cfg.density_code, 4)
         self.assertEqual(cfg.dram_t_ck, 471)
         self.assertEqual(cfg.bg_intr_size, 0)
         self.assertEqual(cfg.link_err_cnt_th, 0)

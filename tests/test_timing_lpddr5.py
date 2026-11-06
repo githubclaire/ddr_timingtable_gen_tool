@@ -35,7 +35,7 @@ LP5_ARGS = [
 ]
 
 LP5_EXPECTED_SHA256 = \
-    "8c86e4edde58decc6a1d0f1cad8276cbca693e6f81efe179ccba820220fab031"
+    "4f08f34b95438fccb2c60595618bf10f6feed0ab959af791721793e2a0638e66"
 LP5_ENTRY_SIZE = 0x15C
 # t_ck is stored in hardware units (not the CLI period — LP5 converts);
 # these are the values actually written to each entry's +0x4 slot.

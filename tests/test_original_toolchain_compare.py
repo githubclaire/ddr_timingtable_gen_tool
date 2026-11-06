@@ -5,17 +5,7 @@ updated generator reproduce the GUI image byte-for-byte.  This test goes one
 step further and runs the original toolchain checked into
 ``arise2/toolchains/ddr_timingtable_gen_tool`` (the code the current SCP build
 actually invokes), assembles its 4 KiB image exactly like ``build/scp.mk``,
-and compares it field-by-field with the GUI output.
-
-Two intentional fixes in this repository are tolerated, and nothing else:
-
-  * LPDDR5 ``wck_on`` / ``timing_param[16]``: the original toolchain's
-    always-on window comparison is inverted; this repo uses the documented
-    [from, upto] window.
-  * LPDDR4 ``density_code``: the original toolchain assigns positional codes
-    (16 Gb -> 6); this repo uses the canonical SCP mapping (16 Gb -> 7).
-
-Any other difference fails the test.
+and compares it byte-for-byte with the GUI output.
 """
 import ctypes
 import os
@@ -118,31 +108,17 @@ class OriginalToolchainCompare(unittest.TestCase):
             if issubclass(ftype, ctypes.Array):
                 continue
             av, bv = getattr(a_cfg, name), getattr(b_cfg, name)
-            if name == 'density_code' and dt == 'lpddr4':
-                # Original positional code (16 Gb -> 6) vs canonical (7).
-                self.assertIn((av, bv), [(6, 7), (5, 6), (4, 5), (3, 4),
-                                         (2, 3), (1, 2), (0, 1)])
-                continue
             self.assertEqual(av, bv, 'orbit field %s differs' % name)
 
-        # Timing entries: every field must match except the documented WCK
-        # window fix (wck_on and timing_param[16] which carries wck_mode).
+        # Timing entries: every field must match.
         a_entries = ref.parse_reference(original, dt)
         b_entries = ref.parse_reference(updated, dt)
         self.assertEqual(len(a_entries), len(b_entries))
+        self.assertEqual(original, updated, '4 KiB images differ')
         for idx, ((_, ea), (_, eb)) in enumerate(zip(a_entries, b_entries)):
             for name in ref.SCALAR_FIELDS:
                 av = _scalar(getattr(ea, name))
                 bv = _scalar(getattr(eb, name))
-                if dt == 'lpddr5' and name == 'wck_on':
-                    continue
-                if dt == 'lpddr5' and name == 'timing_param':
-                    # Compare all 21 words except index 16 (wck_mode).
-                    for i, (x, y) in enumerate(zip(av, bv)):
-                        if i != 16:
-                            self.assertEqual(x, y,
-                                             'entry %d timing_param[%d]' % (idx, i))
-                    continue
                 self.assertEqual(av, bv,
                                  'entry %d field %s' % (idx, name))
 

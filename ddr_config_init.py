@@ -13,7 +13,7 @@ enforces this.
 import ctypes
 
 from orbit_config import (
-    orbit_config, chip_config, get_density_code, create_orbit_config,
+    orbit_config, chip_config, create_orbit_config,
     DRAM0_BASE, DRAM0_SIZE, DRAM1_BASE, DRAM1_SIZE,
     OMC_REGISTER_BASE0_0, OMC_REGISTER_BASE0_1,
     OMC_REGISTER_BASE1_0, OMC_REGISTER_BASE1_1,
@@ -32,6 +32,20 @@ LP5_T_CK_SETS = {
     '6400': (1256, 1428, 1672, 2512),   # 6368/5600/4800/3200 MT/s
 }
 LP4_T_CK_SET = (471, 938, 1631, 2500)
+
+# Positional density-code tables used by the original SCP toolchain.
+# LPDDR4 16 Gb is code 6 (not the canonical 7).
+BUILD_DENSITIES = {
+    'lpddr4': (2, 3, 4, 6, 8, 12, 16),
+    'lpddr5': (1, 2, 3, 4, 6, 8, 12, 16, 24, 32),
+}
+
+
+def get_build_density_code(density, dram_type):
+    try:
+        return BUILD_DENSITIES[dram_type].index(density)
+    except ValueError:
+        return 0
 
 
 def safe_setattr(cfg, name, value):
@@ -114,7 +128,7 @@ def ddr_config_init(cfg, dram_type='lpddr5', two_channel=False, density=16,
     if 'density_code' in kwargs:
         cfg.density_code = int(kwargs['density_code'])
     else:
-        cfg.density_code = get_density_code(cfg.density)
+        cfg.density_code = get_build_density_code(cfg.density, dram_type)
 
     # --- Training control (modified defaults in current firmware) ----------
     cfg.initial_training = kwargs.get('initial_training', 1)

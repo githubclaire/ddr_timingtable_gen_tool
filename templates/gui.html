@@ -1224,14 +1224,14 @@
                                 <span class="field-error-msg"></span>
                             </div>
                             <div class="field field-unit lp5-field" style="display:none;">
-                                <label title="Min tWCK (ps) for WCK always-on. Range: 0-10000ps">WCK Always-On From <span class="param-name">(wck-always-on-from)</span></label>
+                                <label title="Upper tWCK bound for WCK always-on (0 = unbounded). Effective range is [upto, from].">WCK Always-On From / Upper <span class="param-name">(wck-always-on-from)</span></label>
                                 <input type="number" name="wck-always-on-from" value="0" step="1" min="0" max="10000">
                                 <span class="unit-label">ps</span>
                                 <span class="dual-readout" id="wck-always-on-from-readout"></span>
                                 <span class="field-error-msg"></span>
                             </div>
                             <div class="field field-unit lp5-field" style="display:none;">
-                                <label title="Max tWCK (ps) for WCK always-on. Range: 0-10000ps">WCK Always-On Upto <span class="param-name">(wck-always-on-upto)</span></label>
+                                <label title="Lower tWCK bound for WCK always-on (0 = unbounded). Effective range is [upto, from].">WCK Always-On Upto / Lower <span class="param-name">(wck-always-on-upto)</span></label>
                                 <input type="number" name="wck-always-on-upto" value="5000" step="1" min="0" max="10000">
                                 <span class="unit-label">ps</span>
                                 <span class="dual-readout" id="wck-always-on-upto-readout"></span>
@@ -1398,8 +1398,9 @@
                 <h3>Understanding "upto" and "from" Fields</h3>
                 <p>Most timing threshold fields use <strong>upto</strong> semantics: the feature is enabled when the current period &le; the upto value
                    (i.e., at frequencies <em>higher</em> than 1/upto). A larger upto value enables the feature across more (slower) frequencies.</p>
-                <p style="margin-top:6px;"><strong>WCK Always-On</strong> uses a <strong>window</strong>: enabled when <code>from &le; period &le; upto</code>.
-                   Setting from &gt; upto disables it entirely.</p>
+                <p style="margin-top:6px;"><strong>WCK Always-On</strong> matches the SCP toolchain:
+                   enabled when <code>upto &le; period &le; from</code>, with <code>0</code> meaning unbounded.
+                   For the build default <code>from=0, upto=630</code>, it is enabled for periods &ge; 630 ps.</p>
             </div>
         </div>
     </div>
@@ -1693,10 +1694,10 @@ function updateFieldRanges() {
         if (rdqsPst2Label) rdqsPst2Label.title = 'Max tWCK (ps) to set RDQS PST as 4.5*tWCK. Must be <= rdqs-pst1-upto. Range: 0-10000ps';
 
         // Update WCK always-on tooltip with SPHY-V9R8 constraint note
-        const aoFromLabel = document.querySelector('label[title*="Min tWCK"][title*="always-on"]');
-        if (aoFromLabel) aoFromLabel.title = 'Min tWCK (ps) for WCK always-on window. SPHY-V9R8 requires always-on for tWCK >= 1250 (1:4) or >= 1836 (1:2). Range: 0-10000ps';
-        const aoUptoLabel = document.querySelector('label[title*="Max tWCK"][title*="always-on"]');
-        if (aoUptoLabel) aoUptoLabel.title = 'Max tWCK (ps) for WCK always-on window. SPHY-V9R8 requires always-on for tWCK >= 1250 (1:4) or >= 1836 (1:2). Range: 0-10000ps';
+        const aoFromLabel = document.querySelector('label[title*="Upper tWCK"][title*="always-on"]');
+        if (aoFromLabel) aoFromLabel.title = 'Upper tWCK bound for WCK always-on (0 = unbounded); enabled when upto <= period <= from. Matches the SCP toolchain.';
+        const aoUptoLabel = document.querySelector('label[title*="Lower tWCK"][title*="always-on"]');
+        if (aoUptoLabel) aoUptoLabel.title = 'Lower tWCK bound for WCK always-on (0 = unbounded); enabled when upto <= period <= from. Matches the SCP toolchain.';
     }
 }
 
@@ -2542,7 +2543,9 @@ function validateTimingRanges() {
                 const wck1to4 = wck1to4Upto >= tck;
                 const threshold = wck1to4 ? 1250 : 1836;
                 if (tck >= threshold) {
-                    const wckAlwaysOn = (wckAoFrom <= tck && tck <= wckAoUpto);
+                    const fromEff = (wckAoFrom === 0) ? 1000000 : wckAoFrom;
+                const uptoEff = (wckAoUpto === 0) ? 1000000 : wckAoUpto;
+                const wckAlwaysOn = (fromEff >= tck && uptoEff <= tck);
                     if (!wckAlwaysOn) {
                         const mode = wck1to4 ? 'WCK 1:4' : 'WCK 1:2';
                         errors.push(`${field.name}: ${tck}ps >= ${threshold}ps (${mode}) requires WCK always-on (set wck-always-on-from/upto to cover this period)`);

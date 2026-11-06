@@ -610,13 +610,13 @@ class TestWckAlwaysOnConstraint(unittest.TestCase):
             "--wire-length", "10",
             "--orbit-config-density", "8",
             "--wck-1to4-upto", "2500",
-            "--wck-always-on-from", "1250", "--wck-always-on-upto", "2500",
+            "--wck-always-on-from", "2500", "--wck-always-on-upto", "1250",
             "--orbit-config-use-python",
             "314", "2500",
         ]
         result = subprocess.run(args, capture_output=True, text=True, cwd=ROOT)
         self.assertEqual(result.returncode, 0,
-                         f"Should succeed with valid WCK always-on window.\n"
+                         f"Should succeed with valid WCK always-on range [upto, from].\n"
                          f"stderr: {result.stderr}")
 
 

@@ -152,10 +152,15 @@ class GenTimingParam():
             self.bg_mode = self.args.bg_mode_upto >= t_ck
             self.wck_1to4 = self.args.wck_1to4_upto >= t_ck
             self.wck_hf = self.args.wck_hf_upto >= t_ck
-            # wck_always_on is enabled when the current period t_ck falls inside the
-            # user-specified window [wck_always_on_from, wck_always_on_upto].
-            # A window where from > upto (default: from=1, upto=0) unambiguously disables it.
-            self.wck_always_on = (self.args.wck_always_on_from <= t_ck <= self.args.wck_always_on_upto)
+            # Keep byte-parity with the original SCP toolchain: 0 means
+            # "unbounded" (1e6), and the effective enabled range is
+            # [wck_always_on_upto, wck_always_on_from].
+            wck_always_on_from = (1000000 if self.args.wck_always_on_from == 0
+                                  else self.args.wck_always_on_from)
+            wck_always_on_upto = (1000000 if self.args.wck_always_on_upto == 0
+                                  else self.args.wck_always_on_upto)
+            self.wck_always_on = (wck_always_on_from >= t_ck
+                                  and wck_always_on_upto <= t_ck)
             self.emulation = self.args.emulation
             if self.args.wck_pst2_upto >= t_ck:
                 self.wck_pst = 2
@@ -570,34 +575,17 @@ class GenTimingParam():
         else:
             orbit_config_density = 16
         
-        # Fixed density code mapping based on density value (not position)
-        # This matches the C implementation's get_density_code mapping
-        density_code_mapping = {
-            1: 0,
-            2: 1,
-            3: 2,
-            4: 3,
-            6: 4,
-            8: 5,
-            12: 6,
-            16: 7,
-            24: 8,
-            32: 9,
-        }
-        
-        # Collect all unique densities needed for the mapping
-        orbit_densities = set(self.densities)
-        orbit_densities.add(orbit_config_density)
-        orbit_densities.add(16)  # Ensure 16 is always in mapping per customer spec
-        orbit_densities = sorted(list(orbit_densities))
-        
+        # Positional density-code mapping, matching the original SCP
+        # toolchain: DENSITY_<d> is the index in self.densities.  LPDDR4's
+        # 16 Gb is therefore code 6 (not the canonical 7).
+        orbit_densities = list(self.densities)
+
         with open('orbit_init_gen.h', 'w') as f:
             f.write('#ifndef __ORBIT_INIT_GEN__\n')
             f.write('#define __ORBIT_INIT_GEN__\n')
             f.write('\n')
-            for d in orbit_densities:
-                code = density_code_mapping.get(d, 0)
-                f.write('#define DENSITY_{:d}    {:d}\n'.format(d, code))
+            for idx, d in enumerate(orbit_densities):
+                f.write('#define DENSITY_{:d}    {:d}\n'.format(d, idx))
             # Add DEFAULT_DENSITY macro
             f.write('#define DEFAULT_DENSITY    {:d}\n'.format(orbit_config_density))
             # Thread orbit byte_mode / mixed through to the C path so that
@@ -606,25 +594,24 @@ class GenTimingParam():
             f.write('#define ORBIT_BYTE_MODE    {:d}\n'.format(int(self.args.orbit_byte_mode)))
             f.write('#define ORBIT_MIXED        {:d}\n'.format(int(self.args.orbit_mixed)))
             f.write('typedef unsigned int omc_dram_density_t;\n')
-            
+
             f.write('\n#ifdef _ORBIT_GET_DENSITY_\n')
             f.write('\nomc_dram_density_t get_density_code(unsigned int density) {\n')
             f.write('  switch (density) {\n')
             f.write('\n'.join(['    case {d:d}: return DENSITY_{d:d};'.format(d=d) for d in orbit_densities]))
-            f.write('\n    default: /* add error handling code */ return DENSITY_{:d};\n'.format(orbit_config_density))
+            f.write('\n    default: /* add error handling code */ return DENSITY_{:d};\n'.format(orbit_densities[0]))
             f.write('  }\n')
             f.write('}\n')
             f.write('#endif\n')
             f.write('#endif\n')
 
         print("\n=== Supported Densities and Density Codes ===")
-        for d in orbit_densities:
-            code = density_code_mapping.get(d, 0)
-            print(f"  Density {d:2d} Gb -> density_code {code}")
+        for idx, d in enumerate(orbit_densities):
+            print(f"  Density {d:2d} Gb -> density_code {idx}")
         print("=============================================")
         print(f"  DEFAULT_DENSITY = {orbit_config_density}")
         print(f"  Orbit config density = {orbit_config_density}")
-        print(f"  Orbit config density_code = {density_code_mapping.get(orbit_config_density, 0)}")
+        print(f"  Orbit config density_code = {orbit_densities.index(orbit_config_density) if orbit_config_density in orbit_densities else 0}")
         print("=============================================\n")
 
         with open('mr_config_gen.h', 'w') as f:

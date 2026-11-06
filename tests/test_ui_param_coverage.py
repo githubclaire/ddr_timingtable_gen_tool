@@ -254,8 +254,12 @@ class EveryUiParameter(unittest.TestCase):
                             1 if int(ALT[name]) >= e['t_ck_display'] else 0)
                 elif name.startswith('wck-always-on'):
                     for e in entries:
-                        on = (int(p['wck-always-on-from']) <= e['t_ck_display']
-                              <= int(p['wck-always-on-upto']))
+                        from_eff = (1000000 if int(p['wck-always-on-from']) == 0
+                                    else int(p['wck-always-on-from']))
+                        upto_eff = (1000000 if int(p['wck-always-on-upto']) == 0
+                                    else int(p['wck-always-on-upto']))
+                        on = (from_eff >= e['t_ck_display']
+                              and upto_eff <= e['t_ck_display'])
                         self.assertEqual(bool(e['wck_on']), on)
                 executed.add(name)
             except Exception as e:
