@@ -18,20 +18,13 @@ Usage:
 import argparse
 import ctypes
 import os
+import struct
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from orbit_config import make_orbit_config_class, EMMC_CM4_TIME_TB_SIZE  # noqa: E402
-
-
-def _identify(size):
-    want = size - EMMC_CM4_TIME_TB_SIZE
-    for dt in ("lpddr4", "lpddr5"):
-        for tc in (False, True):
-            if ctypes.sizeof(make_orbit_config_class(dt, tc)) == want:
-                return dt, tc
-    return None, None
+from gui import _identify_binary  # noqa: E402
 
 
 def _read_cfg(path, dram_type, two_channel):
@@ -72,8 +65,12 @@ def diff(a_path, b_path, dram_type=None, two_channel=None):
     b_size = os.path.getsize(b_path)
 
     if dram_type is None or two_channel is None:
-        dt_a, tc_a = _identify(a_size)
-        dt_b, tc_b = _identify(b_size)
+        with open(a_path, 'rb') as f:
+            a_data = f.read()
+        with open(b_path, 'rb') as f:
+            b_data = f.read()
+        dt_a, tc_a = _identify_binary(a_size, a_data)
+        dt_b, tc_b = _identify_binary(b_size, b_data)
         if dt_a is None or dt_a != dt_b or tc_a != tc_b:
             print("ERROR: cannot identify matching struct layout for both files",
                   file=sys.stderr)

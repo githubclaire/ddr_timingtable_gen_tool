@@ -21,8 +21,8 @@
 #define DRAM_TYPE_LPDDR5
 #endif
 
-//Number of timing paramas
-#define SIZEOF_TIMING_PARAMS    4
+//max of timing paramas
+#define MAXSIZEOF_TIMINGTAB    4
 
 //Number of OMC (PHY) instance
 #if DDR_TWO_CHANNEL
@@ -32,24 +32,11 @@
 #endif
 #define NUM_OF_PHY    NUM_OF_OMC
 
-#define NUM_OF_DFS_FREQ    3
-
-#define CLOCK_RATE_REFCLK   (50UL * FWK_MHZ)
-#define CLOCK_RATE_SYSCLK   (1600UL * FWK_MHZ)
-
-/* Default for Arise2 SoC */
-#define SYSINCLK            (1600UL * FWK_MHZ)
-
-/* DDR frequency in MHz */
-#define DDR_FREQUENCY_MHZ   UINT32_C(800)
-
-/* Clock divider */
-#define CLKDIV              ((SYSINCLK / (DDR_FREQUENCY_MHZ * FWK_MHZ)) - 1)
-
 //api index for diff module
 enum arise2_omc_api_idx {
     ARISE2_OMC_API_IDX_SW_INFO,
     ARISE2_OMC_API_IDX_PHY_V9R8,
+    ARISE2_OMC_API_IDX_DDR_RATE,
     ARISE2_OMC_API_COUNT,
 };
 
@@ -173,9 +160,26 @@ struct orbit_config {
   uint8_t fsp_op;
   uint8_t fsp_wr;
   //uint8_t timing_set;
-  uint8_t dq_vref_byte0 [2];
-  uint8_t dq_vref_byte1 [2];
-  uint8_t ca_vref[2];
+  //uint8_t dq_vref_byte0 [2];
+  //uint8_t dq_vref_byte1 [2];
+  uint8_t dq_vref_byte0[NUM_OF_PHY][2];
+  uint8_t dq_vref_byte1[NUM_OF_PHY][2];
+  uint8_t ca_vref[NUM_OF_PHY][2];
+
+  /* PHY-side voltage/duty calibration, captured once during the initial
+   * (operating-frequency) training pass. sphy_v9r8_all_level_training only
+   * retrains deskew, so these are set a single time and stay valid across DFS.
+   * Unlike DRAM DQ vref (dq_vref_byte0/1 above), they are NOT in train_result_t,
+   * so sphy_v9r8_phy_write_tr_result does not restore them. NOTE: the =0 resume
+   * path now retrains the operating frequency (see sphy_v9r8_training), which
+   * re-programs these via the set_*()/dcm apply sites, so an explicit replay is
+   * not needed; the cache is kept as a snapshot for a future fast-resume
+   * restore path. */
+  uint8_t phy_dq_vref_b0[NUM_OF_PHY];  /* ZQ_CON9[5:0]   - PHY DQ vref byte0  */
+  uint8_t phy_dq_vref_b1[NUM_OF_PHY];  /* ZQ_CON9[11:6]  - PHY DQ vref byte1  */
+  uint8_t phy_dqs_vref_b0[NUM_OF_PHY]; /* TESTILP5_DQS0[15:10] - DQS vref byte0 */
+  uint8_t phy_dqs_vref_b1[NUM_OF_PHY]; /* TESTILP5_DQS1[15:10] - DQS vref byte1 */
+  uint8_t dcm_mr30[NUM_OF_PHY][2];     /* DRAM MR30 duty [phy][rank]: low nibble byte0, high nibble byte1 */
 #ifdef DRAM_TYPE_LPDDR5
   uint8_t  lp5_mr2;
   uint8_t  lp5_mr3;
@@ -187,6 +191,17 @@ struct orbit_config {
   uint8_t  lp5_mr18;
   uint8_t  zq_bg_mode;
 #endif
+#ifdef DRAM_TYPE_LPDDR4
+  uint8_t lp4_mr1;
+  uint8_t lp4_mr2;
+  uint8_t lp4_mr3;
+  uint8_t lp4_mr11;
+  uint8_t lp4_mr12;
+  uint8_t lp4_mr13;
+  uint8_t lp4_mr14;
+  uint8_t lp4_mr22;
+#endif
+  uint8_t  omc_channel;                   // active OMC sel   0:OMC0 only, 1:OMC1 only, 2:both(2-channel)
 #ifdef ORBIT_ECC
   uint8_t  fsecc_code_err_0; // 8bit
   uint8_t  fsecc_code_err_1; // 8bit
@@ -198,6 +213,13 @@ struct orbit_config {
                                      // regions based  ecc enabled when fsecc_op_en == 1 and fsecc_region_op_en == 1
                               // And DRAM type should be DDR4 DQ x64
 #endif
+
+  /* CA-vref training result cache, populated on cold boot and reused on resume
+   * to skip the coarse sweep. Index [phy][rank-1] (caller cmd_bus_training
+   * stores the 1-based-rank optimum into ca_vref[phy][r] with 0-based r). */
+  uint8_t  ca_vref_valid[NUM_OF_PHY][2];    /* explicit "cache populated" flag */
+  uint8_t  dram_vref_valid[2];     /* explicit "cache populated" flag */
+  uint16_t ca_vref_vwm_sum[NUM_OF_PHY][2];  /* best 5-wide window sum at boot; resume fallback tier-2 */
   uint16_t phy_freq_ratio; // = (peroid of dfi_clk) / (period of dfi_phy_clk) of PHY.
   uint16_t omc_freq_ratio; // = (peroid of omc_clk) / (period of dfi_phy_clk) of PHY.
   uint16_t int_cpipe_depth; // controller internal pipe depth of DFI command/control signals
@@ -225,7 +247,7 @@ struct orbit_config {
   uint16_t phy_idle_cnt_th; // It is valid only when phy_low_power
 
   //uint16_t dfs_frequency;   // operation dfi_frequency after boot sequence completed
-  uint16_t lp_wakeup[SIZEOF_TIMING_PARAMS - 1];    // dfi_lp_wakeup for each timing_set.
+  uint16_t lp_wakeup[MAXSIZEOF_TIMINGTAB - 1];    // dfi_lp_wakeup for each timing_set.
 
   //uint16_t asp_op_en; // OMC ASP feature enable/disable
   uint16_t half_dq_en; // OMC half DQ feature enable/disable
@@ -244,13 +266,12 @@ struct orbit_config {
   //uint16_t write_dbi; // Enable write DBI (depends on memory type)
   //uint16_t read_link_par;  // When LPDDR5, read_dbi and read_link_par can be enabled exclusively.
   //uint16_t write_link_par;
-  uint16_t eye_scan_rd_en;
-  uint16_t eye_scan_wr_en;
-  uint16_t eye_scan_prbs_rd_en;
-  uint16_t eye_scan_prbs_wr_en;
 
   uint16_t ca_odt; // Enable CA ODT (depends on memory type)
   uint16_t phy_odt; // Can set by PHY ODT Value, please check the PHY document.
+  uint16_t otd_ck; // MR17 OP[3] CK ODT termination (runtime, per board type)
+  uint16_t otd_cs; // MR17 OP[4] CS ODT termination (runtime, per board type)
+  uint16_t otd_ca; // MR17 OP[5] CA ODT termination (runtime, per board type)
   uint16_t init_zq_calibration; // Enable boot-up ZQ calibration
 
   // timing parameters (as us)
@@ -270,7 +291,7 @@ struct orbit_config {
   uint16_t phy_clock_gating; // Enable PHY's clock-gating feature if the PHY has dedicated clock-gating ports
   uint16_t dram_clock_gating; // Enable DRAM's dynamic clok stop function.
 
-  uint16_t dfs_lvl_t_ck[SIZEOF_TIMING_PARAMS - 1];
+  uint16_t dfs_lvl_t_ck[MAXSIZEOF_TIMINGTAB - 1];
 
   uint16_t num_of_region; // number of AXI address spaces
 
@@ -278,7 +299,7 @@ struct orbit_config {
   //int dfi_wrpath_int_delay;
 
   //training
-  //uint16_t initial_training;     //replace by SPHY_V9R8_EMUL,when SPHY_V9R8_EMUL = 1,initial_training must be 0
+  uint16_t initial_training;     //replace by SPHY_V9R8_EMUL,when SPHY_V9R8_EMUL = 1,initial_training must be 0
   uint16_t command_bus_training;  // Enable Command bus training (LPDDR5/4), Command Bus Training when initial_training is 1.
   uint16_t ca_vref_training;      // Enable CA vref training (LPDDR5/4), Ca vref training when initial_training and command bus training are 1.
   //uint16_t write_leveling;        // Enable Write Leveling when initial_training is 1.
@@ -287,7 +308,6 @@ struct orbit_config {
   //uint16_t write_training;        // enable Write DQ Calibration enable when initial_training is 1
   uint16_t prbs_training;
   uint16_t reboot_with_training;
-  uint16_t dfs_training;
   //uint16_t reduced_periodic_training;
   uint16_t phy_vref_trn_mode;
   uint16_t phy_duty_trn_mode;
@@ -296,7 +316,13 @@ struct orbit_config {
   //uint16_t rddata_en_aft_dqs;
 
   omc_dram_density_t density_code; // Selected automatically
+  /* -- Appended tail: DRAM-DQ-vref training result cache (populated on cold
+   *    boot, reused on resume to skip the coarse sweep of the 0..max_vref DRAM
+   *    vref scan in sphy_v9r8_get_dram_dq_vref). Per rank. -- */
 
+  uint32_t dram_vref_center[2];    /* mean of per-byte window-top vrefs at last train; resume fine-search center */
+  uint32_t dram_vref_vwm_sum[2];   /* global (sum over PHY*byte) window sum at last train; resume fallback tier-2 */
+  uint32_t timingtable_size; // runtime count of valid timing-table entries (1..MAXSIZEOF_TIMINGTAB)
   uint32_t rclk_t_ck; // reference clock period, pico seconds, normally 26,000 kHz
   uint32_t boot_t_ck; // booting clock period, pico seconds, normally 50,000 kHz
   uint32_t boot_t_ck_low; // When using SPHY, it should be use 24MHz clkphy2x in reset sequence
@@ -367,7 +393,7 @@ struct orbit_config {
   uint64_t region_end[2]; // End address of assigned memory space in your system
 
   prbs_result_t  prbs_result[NUM_OF_PHY];
-  train_result_t train_result[NUM_OF_PHY][SIZEOF_TIMING_PARAMS];
+  train_result_t train_result[NUM_OF_PHY][MAXSIZEOF_TIMINGTAB];
 };
 
 struct orbit_reg {

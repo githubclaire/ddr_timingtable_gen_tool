@@ -6,7 +6,7 @@
 
 PY ?= python3
 
-.PHONY: all test check-struct-layout check-c-python-parity check-orbit-tables-gen check-golden-refs clean
+.PHONY: all test coverage check-struct-layout check-c-python-parity check-orbit-tables-gen check-golden-refs clean
 
 all: test
 
@@ -24,6 +24,12 @@ check-c-python-parity:
 
 check-golden-refs:
 	$(PY) -m unittest tests.test_golden_refs -v
+
+# Optional: requires `python3 -m pip install coverage`
+coverage:
+	$(PY) -m coverage erase
+	$(PY) -m coverage run --source=orbit_config,ddr_config_init,gui -m unittest discover -q tests
+	$(PY) -m coverage report -m
 
 clean:
 	rm -f ddr_config_bin_exec ddr_config_bin_parity_exec dump_struct_layout

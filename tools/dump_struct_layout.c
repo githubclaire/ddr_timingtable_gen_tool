@@ -9,7 +9,8 @@
  *     (and DDR_TYPE=3, DDR_TWO_CHANNEL=1 combinations)
  *
  * The output must diff cleanly against the Python tools/dump_struct_layout.py
- * output for the same (dram_type, two_channel) pair.
+ * output for the same (dram_type, two_channel) pair.  ORBIT_ECC is left
+ * undefined, matching the default Arise2 firmware build.
  */
 #include <stdio.h>
 #include <stddef.h>
@@ -43,6 +44,11 @@ int main(void) {
     P(dq_vref_byte0);
     P(dq_vref_byte1);
     P(ca_vref);
+    P(phy_dq_vref_b0);
+    P(phy_dq_vref_b1);
+    P(phy_dqs_vref_b0);
+    P(phy_dqs_vref_b1);
+    P(dcm_mr30);
 #ifdef DRAM_TYPE_LPDDR5
     P(lp5_mr2);
     P(lp5_mr3);
@@ -53,7 +59,20 @@ int main(void) {
     P(lp5_mr17);
     P(lp5_mr18);
     P(zq_bg_mode);
+#else
+    P(lp4_mr1);
+    P(lp4_mr2);
+    P(lp4_mr3);
+    P(lp4_mr11);
+    P(lp4_mr12);
+    P(lp4_mr13);
+    P(lp4_mr14);
+    P(lp4_mr22);
 #endif
+    P(omc_channel);
+    P(ca_vref_valid);
+    P(dram_vref_valid);
+    P(ca_vref_vwm_sum);
     P(phy_freq_ratio);
     P(omc_freq_ratio);
     P(int_cpipe_depth);
@@ -79,12 +98,11 @@ int main(void) {
 #endif
     P(rfm_en);
     P(dsm_en);
-    P(eye_scan_rd_en);
-    P(eye_scan_wr_en);
-    P(eye_scan_prbs_rd_en);
-    P(eye_scan_prbs_wr_en);
     P(ca_odt);
     P(phy_odt);
+    P(otd_ck);
+    P(otd_cs);
+    P(otd_ca);
     P(init_zq_calibration);
     P(temp_sensing);
     P(zq_calibration);
@@ -97,16 +115,19 @@ int main(void) {
     P(dram_clock_gating);
     P(dfs_lvl_t_ck);
     P(num_of_region);
+    P(initial_training);
     P(command_bus_training);
     P(ca_vref_training);
     P(prbs_training);
     P(reboot_with_training);
-    P(dfs_training);
     P(phy_vref_trn_mode);
     P(phy_duty_trn_mode);
     P(dram_vref_trn_mode);
     P(dram_duty_trn_mode);
     P(density_code);
+    P(dram_vref_center);
+    P(dram_vref_vwm_sum);
+    P(timingtable_size);
     P(rclk_t_ck);
     P(boot_t_ck);
     P(boot_t_ck_low);

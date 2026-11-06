@@ -976,8 +976,31 @@
                             <div class="field">
                                 <label title="Number of ranks (1 or 2)">Ranks</label>
                                 <select name="orbit-num-rank" id="orbit-num-rank-select" onchange="toggleRankInterleaving(); updateConfigSummary();">
-                                    <option value="1">1</option>
-                                    <option value="2" selected>2</option>
+                                    <option value="1" selected>1</option>
+                                    <option value="2">2</option>
+                                </select>
+                            </div>
+                            <div class="field" id="orbit-default-ch-field">
+                                <label title="Single-channel default OMC: 0 = OMC0, 1 = OMC1">Default OMC (1ch)</label>
+                                <select name="orbit-default-ch" id="orbit-default-ch">
+                                    <option value="0" selected>OMC0</option>
+                                    <option value="1">OMC1</option>
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label title="DDR_FREQ_LEVEL drops N fastest timing points; boot clock comes from the frequency table">Freq Level</label>
+                                <select name="orbit-freq-level" id="orbit-freq-level" onchange="updateDfsLevelDefaults()">
+                                    <option value="0" selected>0 (all 4 points)</option>
+                                    <option value="1">1 (drop fastest)</option>
+                                    <option value="2">2 (keep 2)</option>
+                                    <option value="3">3 (keep 1)</option>
+                                </select>
+                            </div>
+                            <div class="field lp5-field">
+                                <label title="LPDDR5 boot frequency table compiled into ddr_config.h">LP5 Freq Set</label>
+                                <select name="orbit-lp5-freq-set" id="orbit-lp5-freq-set" onchange="updateDfsLevelDefaults()">
+                                    <option value="6000" selected>max6000 (1332/1428/1672/2512)</option>
+                                    <option value="6400">max6400 (1256/1428/1672/2512)</option>
                                 </select>
                             </div>
                             <div class="field checkbox hidden" id="orbit-rank-interleaving-field">
@@ -989,7 +1012,7 @@
                             </div>
                             <div class="field checkbox">
                                 <label class="toggle-switch">
-                                    <input type="checkbox" name="two-channel">
+                                    <input type="checkbox" name="two-channel" id="two-channel-cb" onchange="toggleDefaultCh(); updateConfigSummary();">
                                     <span class="toggle-slider"></span>
                                 </label>
                                 <label title="Enable dual channel mode">Dual Channel</label>
@@ -1043,29 +1066,29 @@
                             </div>
                             <div class="field hidden" id="phy-idle-cnt-th-field">
                                 <label title="PHY idle counter threshold">Idle Threshold</label>
-                                <input type="number" name="phy-idle-cnt-th" value="0">
+                                <input type="number" name="phy-idle-cnt-th" value="128" min="0" max="65535">
                             </div>
                             <div class="field checkbox">
                                 <label class="toggle-switch">
-                                    <input type="checkbox" name="dynamic-power-down" id="dynamic-power-down-cb" onchange="toggleDynamicPowerDown()">
+                                    <input type="checkbox" name="dynamic-power-down" id="dynamic-power-down-cb" onchange="toggleDynamicPowerDown()" checked>
                                     <span class="toggle-slider"></span>
                                 </label>
                                 <label>Dynamic Power Down</label>
                             </div>
-                            <div class="field hidden" id="dynamic-power-down-threshold-field">
+                            <div class="field" id="dynamic-power-down-threshold-field">
                                 <label>Power Down Threshold</label>
-                                <input type="number" name="dynamic-power-down-threshold" value="0">
+                                <input type="number" name="dynamic-power-down-threshold" value="2048" min="0" max="1000000">
                             </div>
                             <div class="field checkbox">
                                 <label class="toggle-switch">
-                                    <input type="checkbox" name="dynamic-self-refresh" id="dynamic-self-refresh-cb" onchange="toggleDynamicSelfRefresh()">
+                                    <input type="checkbox" name="dynamic-self-refresh" id="dynamic-self-refresh-cb" onchange="toggleDynamicSelfRefresh()" checked>
                                     <span class="toggle-slider"></span>
                                 </label>
                                 <label>Dynamic Self-Refresh</label>
                             </div>
-                            <div class="field hidden" id="dynamic-self-refresh-threshold-field">
+                            <div class="field" id="dynamic-self-refresh-threshold-field">
                                 <label>Self-Refresh Threshold</label>
-                                <input type="number" name="dynamic-self-refresh-threshold" value="0">
+                                <input type="number" name="dynamic-self-refresh-threshold" value="2048" min="0" max="1000000">
                             </div>
                         </div>
                     </div>
@@ -1079,18 +1102,20 @@
                             <span class="arrow">&#9654;</span>
                         </div>
                         <div class="card-body two-col collapsed">
-                            <div class="field checkbox"><label class="toggle-switch"><input type="checkbox" name="eye-scan-rd-en"><span class="toggle-slider"></span></label><label>Eye Scan Read</label></div>
-                            <div class="field checkbox"><label class="toggle-switch"><input type="checkbox" name="eye-scan-wr-en"><span class="toggle-slider"></span></label><label>Eye Scan Write</label></div>
-                            <div class="field checkbox"><label class="toggle-switch"><input type="checkbox" name="eye-scan-prbs-rd-en"><span class="toggle-slider"></span></label><label>PRBS Eye Scan Read</label></div>
-                            <div class="field checkbox"><label class="toggle-switch"><input type="checkbox" name="eye-scan-prbs-wr-en"><span class="toggle-slider"></span></label><label>PRBS Eye Scan Write</label></div>
-                            <div class="field checkbox"><label class="toggle-switch"><input type="checkbox" name="phy-vref-trn-mode"><span class="toggle-slider"></span></label><label>PHY Vref Training</label></div>
-                            <div class="field checkbox"><label class="toggle-switch"><input type="checkbox" name="phy-duty-trn-mode"><span class="toggle-slider"></span></label><label>PHY Duty Training</label></div>
-                            <div class="field checkbox"><label class="toggle-switch"><input type="checkbox" name="dram-vref-trn-mode"><span class="toggle-slider"></span></label><label>DRAM Vref Training</label></div>
-                            <div class="field checkbox"><label class="toggle-switch"><input type="checkbox" name="dram-duty-trn-mode"><span class="toggle-slider"></span></label><label>DRAM Duty Training</label></div>
-                            <div class="field checkbox"><label class="toggle-switch"><input type="checkbox" name="command-bus-training"><span class="toggle-slider"></span></label><label>Command Bus Training</label></div>
-                            <div class="field checkbox"><label class="toggle-switch"><input type="checkbox" name="ca-vref-training"><span class="toggle-slider"></span></label><label>CA Vref Training</label></div>
-                            <div class="field checkbox"><label class="toggle-switch"><input type="checkbox" name="prbs-training"><span class="toggle-slider"></span></label><label>PRBS Training</label></div>
-                            <div class="field checkbox"><label class="toggle-switch"><input type="checkbox" name="reboot-with-training"><span class="toggle-slider"></span></label><label>Reboot with Training</label></div>
+                            <div class="field checkbox"><label class="toggle-switch"><input type="checkbox" name="orbit-initial-training" checked><span class="toggle-slider"></span></label><label>Initial Training</label></div>
+                            <div class="field checkbox"><label class="toggle-switch"><input type="checkbox" name="command-bus-training" checked><span class="toggle-slider"></span></label><label>Command Bus Training</label></div>
+                            <div class="field checkbox"><label class="toggle-switch"><input type="checkbox" name="ca-vref-training" checked><span class="toggle-slider"></span></label><label>CA Vref Training</label></div>
+                            <div class="field checkbox"><label class="toggle-switch"><input type="checkbox" name="prbs-training" checked><span class="toggle-slider"></span></label><label>PRBS Training</label></div>
+                            <div class="field checkbox"><label class="toggle-switch"><input type="checkbox" name="reboot-with-training" checked><span class="toggle-slider"></span></label><label>Reboot with Training</label></div>
+                            <div class="field checkbox"><label class="toggle-switch"><input type="checkbox" name="phy-vref-trn-mode" checked><span class="toggle-slider"></span></label><label>PHY Vref Training</label></div>
+                            <div class="field checkbox"><label class="toggle-switch"><input type="checkbox" name="phy-duty-trn-mode" checked><span class="toggle-slider"></span></label><label>PHY Duty Training</label></div>
+                            <div class="field checkbox"><label class="toggle-switch"><input type="checkbox" name="dram-vref-trn-mode" checked><span class="toggle-slider"></span></label><label>DRAM Vref Training</label></div>
+                            <div class="field checkbox"><label class="toggle-switch"><input type="checkbox" name="dram-duty-trn-mode" checked><span class="toggle-slider"></span></label><label>DRAM Duty Training</label></div>
+                            <div class="field"><label title="PHY ODT value; firmware board code may override at runtime">PHY ODT</label><input type="number" name="orbit-phy-odt" value="5" min="0" max="15"></div>
+                            <div class="field checkbox"><label class="toggle-switch"><input type="checkbox" name="orbit-otd-ck" checked><span class="toggle-slider"></span></label><label>OTD CK</label></div>
+                            <div class="field checkbox"><label class="toggle-switch"><input type="checkbox" name="orbit-otd-cs" checked><span class="toggle-slider"></span></label><label>OTD CS</label></div>
+                            <div class="field checkbox"><label class="toggle-switch"><input type="checkbox" name="orbit-otd-ca" checked><span class="toggle-slider"></span></label><label>OTD CA</label></div>
+                            <div class="field checkbox lp5-field"><label class="toggle-switch"><input type="checkbox" name="orbit-zq-bg-mode" checked><span class="toggle-slider"></span></label><label>ZQ Background Mode (LP5)</label></div>
                         </div>
                     </div>
 
@@ -1104,11 +1129,11 @@
                         </div>
                         <div class="card-body collapsed">
                             <div class="field checkbox">
-                                <label class="toggle-switch"><input type="checkbox" name="orbit-reboot-with-mrw"><span class="toggle-slider"></span></label>
+                                <label class="toggle-switch"><input type="checkbox" name="orbit-reboot-with-mrw" checked><span class="toggle-slider"></span></label>
                                 <label>Reboot with MRW</label>
                             </div>
                             <div class="field checkbox">
-                                <label class="toggle-switch"><input type="checkbox" name="orbit-rfm-en"><span class="toggle-slider"></span></label>
+                                <label class="toggle-switch"><input type="checkbox" name="orbit-rfm-en" checked><span class="toggle-slider"></span></label>
                                 <label>RFM Enable</label>
                             </div>
                             <div class="field checkbox hidden" id="orbit-dsm-en-field">
@@ -1116,44 +1141,40 @@
                                 <label>DSM Enable (LP5)</label>
                             </div>
                             <div class="field checkbox">
-                                <label class="toggle-switch"><input type="checkbox" name="orbit-ca-odt"><span class="toggle-slider"></span></label>
+                                <label class="toggle-switch"><input type="checkbox" name="orbit-ca-odt" checked><span class="toggle-slider"></span></label>
                                 <label>CA ODT</label>
                             </div>
                             <div class="field checkbox">
-                                <label class="toggle-switch"><input type="checkbox" name="init-zq-calibration"><span class="toggle-slider"></span></label>
+                                <label class="toggle-switch"><input type="checkbox" name="init-zq-calibration" checked><span class="toggle-slider"></span></label>
                                 <label>Init ZQ Calibration</label>
                             </div>
                             <div class="field checkbox">
-                                <label class="toggle-switch"><input type="checkbox" name="zq-calibration" id="zq-calibration-cb" onchange="toggleZqCalibration()"><span class="toggle-slider"></span></label>
+                                <label class="toggle-switch"><input type="checkbox" name="zq-calibration" id="zq-calibration-cb" onchange="toggleZqCalibration()" checked><span class="toggle-slider"></span></label>
                                 <label>ZQ Calibration</label>
                             </div>
-                            <div class="field hidden" id="zq-calibration-period-field">
+                            <div class="field" id="zq-calibration-period-field">
                                 <label>ZQ Calibration Period</label>
-                                <input type="number" name="zq-calibration-period" value="48000">
+                                <input type="number" name="zq-calibration-period" value="48000" min="1" max="10000000">
                             </div>
                             <div class="field checkbox">
-                                <label class="toggle-switch"><input type="checkbox" name="dfs-training"><span class="toggle-slider"></span></label>
-                                <label>DFS Training</label>
-                            </div>
-                            <div class="field checkbox">
-                                <label class="toggle-switch"><input type="checkbox" name="periodic-training" id="periodic-training-cb" onchange="togglePeriodicTraining()"><span class="toggle-slider"></span></label>
+                                <label class="toggle-switch"><input type="checkbox" name="periodic-training" id="periodic-training-cb" onchange="togglePeriodicTraining()" checked><span class="toggle-slider"></span></label>
                                 <label>Periodic Training</label>
                             </div>
-                            <div class="field hidden" id="periodic-training-period-field">
+                            <div class="field" id="periodic-training-period-field">
                                 <label>Periodic Training Period</label>
-                                <input type="number" name="periodic-training-period" value="24000">
+                                <input type="number" name="periodic-training-period" value="50000" min="1" max="10000000">
                             </div>
                             <div class="field checkbox">
-                                <label class="toggle-switch"><input type="checkbox" name="temp-sensing" id="temp-sensing-cb" onchange="toggleTempSensing()"><span class="toggle-slider"></span></label>
+                                <label class="toggle-switch"><input type="checkbox" name="temp-sensing" id="temp-sensing-cb" onchange="toggleTempSensing()" checked><span class="toggle-slider"></span></label>
                                 <label>Temperature Sensing</label>
                             </div>
-                            <div class="field hidden" id="temp-sensing-period-field">
+                            <div class="field" id="temp-sensing-period-field">
                                 <label>Temp Sensing Period</label>
-                                <input type="number" name="temp-sensing-period" value="32000">
+                                <input type="number" name="temp-sensing-period" value="32000" min="1" max="10000000">
                             </div>
-                            <div class="field"><label>t_refiab</label><input type="number" name="t-refiab" value="3904000"></div>
-                            <div class="field"><label>t_refipb</label><input type="number" name="t-refipb" value="488000"></div>
-                            <div class="field"><label>t_zqcal</label><input type="number" name="t-zqcal" value="1000000"></div>
+                            <div class="field"><label>t_refiab</label><input type="number" name="t-refiab" value="3904000" min="100000" max="10000000"></div>
+                            <div class="field"><label>t_refipb</label><input type="number" name="t-refipb" value="488000" min="50000" max="10000000"></div>
+                            <div class="field"><label>t_zqcal</label><input type="number" name="t-zqcal" value="1000000" min="100000" max="10000000"></div>
                         </div>
                     </div>
 
@@ -1486,6 +1507,7 @@ function applyDramTypeSwitch(dramType) {
     updatePeriodsLabel();
     updateDramTckDefault();
     toggleDsmEn();
+    toggleDefaultCh();
     updateSpeedBin();
     updateMinDramTck();
     updatePeriodsFromDefaults();
@@ -1594,13 +1616,30 @@ function updatePeriodsFromDefaults() {
 
 function updateDfsLevelDefaults() {
     const dramType = getDramType();
-    const defaults = dramType === 'lpddr5'
-        ? [1672, 2224, 5000]
-        : [938, 1631, 2500];
+    let t_ck_set;
+    if (dramType === 'lpddr5') {
+        const setSel = document.getElementById('orbit-lp5-freq-set');
+        t_ck_set = (setSel && setSel.value === '6400')
+            ? [1256, 1428, 1672, 2512]
+            : [1332, 1428, 1672, 2512];
+    } else {
+        t_ck_set = [471, 938, 1631, 2500];
+    }
+    const levelSel = document.getElementById('orbit-freq-level');
+    const level = levelSel ? parseInt(levelSel.value) || 0 : 0;
+    // The boot point is t_ck_set[level]; the remaining slower points fill
+    // dfs_lvl_t_ck.  Slots beyond the selected level stay zero/disabled.
+    const remaining = t_ck_set.slice(level + 1);
     for (let i = 0; i < 3; i++) {
         const field = document.querySelector(`[name="dfs-lvl-t-ck-${i}"]`);
-        if (field) field.value = defaults[i];
+        if (!field) continue;
+        const value = i < remaining.length ? remaining[i] : 0;
+        field.value = value;
+        field.disabled = (i >= remaining.length);
+        field.min = 0;
+        field.max = 5000;
     }
+    updateAllDualReadouts();
 }
 
 // ============================================================
@@ -1617,7 +1656,7 @@ function updateFieldRanges() {
         if (!isLp5 && parseInt(odtField.value) > 1249) odtField.value = 1249;
     }
 
-    const dfsMin = isLp5 ? 938 : 468;
+    const dfsMin = 0; // unused DFS slots are 0; active slots are validated below
     document.querySelectorAll('input[name^="dfs-lvl-t-ck-"]').forEach(el => {
         el.min = dfsMin; el.max = 5000;
     });
@@ -1774,6 +1813,18 @@ function buildFieldRanges() {
         'write-lecc-upto': { min: 0, max: 10000 },
         'rpste-upto': { min: 0, max: 10000 },
         'wpste-upto': { min: 0, max: 10000 },
+        // Orbit config numeric fields (not timing-table values)
+        'orbit-phy-odt': { min: 0, max: 15 },
+        'orbit-config-density': { min: 1, max: 32 },
+        'dynamic-power-down-threshold': { min: 0, max: 1000000 },
+        'dynamic-self-refresh-threshold': { min: 0, max: 1000000 },
+        'phy-idle-cnt-th': { min: 0, max: 65535 },
+        'zq-calibration-period': { min: 1, max: 10000000 },
+        'periodic-training-period': { min: 1, max: 10000000 },
+        'temp-sensing-period': { min: 1, max: 10000000 },
+        't-refiab': { min: 100000, max: 10000000 },
+        't-refipb': { min: 50000, max: 10000000 },
+        't-zqcal': { min: 100000, max: 10000000 },
     });
 
     if (isLp5) {
@@ -1986,6 +2037,11 @@ function toggleRankInterleaving() {
     const f = document.getElementById('orbit-rank-interleaving-field');
     if (f && select) f.classList.toggle('hidden', select.value != '2');
 }
+function toggleDefaultCh() {
+    const cb = document.getElementById('two-channel-cb');
+    const f = document.getElementById('orbit-default-ch-field');
+    if (f && cb) f.classList.toggle('hidden', cb.checked);
+}
 function toggleDsmEn() {
     const f = document.getElementById('orbit-dsm-en-field');
     if (f) f.classList.toggle('hidden', getDramType() !== 'lpddr5');
@@ -2046,7 +2102,9 @@ async function analyzeBinaryFile(filePath) {
             showInspectorResults(result.data);
             switchTab('inspect');
 
-            if (result.data.orbit?.non_parseable_fields?.length > 0) {
+            if (result.data.orbit?.available === false) {
+                showStatus('Timing table loaded. No orbit_config prefix was found in this image.', 'warning');
+            } else if (result.data.orbit?.non_parseable_fields?.length > 0) {
                 showStatus('Binary loaded. Some fields are runtime-generated and cannot be parsed from binary.', 'warning');
             } else {
                 showStatus('Binary loaded and analyzed successfully.', 'success');
@@ -2089,8 +2147,9 @@ function fillGuiFromAnalysis(data) {
         setFieldValue('read-lecc-upto', data.timing.read_lecc_upto);
         setFieldValue('write-lecc-upto', data.timing.write_lecc_upto);
     }
-    if (data.orbit) {
+    if (data.orbit && data.orbit.available !== false) {
         setCheckboxValue('two-channel', data.orbit.two_channel);
+        toggleDefaultCh();
         setFieldValue('orbit-config-density', data.orbit.density);
         setFieldValue('orbit-byte-mode', data.orbit.byte_mode);
         setFieldValue('orbit-mixed', data.orbit.mixed);
@@ -2105,10 +2164,13 @@ function fillGuiFromAnalysis(data) {
             setFieldValue('dfs-lvl-t-ck-1', data.orbit.dfs_lvl_t_ck[1]);
             setFieldValue('dfs-lvl-t-ck-2', data.orbit.dfs_lvl_t_ck[2]);
         }
-        setCheckboxValue('eye-scan-rd-en', data.orbit.eye_scan_rd_en);
-        setCheckboxValue('eye-scan-wr-en', data.orbit.eye_scan_wr_en);
-        setCheckboxValue('eye-scan-prbs-rd-en', data.orbit.eye_scan_prbs_rd_en);
-        setCheckboxValue('eye-scan-prbs-wr-en', data.orbit.eye_scan_prbs_wr_en);
+        setFieldValue('orbit-default-ch', data.orbit.omc_channel === 1 ? 1 : 0);
+        setFieldValue('orbit-phy-odt', data.orbit.phy_odt);
+        setCheckboxValue('orbit-otd-ck', data.orbit.otd_ck);
+        setCheckboxValue('orbit-otd-cs', data.orbit.otd_cs);
+        setCheckboxValue('orbit-otd-ca', data.orbit.otd_ca);
+        setCheckboxValue('orbit-zq-bg-mode', data.orbit.zq_bg_mode);
+        setCheckboxValue('orbit-initial-training', data.orbit.initial_training);
         setCheckboxValue('phy-vref-trn-mode', data.orbit.phy_vref_trn_mode);
         setCheckboxValue('phy-duty-trn-mode', data.orbit.phy_duty_trn_mode);
         setCheckboxValue('dram-vref-trn-mode', data.orbit.dram_vref_trn_mode);
@@ -2119,7 +2181,6 @@ function fillGuiFromAnalysis(data) {
         setCheckboxValue('reboot-with-training', data.orbit.reboot_with_training);
         setCheckboxValue('init-zq-calibration', data.orbit.init_zq_calibration);
         setCheckboxValue('zq-calibration', data.orbit.zq_calibration);
-        setCheckboxValue('dfs-training', data.orbit.dfs_training);
         setCheckboxValue('periodic-training', data.orbit.periodic_training);
         setCheckboxValue('temp-sensing', data.orbit.temp_sensing);
         setCheckboxValue('variable-trrd', data.orbit.variable_trrd);
@@ -2239,6 +2300,26 @@ function showInspectorResults(data) {
             html += '</tr>';
         }
         html += '</table></div></div>';
+
+        const densityNames = ['t_rfcab','t_rfcpb','t_rfmab','t_rfmpb','t_refdpr',
+                              'tx_pbr2pbr','t_xsr','t_xsdll','t_xs_fast'];
+        const densityIndex = data.timing_entries?.density_index ?? 0;
+        html += `<div class="analysis-section"><h3>Density Arrays (${data.timing_entries?.selected_density ?? 16} Gb, index ${densityIndex})</h3>`;
+        html += '<div class="analysis-table-wrap"><table class="analysis-table">';
+        html += '<tr><th>Parameter</th>';
+        entries.forEach((e, i) => { html += `<th>Entry ${i}</th>`; });
+        html += '</tr>';
+        densityNames.forEach(name => {
+            html += `<tr><td>${name}</td>`;
+            entries.forEach(e => {
+                const arr = e[name];
+                const val = Array.isArray(arr) ? arr[densityIndex] : undefined;
+                const full = Array.isArray(arr) ? arr.join(', ') : '-';
+                html += `<td title="${full}">${val !== undefined ? val : '-'}</td>`;
+            });
+            html += '</tr>';
+        });
+        html += '</table></div></div>';
     }
 
     // Common & density-dependent params
@@ -2246,17 +2327,6 @@ function showInspectorResults(data) {
         html += '<div class="analysis-section"><h3>Common Params</h3>';
         html += '<div class="analysis-table-wrap"><table class="analysis-table"><tr><th>Parameter</th><th>Value</th></tr>';
         for (const [key, val] of Object.entries(data.timing_entries.common)) {
-            html += `<tr><td>${key}</td><td>${val}</td></tr>`;
-        }
-        html += '</table></div></div>';
-    }
-
-    if (data.timing_entries?.density_dependent) {
-        const dd = data.timing_entries.density_dependent;
-        const density = data.timing_entries.selected_density || 16;
-        html += `<div class="analysis-section"><h3>Density-Dependent Params (${density} Gb)</h3>`;
-        html += '<div class="analysis-table-wrap"><table class="analysis-table"><tr><th>Parameter</th><th>Value</th></tr>';
-        for (const [key, val] of Object.entries(dd)) {
             html += `<tr><td>${key}</td><td>${val}</td></tr>`;
         }
         html += '</table></div></div>';
@@ -2367,9 +2437,10 @@ function validateTimingRanges() {
     // --- DFS levels ---
     const dfsMin = isLp5 ? 938 : 468;
     document.querySelectorAll('input[name^="dfs-lvl-t-ck-"]').forEach(field => {
-        if (!field.value || field.offsetParent === null) return;
+        if (field.disabled || !field.value || field.offsetParent === null) return;
         let val = parseInt(field.value);
         if (isNaN(val)) return;
+        if (val === 0) { field.classList.remove('field-error'); return; } // unused slot
         if (isMhz && val > 0) val = Math.round(1000000 / val);
         if (val < dfsMin || val > 5000) {
             errors.push(`${field.name}: ${val}ps (valid: ${dfsMin}-5000ps)`);
@@ -2451,7 +2522,7 @@ function validateTimingRanges() {
         const density = parseInt(densityField.value);
         const validDensities = {
             'lpddr4': [2, 3, 4, 6, 8, 12, 16],
-            'lpddr5': [1, 2, 3, 4, 6, 8, 12, 16, 24, 32]
+            'lpddr5': [2, 3, 4, 6, 8, 12, 16, 24, 32]
         };
         if (!validDensities[dramType].includes(density)) {
             errors.push(`density: ${density} (valid: ${validDensities[dramType].join(', ')})`);
@@ -2678,6 +2749,7 @@ function applyLoadedParams(params) {
     updateDensityOptions();
     updatePeriodsLabel();
     toggleDsmEn();
+    toggleDefaultCh();
     updateMrrByteLane();
     togglePeriodicTraining();
     toggleTempSensing();
@@ -2995,6 +3067,11 @@ toggleTempSensing();
 toggleZqCalibration();
 toggleRankInterleaving();
 toggleDsmEn();
+toggleDefaultCh();
+togglePhyLowPower();
+toggleDynamicPowerDown();
+toggleDynamicSelfRefresh();
+updateDfsLevelDefaults();
 setFreqRatios();
 updateDensityOptions();
 updateConfigSummary();

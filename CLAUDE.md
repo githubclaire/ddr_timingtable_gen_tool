@@ -29,6 +29,9 @@ When adding or modifying numeric input fields in `templates/gui.html`:
    - LP4-specific: `rpste-upto`, `wpste-upto`
    - LP5-specific: `wck-1to4-upto`, `wck-always-on-from`, `wck-always-on-upto`, `nt-odt-upto`, `bg-mode-upto`, `wck-hf-upto`, `wck-pst1-upto`, `wck-pst2-upto`, `rdqs-pst1-upto`, `rdqs-pst2-upto`
    - Dynamic inputs: DFS level fields (`dfs-lvl-t-ck-*`), period inputs (`periods-*`)
+   - Orbit numeric fields: `orbit-phy-odt`, `orbit-config-density`, `phy-idle-cnt-th`,
+     `dynamic-*-threshold`, `zq-calibration-period`, `periodic-training-period`,
+     `temp-sensing-period`, `t-refiab`, `t-refipb`, `t-zqcal`
 3. **Tooltips**: Update the `title` attribute to reflect the actual valid range.
 4. **Test coverage**: Add corresponding checks in `tests/test_gui_validation.py`.
 5. **Dynamic ranges**: `updateFieldRanges()` must update HTML min/max on DRAM type change.
@@ -55,9 +58,40 @@ LP4 and LP5 have different struct layouts — never hardcode one type's offsets 
 | | LP4 | LP5 |
 |---|---|---|
 | Entry size | 0x128 (296 bytes) | 0x15C (348 bytes) |
-| Common params offset | 0x106 | 0x13c |
-| Per-entry params offset | 0x110 | 0x146 |
 | Max periods (0x800 / entry_size) | 6 | 5 |
+
+The `orbit_config` region itself is now the same size for both DRAM types
+(layout differences are inside the struct, not its total size).  Generated
+images store only the configuration prefix (through `region_end`) at 0x800:
+
+| Channels | Full struct | Serialized prefix | Image size |
+|---|---|---|---|
+| Single | 3112 bytes | 360 bytes (0x168) | 4096 bytes |
+| Dual | 5912 bytes | 408 bytes (0x198) | 4096 bytes |
+
+`gui.py` accepts both the SCP 4 KiB image (timing table + config prefix) and
+older full-struct images.  DRAM type/channel are identified from the
+orbit_config content, never from file size (all per-DRAM images are 4 KiB).
+`tests/test_struct_layout.sh` compiles `arise2_omc.h` and diffs every field
+offset against Python; `tests/test_timing_parse_compare.py` verifies every
+timing_param field against an independent ctypes parser.
+
+### Source of Truth for Defaults
+
+`ddr_config_init.py` and `ddr_config.h.template` mirror
+`SCP-firmware/product/arise2/module/arise2_omc/include/ddr_config.h`.
+When that header changes, update both, then run:
+
+```bash
+./tests/test_struct_layout.sh
+python3 -m unittest tests.test_c_python_parity -v
+python3 -m unittest tests.test_timing_parse_compare -v
+python3 -m unittest tests.test_gui_matrix -v
+python3 -m unittest tests.test_ui_roundtrip tests.test_ui_param_coverage -v
+python3 -m unittest tests.test_gui_server tests.test_ddr_config_init -v
+python3 tools/refresh_golden_refs.py   # only if numeric output intentionally changed
+make coverage                          # optional (needs coverage.py)
+```
 
 ### LP5 Unit Conversion
 

@@ -2,6 +2,11 @@
 *.bin
 ddr_timing_table*.bin
 test_*.bin
+# Keep committed golden reference binaries
+!ddr_timing_table.lpddr4.single.ref.bin
+!ddr_timing_table.lpddr4.dual.ref.bin
+!ddr_timing_table.lpddr5.single.ref.bin
+!ddr_timing_table.lpddr5.dual.ref.bin
 
 # Compiled executables
 ddr_config_bin_exec
@@ -12,10 +17,12 @@ print_offsets_single
 test_num_omc
 dump_struct_layout
 
-# Python bytecode
+# Python bytecode / coverage
 *.pyc
 __pycache__/
 .pytest_cache/
+.coverage
+htmlcov/
 
 # Backup files
 *.backup
@@ -33,6 +40,7 @@ ddr_timing_table.bin.report.txt
 ddr_timing_table.container
 ddr_config.json
 ddr_config.h
+orbit_config_override.json
 
 # IDE files
 .vscode/

@@ -700,26 +700,53 @@ def parse_args():
     orbit_grp.add_argument('--orbit-byte-mode', type=int, default=0, choices=[0,1], help='Byte mode for LPDDR4 (0=x16, 1=x8)')
     orbit_grp.add_argument('--orbit-mixed', type=int, default=0, choices=[0,1], help='Mixed rank density flag')
     orbit_grp.add_argument('--orbit-rank-interleaving', type=int, default=1, choices=[0,1], help='Rank interleaving enable')
-    orbit_grp.add_argument('--orbit-num-rank', type=int, default=2, choices=[1,2], help='Number of ranks (max 2)')
-    orbit_grp.add_argument('--orbit-reboot-with-mrw', type=int, default=0, choices=[0,1], help='Reboot with MRW')
-    orbit_grp.add_argument('--orbit-rfm-en', type=int, default=0, choices=[0,1], help='RFM enable (LPDDR4/LPDDR5)')
+    orbit_grp.add_argument('--orbit-num-rank', type=int, default=1, choices=[1,2], help='Number of ranks (max 2)')
+    orbit_grp.add_argument('--orbit-reboot-with-mrw', type=int, default=1, choices=[0,1], help='Reboot with MRW')
+    orbit_grp.add_argument('--orbit-rfm-en', type=int, default=1, choices=[0,1], help='RFM enable (LPDDR4/LPDDR5)')
     orbit_grp.add_argument('--orbit-dsm-en', type=int, default=0, choices=[0,1], help='DSM enable (LPDDR5 Deep Sleep Mode)')
-    orbit_grp.add_argument('--orbit-ca-odt', type=int, default=0, choices=[0,1], help='CA ODT enable')
+    orbit_grp.add_argument('--orbit-ca-odt', type=int, default=1, choices=[0,1], help='CA ODT enable')
+    orbit_grp.add_argument('--orbit-phy-odt', type=int, default=5, help='PHY ODT value (MR17-ish default 5)')
+    orbit_grp.add_argument('--orbit-otd-ck', type=int, default=1, choices=[0,1], help='CK ODT termination')
+    orbit_grp.add_argument('--orbit-otd-cs', type=int, default=1, choices=[0,1], help='CS ODT termination')
+    orbit_grp.add_argument('--orbit-otd-ca', type=int, default=1, choices=[0,1], help='CA ODT termination')
+    orbit_grp.add_argument('--orbit-zq-bg-mode', type=int, default=1, choices=[0,1], help='LPDDR5 ZQ background mode')
+    orbit_grp.add_argument('--orbit-lpddr4-rpre', type=int, default=-1, choices=[-1,0,1],
+                           help='LPDDR4 read preamble (auto by dram_t_ck when -1)')
+    orbit_grp.add_argument('--orbit-default-ch', type=int, default=0, choices=[0,1],
+                           help='Single-channel default OMC (0 or 1)')
+    orbit_grp.add_argument('--orbit-freq-level', type=int, default=0, choices=[0,1,2,3],
+                           help='DDR_FREQ_LEVEL: drop N fastest timing points')
+    orbit_grp.add_argument('--orbit-lp5-freq-set', default='6000', choices=['6000','6400'],
+                           help='LPDDR5 boot frequency table (max6000 or max6400)')
+    orbit_grp.add_argument('--orbit-initial-training', type=int, default=1, choices=[0,1], help='Initial training enable')
+    orbit_grp.add_argument('--orbit-phy-vref-trn-mode', type=int, default=1, choices=[0,1], help='PHY Vref training mode')
+    orbit_grp.add_argument('--orbit-phy-duty-trn-mode', type=int, default=1, choices=[0,1], help='PHY duty training mode')
+    orbit_grp.add_argument('--orbit-dram-vref-trn-mode', type=int, default=1, choices=[0,1], help='DRAM Vref training mode')
+    orbit_grp.add_argument('--orbit-dram-duty-trn-mode', type=int, default=1, choices=[0,1], help='DRAM duty training mode')
+    orbit_grp.add_argument('--orbit-command-bus-training', type=int, default=1, choices=[0,1], help='Command bus training enable')
+    orbit_grp.add_argument('--orbit-ca-vref-training', type=int, default=1, choices=[0,1], help='CA Vref training enable')
+    orbit_grp.add_argument('--orbit-prbs-training', type=int, default=1, choices=[0,1], help='PRBS training enable')
+    orbit_grp.add_argument('--orbit-reboot-with-training', type=int, default=1, choices=[0,1], help='Reboot with training')
+    orbit_grp.add_argument('--orbit-init-zq-calibration', type=int, default=1, choices=[0,1], help='Initial ZQ calibration enable')
+    orbit_grp.add_argument('--orbit-zq-calibration', type=int, default=1, choices=[0,1], help='Periodic ZQ calibration enable')
+    orbit_grp.add_argument('--orbit-regional-clock-gating', type=int, default=1, choices=[0,1], help='Regional clock gating enable')
+    orbit_grp.add_argument('--orbit-dram-clock-gating', type=int, default=1, choices=[0,1], help='DRAM clock gating enable')
+    orbit_grp.add_argument('--orbit-phy-clock-gating', type=int, default=0, choices=[0,1], help='PHY clock gating enable')
     orbit_grp.add_argument('--orbit-config-json', type=str, help='JSON file with orbit_config field overrides')
     orbit_grp.add_argument('--orbit-config-use-python', action='store_true', help='Use Python implementation instead of gen_ddr_config')
     
     # Dynamic power management
-    orbit_grp.add_argument('--orbit-dynamic-power-down', type=int, default=0, choices=[0,1], help='Dynamic power down enable')
-    orbit_grp.add_argument('--orbit-dynamic-power-down-threshold', type=int, default=0, help='Dynamic power down threshold (cycles)')
-    orbit_grp.add_argument('--orbit-dynamic-self-refresh', type=int, default=0, choices=[0,1], help='Dynamic self refresh enable')
-    orbit_grp.add_argument('--orbit-dynamic-self-refresh-threshold', type=int, default=0, help='Dynamic self refresh threshold (cycles)')
-    orbit_grp.add_argument('--orbit-phy-idle-cnt-th', type=int, default=0, help='PHY idle counter threshold')
+    orbit_grp.add_argument('--orbit-dynamic-power-down', type=int, default=1, choices=[0,1], help='Dynamic power down enable')
+    orbit_grp.add_argument('--orbit-dynamic-power-down-threshold', type=int, default=2048, help='Dynamic power down threshold (cycles)')
+    orbit_grp.add_argument('--orbit-dynamic-self-refresh', type=int, default=1, choices=[0,1], help='Dynamic self refresh enable')
+    orbit_grp.add_argument('--orbit-dynamic-self-refresh-threshold', type=int, default=2048, help='Dynamic self refresh threshold (cycles)')
+    orbit_grp.add_argument('--orbit-phy-idle-cnt-th', type=int, default=128, help='PHY idle counter threshold')
     orbit_grp.add_argument('--orbit-phy-low-power', type=int, default=0, choices=[0,1], help='PHY low power enable')
     
     # Timing intervals
-    orbit_grp.add_argument('--orbit-periodic-training', type=int, default=0, choices=[0,1], help='Periodic training enable')
-    orbit_grp.add_argument('--orbit-periodic-training-period', type=int, default=24000, help='Periodic training period')
-    orbit_grp.add_argument('--orbit-temp-sensing', type=int, default=0, choices=[0,1], help='Temperature sensing enable')
+    orbit_grp.add_argument('--orbit-periodic-training', type=int, default=1, choices=[0,1], help='Periodic training enable')
+    orbit_grp.add_argument('--orbit-periodic-training-period', type=int, default=50000, help='Periodic training period')
+    orbit_grp.add_argument('--orbit-temp-sensing', type=int, default=1, choices=[0,1], help='Temperature sensing enable')
     orbit_grp.add_argument('--orbit-temp-sensing-period', type=int, default=32000, help='Temperature sensing period')
     orbit_grp.add_argument('--orbit-zq-calibration-period', type=int, default=48000, help='ZQ calibration period')
     orbit_grp.add_argument('--orbit-t-refiab', type=int, default=3904000, help='tREFI AB (in ps)')
@@ -920,7 +947,10 @@ def generate_orbit_config_bin(args):
         
         # Collect modifiable field overrides from CLI arguments
         overrides = {}
-        # Map argument names to orbit_config field names
+        # Map argument names to orbit_config field names.  Every default in
+        # argparse now matches SCP-firmware's ddr_config.h, so passing the
+        # parsed value through unconditionally is safe and keeps the Python
+        # implementation byte-identical to the C path.
         field_map = {
             'orbit_byte_mode': 'byte_mode',
             'orbit_mixed': 'mixed',
@@ -930,6 +960,27 @@ def generate_orbit_config_bin(args):
             'orbit_rfm_en': 'rfm_en',
             'orbit_dsm_en': 'dsm_en',
             'orbit_ca_odt': 'ca_odt',
+            'orbit_phy_odt': 'phy_odt',
+            'orbit_otd_ck': 'otd_ck',
+            'orbit_otd_cs': 'otd_cs',
+            'orbit_otd_ca': 'otd_ca',
+            'orbit_zq_bg_mode': 'zq_bg_mode',
+            'orbit_lpddr4_rpre': 'lpddr4_rpre',
+            # Training control
+            'orbit_initial_training': 'initial_training',
+            'orbit_phy_vref_trn_mode': 'phy_vref_trn_mode',
+            'orbit_phy_duty_trn_mode': 'phy_duty_trn_mode',
+            'orbit_dram_vref_trn_mode': 'dram_vref_trn_mode',
+            'orbit_dram_duty_trn_mode': 'dram_duty_trn_mode',
+            'orbit_command_bus_training': 'command_bus_training',
+            'orbit_ca_vref_training': 'ca_vref_training',
+            'orbit_prbs_training': 'prbs_training',
+            'orbit_reboot_with_training': 'reboot_with_training',
+            'orbit_init_zq_calibration': 'init_zq_calibration',
+            'orbit_zq_calibration': 'zq_calibration',
+            'orbit_regional_clock_gating': 'regional_clock_gating',
+            'orbit_dram_clock_gating': 'dram_clock_gating',
+            'orbit_phy_clock_gating': 'phy_clock_gating',
             # Dynamic power management
             'orbit_dynamic_power_down': 'dynamic_power_down',
             'orbit_dynamic_power_down_threshold': 'dynamic_power_down_threshold',
@@ -948,12 +999,15 @@ def generate_orbit_config_bin(args):
             'orbit_t_zqcal': 't_zqcal',
         }
         for arg_name, field_name in field_map.items():
-            if hasattr(args, arg_name):
-                value = getattr(args, arg_name)
-                # Only add if not default (to allow CLI defaults to work)
+            if not hasattr(args, arg_name):
+                continue
+            value = getattr(args, arg_name)
+            # LP4 rpre uses -1 as "automatic"; do not force it into the struct.
+            if arg_name == 'orbit_lpddr4_rpre' and value is not None and value >= 0:
                 overrides[field_name] = value
-        
-        # Compute density_code matching C logic (index in orbit_densities list)
+            elif arg_name != 'orbit_lpddr4_rpre':
+                overrides[field_name] = value
+
         # Read mapping from orbit_init_gen.h generated by timing write()
         density_code = 0
         try:
@@ -1003,6 +1057,9 @@ def generate_orbit_config_bin(args):
                                      density=density,
                                      byte_mode=byte_mode,
                                      mixed=mixed,
+                                     default_ch=args.orbit_default_ch,
+                                     ddr_freq_level=args.orbit_freq_level,
+                                     lp5_freq_set=args.orbit_lp5_freq_set,
                                      output_file='ddr_timing_table.bin',
                                      offset=0x800,
                                      **overrides)
@@ -1010,6 +1067,13 @@ def generate_orbit_config_bin(args):
     else:
         # Use original C implementation via gen_ddr_config
         import subprocess
+        import shutil
+        # ddr_config.h is generated from the checked-in template; it is
+        # gitignored so a fresh checkout does not have it.
+        template_path = os.path.join(os.path.dirname(__file__), 'ddr_config.h.template')
+        ddr_config_path = os.path.join(os.path.dirname(__file__), 'ddr_config.h')
+        if os.path.exists(template_path):
+            shutil.copyfile(template_path, ddr_config_path)
         macro_ddr_type = args.macro_ddr_type
         macro_two_channel = 1 if args.two_channel else 0
         # Determine orbit_config_density from args
@@ -1020,7 +1084,14 @@ def generate_orbit_config_bin(args):
         else:
             orbit_config_density = 16
         script_path = os.path.join(os.path.dirname(__file__), 'gen_ddr_config')
-        cmd = [sys.executable, script_path, str(macro_ddr_type), str(macro_two_channel), '--density', str(orbit_config_density)]
+        cmd = [sys.executable, script_path, str(macro_ddr_type), str(macro_two_channel),
+               '--density', str(orbit_config_density),
+               '--freq-level', str(args.orbit_freq_level),
+               '--default-ch', str(args.orbit_default_ch),
+               '--byte-mode', str(args.orbit_byte_mode),
+               '--mixed', str(args.orbit_mixed),
+               '--dq-width', str(args.dq_width),
+               '--lp5-freq-set', str(args.orbit_lp5_freq_set)]
         print(f"Running: {' '.join(cmd)}")
         result = subprocess.run(cmd)
         if result.returncode != 0:

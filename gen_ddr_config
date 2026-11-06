@@ -21,7 +21,10 @@ def check_gcc_installed() -> bool:
     except (FileNotFoundError, subprocess.CalledProcessError):
         return False
 
-def compile_test_c(ddr_type: str, two_channel: str, density: int, exec_file: str = "ddr_config_bin_exec") -> bool:
+def compile_test_c(ddr_type: str, two_channel: str, density: int, exec_file: str = "ddr_config_bin_exec",
+                   freq_level: int = 0, default_ch: int = 0, byte_mode: int = 0,
+                   mixed: int = 0, dq_width: int = 16,
+                   lp5_freq_set: str = "6000") -> bool:
 
     if not os.path.exists("ddr_config_bin.c"):
         print("error: ddr_config_bin.c not found in current directory")
@@ -42,7 +45,14 @@ def compile_test_c(ddr_type: str, two_channel: str, density: int, exec_file: str
         "-D", f"DDR_TYPE={ddr_type}",
         "-D", f"DDR_TWO_CHANNEL={two_channel}",
         "-D", f"ORBIT_DENSITY={density}",
+        "-D", f"DDR_FREQ_LEVEL={freq_level}",
+        "-D", f"DDR_DEFAULT_CH={default_ch}",
+        "-D", f"ORBIT_BYTE_MODE={byte_mode}",
+        "-D", f"ORBIT_MIXED={mixed}",
+        "-D", f"ORBIT_DQ_WIDTH={dq_width}",
     ]
+    if str(lp5_freq_set) == "6400":
+        gcc_command.extend(["-D", "ORBIT_LP5_FREQ_SET_6400=1"])
     for h in header_dirs:
         gcc_command.extend(["-I", h])
     gcc_command += ["ddr_config_bin.c", "-o", exec_file]
@@ -88,6 +98,18 @@ def main():
     parser.add_argument("macro_ddr_type", help="DDR_TYPE macro value")
     parser.add_argument("macro_two_channel", help="DDR_TWO_CHANNEL macro value (e.g. 2)")
     parser.add_argument("--density", type=int, default=None, help="density (Gb); read from orbit_init_gen.h if unset")
+    parser.add_argument("--freq-level", type=int, default=0, choices=[0, 1, 2, 3],
+                        help="DDR_FREQ_LEVEL (drops that many fastest points)")
+    parser.add_argument("--default-ch", type=int, default=0, choices=[0, 1],
+                        help="single-channel default OMC (0 or 1)")
+    parser.add_argument("--byte-mode", type=int, default=0, choices=[0, 1],
+                        help="orbit byte mode (0=x16, 1=x8)")
+    parser.add_argument("--mixed", type=int, default=0, choices=[0, 1],
+                        help="mixed rank density flag")
+    parser.add_argument("--dq-width", type=int, default=16, choices=[4, 8, 16, 32],
+                        help="per-device DQ width stored in orbit_config")
+    parser.add_argument("--lp5-freq-set", default="6000", choices=["6000", "6400"],
+                        help="LPDDR5 boot frequency table")
     parser.add_argument("--clean", action="store_true", help="remove the executable after running")
 
     args = parser.parse_args()
@@ -120,7 +142,17 @@ def main():
         print(f"Using density from command line: {density}")
 
     exec_file = "ddr_config_bin_exec"
-    if not compile_test_c(ddr_type, two_channel, density, exec_file):
+    # ddr_config.h is generated from the checked-in template (gitignored).
+    if not os.path.exists("ddr_config.h") and os.path.exists("ddr_config.h.template"):
+        import shutil
+        shutil.copyfile("ddr_config.h.template", "ddr_config.h")
+    if not compile_test_c(ddr_type, two_channel, density, exec_file,
+                          freq_level=args.freq_level,
+                          default_ch=args.default_ch,
+                          byte_mode=args.byte_mode,
+                          mixed=args.mixed,
+                          dq_width=args.dq_width,
+                          lp5_freq_set=args.lp5_freq_set):
         return
 
     run_success = run_executable(exec_file)

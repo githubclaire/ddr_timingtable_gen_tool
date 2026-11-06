@@ -10,6 +10,31 @@ cd "$ROOT"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
+# The checked-in arise2_omc.h includes two generated headers.  Generate
+# minimal stand-ins so this layout gate stays hermetic (does not depend on a
+# prior gen_timing_params run having written them into the repo root).
+cat > "$TMP/orbit_init_gen.h" <<'EOF'
+#ifndef __ORBIT_INIT_GEN__
+#define __ORBIT_INIT_GEN__
+#define DENSITY_2 1
+#define DENSITY_4 3
+#define DENSITY_8 5
+#define DENSITY_16 7
+typedef unsigned int omc_dram_density_t;
+#endif
+EOF
+cat > "$TMP/mr_config_gen.h" <<'EOF'
+#ifndef __MR_CONFIG_GEN__
+#define __MR_CONFIG_GEN__
+#define LPDDR4_WDQS_CTRL_MODE 0
+#define LPDDR5_ENHANCED_NT_ODT 0
+#define OMC_NUM_TIMING_PARAMS 21
+#define OMC_NUM_DERATE_PARAMS 2
+#define OMC_NUM_DFI_TIMING_PARAMS 8
+#define OMC_NUM_DENSITIES 10
+#endif
+EOF
+
 fail=0
 for dt in 2 3; do
   for ch in 0 1; do
@@ -21,7 +46,7 @@ for dt in 2 3; do
 
     gcc -std=c99 -Wall -O0 \
         -DDDR_TYPE=$dt -DDDR_TWO_CHANNEL=$ch \
-        -I. \
+        -I"$TMP" -I. \
         tools/dump_struct_layout.c \
         -o "$TMP/dump_c_$tag" 2> "$TMP/cc_err_$tag" || {
       echo "FAIL: gcc build failed for $tag"; cat "$TMP/cc_err_$tag"; fail=1; continue; }

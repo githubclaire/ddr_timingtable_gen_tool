@@ -62,6 +62,12 @@ def _python_args(dram_type, two_channel, density, periods):
 def _build_c(dram_type, two_channel, density):
     if os.path.exists(EXEC):
         os.remove(EXEC)
+    # ddr_config.h is generated from the checked-in template and gitignored.
+    template = os.path.join(ROOT, "ddr_config.h.template")
+    target = os.path.join(ROOT, "ddr_config.h")
+    if os.path.exists(template):
+        import shutil
+        shutil.copyfile(template, target)
     _run(["gcc", "-std=c99",
           "-D", "DDR_TYPE=%d" % (2 if dram_type == "lpddr4" else 3),
           "-D", "DDR_TWO_CHANNEL=%d" % (1 if two_channel else 0),
@@ -76,11 +82,10 @@ def _check_combo(case, dram_type, two_channel, density, periods):
     bin_path = os.path.join(ROOT, "ddr_timing_table.bin")
     with open(bin_path, "rb") as f:
         py_data = f.read()
-    seeded = bytearray(py_data)
-    for i in range(0x800, len(seeded)):
-        seeded[i] = 0
+    # Recreate the timing-table-only file the C generator expects: the SCP
+    # flow writes the timing table first, then appends the orbit prefix.
     with open(bin_path, "wb") as f:
-        f.write(bytes(seeded))
+        f.write(py_data[:0x800])
     _build_c(dram_type, two_channel, density)
     _run([EXEC])
     with open(bin_path, "rb") as f:

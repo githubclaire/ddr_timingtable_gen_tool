@@ -90,9 +90,10 @@
  *
  *            EMMC_CM4_REVD
  *
+ *      ----------------------------- --EMMC_CM4_REVD_BASE
+ *      | CM4<->ADSP Communtion(4KB) |
  *      -----------------------------
- *      |                            |
- *      |  REV (no used)    (8KB)    |
+ *      |  REV (no used)    (4KB)    |
  *      -----------------------------
  *      |                            |
  *      |  EMMC_CM4_TIME_TB (2KB)    |
@@ -104,10 +105,8 @@
  *      |  EMMC_CM4_HEAP    (28KB)   |
  *      -----------------------------
  *      |                            |
- *      |  REV (no used)    (16KB)   |
- *      -----------------------------
- *      | CM4<->ADSP Communtion(4KB) |
- *      -----------------------------
+ *      |  EMMC_CM4_SRAM    (20KB)   |
+ *      -----------------------------  --EMMC_BOOT_BASE + EMMC_BOOT_SIZE
  * ********************************/
 #define EMMC_CM4_REVD_SIZE         0x00010000
 #if defined(TARGET_MACHINE_ARISE_QEMU)
@@ -115,6 +114,10 @@
 #else
 #define EMMC_CM4_REVD_BASE         (EMMC_BOOT_BASE + EMMC_BOOT_SIZE - EMMC_CM4_REVD_SIZE)
 #endif
+
+#define EMMC_CM4_ADSP_COMM_SIZE    0x00001000
+#define EMMC_MB_CM4_ADSP_COMM_BASE (EMMC_CM4_REVD_BASE)
+#define EMMC_MB_ADSP_CM4_COMM_BASE (EMMC_CM4_REVD_BASE + (EMMC_CM4_ADSP_COMM_SIZE/2))
 
 #define EMMC_CM4_TIME_TB_BASE      (EMMC_CM4_REVD_BASE + 0x00002000)
 #define EMMC_CM4_TIME_TB_LENG      0x00000600
@@ -127,12 +130,12 @@
 #define EMMC_CM4_HEAP_BASE         (EMMC_CM4_DDR_CONG_BASE + EMMC_CM4_DDR_CONG_SIZE)
 #define EMMC_CM4_HEAP_SIZE         0x00007000
 
-#define EMMC_CM4_ADSP_COMM_SIZE    0x00001000
-#define EMMC_MB_CM4_ADSP_COMM_BASE (EMMC_BOOT_BASE + EMMC_BOOT_SIZE -(EMMC_CM4_ADSP_COMM_SIZE/2))
-#define EMMC_MB_ADSP_CM4_COMM_BASE (EMMC_BOOT_BASE + EMMC_BOOT_SIZE - EMMC_CM4_ADSP_COMM_SIZE)
+#define EMMC_CM4_SRAM_BASE         (EMMC_CM4_HEAP_BASE + EMMC_CM4_HEAP_SIZE)
+#define EMMC_CM4_SRAM_SIZE         0x00005000
+
 
 #define NORFLASH_BOOT_BASE         0x10000000
-#define NORFLASH_BOOT_SIZE         0x00800000
+#define NORFLASH_BOOT_SIZE         0x1000000
 #define NV_VARIABLE_SIZE           0x10000
 #define NV_FTW_SPARE_SIZE          0x10000
 #define NV_FTW_WORK_SIZE           0x10000
@@ -318,6 +321,21 @@
 
 #define GTIMER_FRAME_SHR_BASE       (GTIMER_CTL_SHR_BASE + GTIMER_CTL_SHR_SIZE)
 #define GTIMER_FRAME_SHR_SIZE       0x100
+
+#define OS_TYPE                     (GTIMER_FRAME_SHR_BASE + GTIMER_FRAME_SHR_SIZE)
+#define OS_TYPE_SIZE                0x4
+#define OS_TYPE_WINDOWS             0x57494E32
+#define OS_TYPE_LINUX               0x4C494E58
+#define OS_TYPE_UNKNOWN             0x00
+
+#define CAPSULE_FLAG_SHR_BASE       (NSEC_SRAM_SHR_BASE + 0x1080)
+#define CAPSULE_FLAG_SHR_SIZE       0x10
+
+/* Boot source flag Shared Memory*/
+#define BOOTSRCFLAG_SHR_BASE        (CAPSULE_FLAG_SHR_BASE + CAPSULE_FLAG_SHR_SIZE)
+#define BOOTSRCFLAG_SHR_SIZE        0x8
+
+#define EXTRA_RESERVED_SIZE        (1024*1024*1024) // exclude gpu reserved size
 
 /* SF REG */
 #define BOOT_SPI_REG_BASE          0x60200000
@@ -556,10 +574,12 @@
 #define SUS_ADC_BASE               0x50370000
 #define SUS_ADC_SIZE               0x00010000
 
-#define SUS_SYS_BASE               0x50390000
-#define SUS_SYS_SIZE               0x00010000
 #define SUS_SYS_AUDIO_CLK_EN       0x00000198
 #define SUS_SYS_AUDIO_CLK_SEL      0x0000019C
+
+#define SUS_SYS_BASE               0x50390198
+#define SUS_SYS_SIZE               0x8
+
 /************************
 * MEMAPB 32bit@125MHz  
 *************************/
@@ -670,16 +690,16 @@
 /************************
 * MMSAXI 32bit@375MHz
 ************************/
-#define VMM_EPLL_CTRL_BASE         0x50311000
+#define VMM_EPLL_CTRL_BASE         0x58311000
 #define VMM_EPLL_CTRL_SIZE         0x00001000
 
-#define VMM_VPLL_CTRL_BASE         0x50312000
+#define VMM_VPLL_CTRL_BASE         0x58312000
 #define VMM_VPLL_CTRL_SIZE         0x00001000
 
-#define VMM_CCP_VMM_V_BASE         0x50313000
+#define VMM_CCP_VMM_V_BASE         0x58313000
 #define VMM_CCP_VMM_V_SIZE         0x00001000
 
-#define VMM_CCP_VMM_H_BASE         0x50314000
+#define VMM_CCP_VMM_H_BASE         0x58314000
 #define VMM_CCP_VMM_H_SIZE         0x00001000
 
 #define VMM_SEC_MISC_BASE          0x58320000
@@ -740,13 +760,6 @@
 
 #define SUS_GPIO_RTC_WAKE_PIN      24
 
-#define SOC_GPIO_LID_PIN           25
-#define SOC_GPIO_EC_INTR_PIN       23
-#define SOC_GPIO_EC_TEST_PIN       22
-#define SOC_GPIO_KBC_PIN           21
-#define SOC_GPIO_TPD_PIN           20
-#define SOC_GPIO_MOUSE_PIN         19
-
 #define IRQ_SUS_PWM                37
 #define IRQ_TZC0                   45
 #define IRQ_TZC1                   46
@@ -773,6 +786,9 @@
 #define IRQ_ADC                    64
 #define IRQ_TS                     65
 #define IRQ_TS_HIGH                69
+
+#define IRQ_FAKE_DSU0_DVFS         66
+#define IRQ_FAKE_DSU1_DVFS         67
 
 #define IRQ_OTP                    73
 
@@ -831,39 +847,41 @@
 #define IRQ_USB31_HOST0_TCA        121
 #define IRQ_USB31_HOST1_TCA        122
 
-//DRAMC
-#define IRQ_DRAMC0_CH0_OVERTEMP    123
-#define IRQ_DRAMC0_CH0_HIGHTEMP    124
-#define IRQ_DRAMC0_CH0_COOLDOWN    125
+/* DRAMC0_CH0 base:123 */
+#define IRQ_DRAMC0_CH0_ECC_SEC_TH  123
+#define IRQ_DRAMC0_CH0_ECC_DED     124
+#define IRQ_DRAMC0_CH0_ECC_SEC     125
 #define IRQ_DRAMC0_CH0_PHY_ERR     126
-#define IRQ_DRAMC0_CH0_ECC_SEC     127
-#define IRQ_DRAMC0_CH0_ECC_DED     128
-#define IRQ_DRAMC0_CH0_ECC_SEC_TH  129
+#define IRQ_DRAMC0_CH0_COOLDOWN    127
+#define IRQ_DRAMC0_CH0_HIGHTEMP    128
+#define IRQ_DRAMC0_CH0_OVERTEMP    129
 
-#define IRQ_DRAMC0_CH1_OVERTEMP    130
-#define IRQ_DRAMC0_CH1_HIGHTEMP    131
-#define IRQ_DRAMC0_CH1_COOLDOWN    132
+/* DRAMC0_CH1 base:130 */
+#define IRQ_DRAMC0_CH1_ECC_SEC_TH  130
+#define IRQ_DRAMC0_CH1_ECC_DED     131
+#define IRQ_DRAMC0_CH1_ECC_SEC     132
 #define IRQ_DRAMC0_CH1_PHY_ERR     133
-#define IRQ_DRAMC0_CH1_ECC_SEC     134
-#define IRQ_DRAMC0_CH1_ECC_DED     135
-#define IRQ_DRAMC0_CH1_ECC_SEC_TH  136
+#define IRQ_DRAMC0_CH1_COOLDOWN    134
+#define IRQ_DRAMC0_CH1_HIGHTEMP    135
+#define IRQ_DRAMC0_CH1_OVERTEMP    136
 
-#define IRQ_DRAMC1_CH0_OVERTEMP    137
-#define IRQ_DRAMC1_CH0_HIGHTEMP    138
-#define IRQ_DRAMC1_CH0_COOLDOWN    139
+/* DRAMC1_CH0 base:137 */
+#define IRQ_DRAMC1_CH0_ECC_SEC_TH  137
+#define IRQ_DRAMC1_CH0_ECC_DED     138
+#define IRQ_DRAMC1_CH0_ECC_SEC     139
 #define IRQ_DRAMC1_CH0_PHY_ERR     140
-#define IRQ_DRAMC1_CH0_ECC_SEC     141
-#define IRQ_DRAMC1_CH0_ECC_DED     142
-#define IRQ_DRAMC1_CH0_ECC_SEC_TH  143
+#define IRQ_DRAMC1_CH0_COOLDOWN    141
+#define IRQ_DRAMC1_CH0_HIGHTEMP    142
+#define IRQ_DRAMC1_CH0_OVERTEMP    143
 
-#define IRQ_DRAMC1_CH1_OVERTEMP    144
-#define IRQ_DRAMC1_CH1_HIGHTEMP    145
-#define IRQ_DRAMC1_CH1_COOLDOWN    146
+/* DRAMC1_CH1 base:144 */
+#define IRQ_DRAMC1_CH1_ECC_SEC_TH  144
+#define IRQ_DRAMC1_CH1_ECC_DED     145
+#define IRQ_DRAMC1_CH1_ECC_SEC     146
 #define IRQ_DRAMC1_CH1_PHY_ERR     147
-#define IRQ_DRAMC1_CH1_ECC_SEC     148
-#define IRQ_DRAMC1_CH1_ECC_DED     149
-#define IRQ_DRAMC1_CH1_ECC_SEC_TH  150
-
+#define IRQ_DRAMC1_CH1_COOLDOWN    148
+#define IRQ_DRAMC1_CH1_HIGHTEMP    149
+#define IRQ_DRAMC1_CH1_OVERTEMP    150
 // VSOC
 #define IRQ_SOC_TIMER0             151
 #define IRQ_SOC_TIMER1             152
@@ -1058,8 +1076,8 @@
 #define BMMMU_SID_SATA0            5
 #define BMMMU_SID_SATA1            6
 #define BMMMU_SID_GMAC0            16
-#define BMMMU_SID_GMAC1            24
-#define BMMMU_SID_GMAC2            32
+#define BMMMU_SID_GMAC1            17
+#define BMMMU_SID_GMAC2            18
 #define BMMMU_SID_EMMC             15
 #define BMMMU_SID_SD               8
 #define BMMMU_SID_SDIO             9
@@ -1123,7 +1141,7 @@
 #define TPM_CRB_SIZE               0x1000
 #define TPM_TIS_BASE               0xFED40000
 #define TPM_TIS_SIZE               0x5000
-#define TPM_SMC_TIS_BASE           0x583B0000
+#define TPM_SMC_TIS_BASE           0x583B0000   /* only used in qemu*/
 
 #define SCP_TZC_DRAM_SIZE          (0x00200000) /* 2MB */
 #define SCP_TZC_DRAM_BASE          (TZC_DRAM0_BASE + (TZC_DRAM0_SIZE - SCP_TZC_DRAM_SIZE))
@@ -1154,7 +1172,11 @@
  *
  *      -------------------- TOP
  *      |                  |
- *      |Remainder(3832)   |
+ *      |Remainder(3968)   |
+ *      --------------------
+ *      |KCMD RESP BUFF(64)|   SCP -> kernel response
+ *      --------------------
+ *      |KCMD PARAM BUFF(64)|  kernel -> SCP request
  *      --------------------
  *      |EC CMD BUFF  (4)  |
  *      |EC EVENT BUFF(4)  |
@@ -1173,8 +1195,114 @@
 #define EC_BUFF_EVENT_SIZE         (4)
 #define EC_BUFF_EVENT_BASE         (CHARGER_EVENT_BUFF_BASE + CHARGER_EVENT_BUFF_SIZE)
 #define AP_TO_CM4_CMD_SIZE         (4)
-#define AP_TO_CM4_CMD_BASE         (EC_BUFF_EVENT_BASE + EC_BUFF_EVENT_SIZE) 
+#define AP_TO_CM4_CMD_BASE         (EC_BUFF_EVENT_BASE + EC_BUFF_EVENT_SIZE)
+#define KCMD_PARAM_BUFF_SIZE       (64)
+#define KCMD_PARAM_BUFF_BASE       (AP_TO_CM4_CMD_BASE + AP_TO_CM4_CMD_SIZE)
+#define KCMD_RESP_BUFF_SIZE        (64)
+#define KCMD_RESP_BUFF_BASE        (KCMD_PARAM_BUFF_BASE + KCMD_PARAM_BUFF_SIZE)
+/* EC battery string cache. Derived from the KCMD buffers rather than
+ * hardcoded: the KCMD pair was once inserted right after AP_TO_CM4_CMD and
+ * landed exactly on this buffer's old hardcoded address. Defined after the
+ * KCMD pair because generate_dsc_inc.pl expands macros in file order. */
+#define EC_BATT_STR_BUFF_SIZE      (0x80)
+#define EC_BATT_STR_BUFF_BASE      (KCMD_RESP_BUFF_BASE + KCMD_RESP_BUFF_SIZE)
 
+/***********************************
+ * EC Battery Information Interface v1.4
+ * Single source for the battery page byte layout, shared by the SCP
+ * firmware and the DSDT/DTS preprocessors (both force-include this
+ * header). EC firmware and the Linux/u-boot drivers keep their own
+ * copies (different build systems); full prose spec:
+ *   ec-interface/ec_battery_map.h (working copy) / protocol addendum.
+ ***********************************/
+/* battery data page: single 64B page in EC I2C region 0x70..0xB0 */
+#define EC_BAT_PAGE_SIZE           0x40
+#define EC_BAT_HOT_REG_BASE        0x70
+/* dynamic block 0x00..0x25, units mV/mA(signed)/mAh/0.1C(signed)/mW(mag) */
+#define EC_BAT_HOT_STATE_OFF       0x00
+#define EC_BAT_HOT_SOC_OFF         0x01
+#define EC_BAT_HOT_VOLT_OFF        0x02
+#define EC_BAT_HOT_CURR_OFF        0x04
+#define EC_BAT_HOT_TEMP_OFF        0x06
+#define EC_BAT_HOT_REMAIN_OFF      0x08
+#define EC_BAT_HOT_RATE_OFF        0x0A
+#define EC_BAT_HOT_FULLCAP_OFF     0x0C
+#define EC_BAT_HOT_TTE_OFF         0x0E
+#define EC_BAT_HOT_TTF_OFF         0x10
+#define EC_BAT_HOT_HEALTH_OFF      0x12
+#define EC_BAT_HOT_ACONLINE_OFF    0x13
+#define EC_BAT_HOT_ACTYPE_OFF      0x14
+#define EC_BAT_HOT_PRESENT_OFF     0x15
+#define EC_BAT_HOT_ACVOLT_OFF      0x16
+#define EC_BAT_HOT_ACCURR_OFF      0x18
+#define EC_BAT_HOT_ACPOWER_OFF     0x1A
+#define EC_BAT_HOT_ACTEMP_OFF      0x1C
+#define EC_BAT_HOT_CHGSTATE_OFF    0x1E
+#define EC_BAT_HOT_CHGFAULT_OFF    0x20
+#define EC_BAT_HOT_CHGICL_OFF      0x22
+#define EC_BAT_HOT_CHGCC_OFF       0x24
+/* static block 0x2C..0x3D (0x26..0x2B reserved: dynamic growth) */
+#define EC_BAT_HOT_CELLNUM_OFF     0x2C
+#define EC_BAT_HOT_CHEMCODE_OFF    0x2D
+#define EC_BAT_HOT_DESIGNCAP_OFF   0x30
+#define EC_BAT_HOT_DESIGNVOLT_OFF  0x32
+#define EC_BAT_HOT_WARNCAP_OFF     0x34
+#define EC_BAT_HOT_LOWCAP_OFF      0x36
+#define EC_BAT_HOT_CYCLECNT_OFF    0x38
+#define EC_BAT_HOT_GAUGEFW_OFF     0x3A
+#define EC_BAT_HOT_BATERR_OFF      0x3C
+/* batt_state bits (low nibble maps 1:1 onto ACPI _BST[0]) */
+#define EC_BAT_ST_DISCHARGING      (0x01)
+#define EC_BAT_ST_CHARGING         (0x02)
+#define EC_BAT_ST_CRITICAL         (0x04)
+#define EC_BAT_ST_FULL             (0x08)
+/* static info TLV tags ([tag][len][bytes]...) from GET_STATIC_TLV */
+#define EC_BATT_TLV_TAG_MODEL       (0x01)
+#define EC_BATT_TLV_TAG_SERIAL      (0x02)
+#define EC_BATT_TLV_TAG_MANUFACTURER (0x03)
+#define EC_BATT_TLV_TAG_CHEMISTRY   (0x04)
+#define EC_BATT_TLV_TAG_DATE        (0x05)
+#define EC_BATT_TLV_TAG_GAUGE_FW    (0x06)
+#define EC_BATT_TLV_TAG_DEV_NAME    (0x07)
+/* CMD sub-commands (first FIFO byte) */
+#define EC_BATT_SUB_GET_STATIC_TLV (0x01)
+#define EC_BATT_SUB_SET_CHG_LIMIT (0x02)
+#define EC_BATT_SUB_SET_TRIP       (0x03)
+#define EC_BATT_SUB_SET_THROTTLE   (0x04)
+#define EC_BATT_SUB_SET_CHG_ENABLE (0x05)
+/* BATT_EVENT payload: [state][soc][flags] = 3B, flags bit0 = static changed */
+#define EC_EVT_BATT_FL_STATIC      (0x01)
+/* shared-memory mirror inside CHARGER_EVENT_BUFF (0x80 window) */
+#define EC_MIRROR_HOT_OFF          0x00
+#define EC_MIRROR_REQ_OFF          0x40
+#define EC_MIRROR_SIZE             (0x80)
+/* absolute status-byte offset inside the 0x80 mirror window; ASL Offset()
+ * only accepts a literal, so provide the precomputed sum here */
+#define EC_MIRROR_REQ_STATUS_OFF   0x48
+/* AP->CM4 command bits (AP_TO_CM4_CMD word) */
+#define EC_CMD_BIT_BATTERY         (0)  /* CBAT: control request pending */
+#define EC_CMD_BIT_UCSI           (1)  /* CUCS */
+#define EC_CMD_BIT_EC_EVENT       (2)  /* CEVT: EC GPIO int doorbell */
+/* AP->SCP control request mailbox at mirror +0x40: [sub][params x7] */
+#define EC_BATT_REQ_STATUS_OFF     0x08
+#define EC_BATT_REQ_STATUS_PENDING (0x01)
+#define EC_BATT_REQ_STATUS_DONE    (0x02)
+#define EC_BATT_REQ_STATUS_ERROR   (0x03)
+/* string cache fixed slots inside EC_BATT_STR_BUFF (NUL-padded ASCII).
+ * MODEL carries the vendor's 16-char string plus the NUL terminator, so it
+ * gets a 24-byte slot; the rest keep their original widths. The whole cache
+ * occupies 0x48 of the 0x80 region. Keep in sync with the EC firmware's
+ * glf_battery_map.h and the Linux driver's STR_*_OFF windows. */
+#define EC_STR_MODEL_OFF           0x00
+#define EC_STR_SERIAL_OFF          0x18
+#define EC_STR_MFG_OFF             0x28
+#define EC_STR_CHEM_OFF            0x38
+#define EC_STR_DATE_OFF            0x40
+#define EC_STR_SLOT_MODEL          (24)
+#define EC_STR_SLOT_SERIAL         (16)
+#define EC_STR_SLOT_MFG            (16)
+#define EC_STR_SLOT_CHEM           (8)
+#define EC_STR_SLOT_DATE           (8)
 
 /***********************************
  *
@@ -1236,7 +1364,7 @@
  * ********************************/
 #define SW_INFO_REGISTER_BASE      0x58000000
 #define SW_INFO_REGISTER_OFFSET    0x3E0000
-#define SW_INFO_REGISTER_SIZE      0x200
+#define SW_INFO_REGISTER_SIZE      0xE0
 
 
 
@@ -1262,8 +1390,8 @@
 #else
 #define VENG_CTRL_BASE             0x58100000
 #define VENG_CTRL_SIZE             0x180000
-#define VENG_FB_BASE               0
-#define VENG_FB_SIZE               0
+#define VENG_FB_BASE               0x8E0000000
+#define VENG_FB_SIZE               0x20000000
 #endif
 
 /***********************************
@@ -1315,6 +1443,7 @@
 #define EMMC_BOOT_MODE_CARD_CLK    (5 * 1000000)
 #define EMMC_BOOT_MODE_BUS_WIDTH   8
 #define UART_DLF_VAL               0x1A
+#define HIGH_UART_CLOCK            BASE_CLOCK
 #else
 #define BASE_CLOCK                 (24 * 1000000)
 #define BASE_CM4_CLOCK             (250 * 1000000)
@@ -1323,6 +1452,7 @@
 #define EMMC_MAX_BUS_MODE          8
 #define EMMC_BOOT_MODE_BUS_WIDTH   8
 #define UART_DLF_VAL               0x0
+#define HIGH_UART_CLOCK            (64 * 1000000)
 #endif
 
 #ifdef TARGET_MACHINE_ARISE_QT
@@ -1404,79 +1534,166 @@
 #define MB_NS_SLOT_THEM_SENSOR_LITTLE     (MB_NS_SLOT_THEM_SENSOR_BIG+1)
 #define MB_NS_SLOT_THEM_SENSOR_FAN     (MB_NS_SLOT_THEM_SENSOR_LITTLE+1)
 #define MB_NS_SLOT_EC              (MB_NS_SLOT_THEM_SENSOR_FAN+1)
+#define MB_NS_SLOT_KCMD            (MB_NS_SLOT_EC+1)
 
 /****************************************
 * DVFS PMIC  Define
 *****************************************/
-#define DSU0_BIG0_I2C_ADDR       0x50
-#define DSU0_BIG1_I2C_ADDR       0x51
-#define DSU1_LITTLE0_I2C_ADDR    0x50
-#define DSU1_LITTLE1_I2C_ADDR    0x51
-#define DSU0_I2C_REG_ADDR        0x5D
-#define DSU1_I2C_REG_ADDR        0x5E
+#define DSU0_BIG0_I2C_ADDR       0x40
+#define DSU0_BIG1_I2C_ADDR       0x41
+#define DSU1_LITTLE0_I2C_ADDR    0x4A
+#define DSU1_LITTLE1_I2C_ADDR    0x49
+#define DSU0_I2C_REG_ADDR        0x0
+#define DSU1_I2C_REG_ADDR        0x1
 
 /*******CPU Freq table in HZ**************/
-#define DSU0_FREQ_LEVEL0         400000000
-#define DSU0_FREQ_LEVEL1         800000000
-#define DSU0_FREQ_LEVEL2         914280000
-#define DSU0_FREQ_LEVEL3         1066660000
-#define DSU0_FREQ_LEVEL4         1280000000
-#define DSU0_FREQ_LEVEL5         1600000000
-#define DSU0_FREQ_LEVEL6         2133000000
-#define DSU0_FREQ_LEVEL7         3200000000
+#define DSU0_FREQ_LEVEL0         414000000
+#define DSU0_FREQ_LEVEL1         497600000
+#define DSU0_FREQ_LEVEL2         622000000
+#define DSU0_FREQ_LEVEL3         829334000
+#define DSU0_FREQ_LEVEL4         995200000
+#define DSU0_FREQ_LEVEL5         1244000000
+#define DSU0_FREQ_LEVEL6         1658667000
+#define DSU0_FREQ_LEVEL7         2200000000
 
-#define DSU1_FREQ_LEVEL0         300000000
-#define DSU1_FREQ_LEVEL1         600000000
-#define DSU1_FREQ_LEVEL2         685710000
+#define DSU1_FREQ_LEVEL0         400000000
+#define DSU1_FREQ_LEVEL1         480000000
+#define DSU1_FREQ_LEVEL2         600000000
 #define DSU1_FREQ_LEVEL3         800000000
 #define DSU1_FREQ_LEVEL4         960000000
 #define DSU1_FREQ_LEVEL5         1200000000
 #define DSU1_FREQ_LEVEL6         1600000000
-#define DSU1_FREQ_LEVEL7         2400000000
+#define DSU1_FREQ_LEVEL7         1700000000
 
 /*****CPU Voltage table in microvlot******/
-#define DSU0_MICRO_VOLT_LEVEL0   1000000
-#define DSU0_MICRO_VOLT_LEVEL1   1000000
-#define DSU0_MICRO_VOLT_LEVEL2   1012500
-#define DSU0_MICRO_VOLT_LEVEL3   1012500
-#define DSU0_MICRO_VOLT_LEVEL4   1037500
-#define DSU0_MICRO_VOLT_LEVEL5   1050000
-#define DSU0_MICRO_VOLT_LEVEL6   1062500
-#define DSU0_MICRO_VOLT_LEVEL7   1075000
+#define DSU0_MICRO_VOLT_LEVEL0   675000
+#define DSU0_MICRO_VOLT_LEVEL1   675000
+#define DSU0_MICRO_VOLT_LEVEL2   675000
+#define DSU0_MICRO_VOLT_LEVEL3   700000
+#define DSU0_MICRO_VOLT_LEVEL4   750000
+#define DSU0_MICRO_VOLT_LEVEL5   800000
+#define DSU0_MICRO_VOLT_LEVEL6   850000
+#define DSU0_MICRO_VOLT_LEVEL7   960000
 
-#define DSU1_MICRO_VOLT_LEVEL0   575000
-#define DSU1_MICRO_VOLT_LEVEL1   575000
-#define DSU1_MICRO_VOLT_LEVEL2   587500
-#define DSU1_MICRO_VOLT_LEVEL3   600000
-#define DSU1_MICRO_VOLT_LEVEL4   612500
-#define DSU1_MICRO_VOLT_LEVEL5   625000
-#define DSU1_MICRO_VOLT_LEVEL6   637500
-#define DSU1_MICRO_VOLT_LEVEL7   650000
+#define DSU1_MICRO_VOLT_LEVEL0   675000
+#define DSU1_MICRO_VOLT_LEVEL1   675000
+#define DSU1_MICRO_VOLT_LEVEL2   675000
+#define DSU1_MICRO_VOLT_LEVEL3   700000
+#define DSU1_MICRO_VOLT_LEVEL4   750000
+#define DSU1_MICRO_VOLT_LEVEL5   800000
+#define DSU1_MICRO_VOLT_LEVEL6   860000
+#define DSU1_MICRO_VOLT_LEVEL7   960000
 
 /*the volt value must correspond to opp freq level*/
-#define DSU0_VOLT_TAB_LEVEL0     0x1
-#define DSU0_VOLT_TAB_LEVEL1     0x2
-#define DSU0_VOLT_TAB_LEVEL2     0x3
-#define DSU0_VOLT_TAB_LEVEL3     0x4
-#define DSU0_VOLT_TAB_LEVEL4     0x5
-#define DSU0_VOLT_TAB_LEVEL5     0x6
-#define DSU0_VOLT_TAB_LEVEL6     0x7
-#define DSU0_VOLT_TAB_LEVEL7     0x8
+#define DSU0_VOLT_TAB_LEVEL0     0x37
+#define DSU0_VOLT_TAB_LEVEL1     0x37
+#define DSU0_VOLT_TAB_LEVEL2     0x37
+#define DSU0_VOLT_TAB_LEVEL3     0x3C
+#define DSU0_VOLT_TAB_LEVEL4     0x46
+#define DSU0_VOLT_TAB_LEVEL5     0x50
+#define DSU0_VOLT_TAB_LEVEL6     0x5A
+#define DSU0_VOLT_TAB_LEVEL7     0x70
 
-#define DSU1_VOLT_TAB_LEVEL0     0x1
-#define DSU1_VOLT_TAB_LEVEL1     0x2
-#define DSU1_VOLT_TAB_LEVEL2     0x3
-#define DSU1_VOLT_TAB_LEVEL3     0x4
-#define DSU1_VOLT_TAB_LEVEL4     0x5
-#define DSU1_VOLT_TAB_LEVEL5     0x6
-#define DSU1_VOLT_TAB_LEVEL6     0x7
-#define DSU1_VOLT_TAB_LEVEL7     0x8
+#define DSU1_VOLT_TAB_LEVEL0     0x37
+#define DSU1_VOLT_TAB_LEVEL1     0x37
+#define DSU1_VOLT_TAB_LEVEL2     0x37
+#define DSU1_VOLT_TAB_LEVEL3     0x3C
+#define DSU1_VOLT_TAB_LEVEL4     0x46
+#define DSU1_VOLT_TAB_LEVEL5     0x50
+#define DSU1_VOLT_TAB_LEVEL6     0x5C
+#define DSU1_VOLT_TAB_LEVEL7     0x70
+
+/*************For board 20A3**************/
+#define DSU0_BIG0_I2C_ADDR_20A3       0x40
+#define DSU0_BIG1_I2C_ADDR_20A3       0x43
+#define DSU1_LITTLE0_I2C_ADDR_20A3    0x48
+#define DSU1_LITTLE1_I2C_ADDR_20A3    0x4A
+#define DSU0_I2C_REG_ADDR_20A3        0x0
+#define DSU1_I2C_REG_ADDR_20A3        0x1
+
+/*************For board laptop-v1**************/
+#define DSU0_BIG0_I2C_ADDR_LAPTOP       0x60
+#define DSU0_BIG1_I2C_ADDR_LAPTOP       0x68
+#define DSU1_LITTLE0_I2C_ADDR_LAPTOP    0x65
+#define DSU1_LITTLE1_I2C_ADDR_LAPTOP    0x65
+#define DSU0_I2C_REG_ADDR_LAPTOP        0x0
+#define DSU1_I2C_REG_ADDR_LAPTOP        0x0
+
+/*******CPU Freq table in HZ**************/
+#define DSU0_FREQ_LEVEL0_LAPTOP         355428000
+#define DSU0_FREQ_LEVEL1_LAPTOP         414000000
+#define DSU0_FREQ_LEVEL2_LAPTOP         497600000
+#define DSU0_FREQ_LEVEL3_LAPTOP         622000000
+#define DSU0_FREQ_LEVEL4_LAPTOP         829334000
+#define DSU0_FREQ_LEVEL5_LAPTOP         995200000
+#define DSU0_FREQ_LEVEL6_LAPTOP         1244000000
+#define DSU0_FREQ_LEVEL7_LAPTOP         1658667000
+
+#define DSU1_FREQ_LEVEL0_LAPTOP         342857000
+#define DSU1_FREQ_LEVEL1_LAPTOP         400000000
+#define DSU1_FREQ_LEVEL2_LAPTOP         480000000
+#define DSU1_FREQ_LEVEL3_LAPTOP         600000000
+#define DSU1_FREQ_LEVEL4_LAPTOP         800000000
+#define DSU1_FREQ_LEVEL5_LAPTOP         960000000
+#define DSU1_FREQ_LEVEL6_LAPTOP         1200000000
+#define DSU1_FREQ_LEVEL7_LAPTOP         1600000000
+
+/*****CPU Voltage table in microvlot******/
+#define DSU0_MICRO_VOLT_LEVEL0_LAPTOP   675000
+#define DSU0_MICRO_VOLT_LEVEL1_LAPTOP   675000
+#define DSU0_MICRO_VOLT_LEVEL2_LAPTOP   675000
+#define DSU0_MICRO_VOLT_LEVEL3_LAPTOP   675000
+#define DSU0_MICRO_VOLT_LEVEL4_LAPTOP   700000
+#define DSU0_MICRO_VOLT_LEVEL5_LAPTOP   750000
+#define DSU0_MICRO_VOLT_LEVEL6_LAPTOP   800000
+#define DSU0_MICRO_VOLT_LEVEL7_LAPTOP   850000
+
+#define DSU1_MICRO_VOLT_LEVEL0_LAPTOP   680000
+#define DSU1_MICRO_VOLT_LEVEL1_LAPTOP   680000
+#define DSU1_MICRO_VOLT_LEVEL2_LAPTOP   680000
+#define DSU1_MICRO_VOLT_LEVEL3_LAPTOP   680000
+#define DSU1_MICRO_VOLT_LEVEL4_LAPTOP   700000
+#define DSU1_MICRO_VOLT_LEVEL5_LAPTOP   750000
+#define DSU1_MICRO_VOLT_LEVEL6_LAPTOP   800000
+#define DSU1_MICRO_VOLT_LEVEL7_LAPTOP   860000
+
+/*the volt value must correspond to opp freq level*/
+#define DSU0_VOLT_TAB_LEVEL0_LAPTOP     0x8
+#define DSU0_VOLT_TAB_LEVEL1_LAPTOP     0x8
+#define DSU0_VOLT_TAB_LEVEL2_LAPTOP     0x8
+#define DSU0_VOLT_TAB_LEVEL3_LAPTOP     0x8
+#define DSU0_VOLT_TAB_LEVEL4_LAPTOP     0xA
+#define DSU0_VOLT_TAB_LEVEL5_LAPTOP     0xF
+#define DSU0_VOLT_TAB_LEVEL6_LAPTOP     0x14
+#define DSU0_VOLT_TAB_LEVEL7_LAPTOP     0x19
+
+#define DSU1_VOLT_TAB_LEVEL0_LAPTOP     0x0
+#define DSU1_VOLT_TAB_LEVEL1_LAPTOP     0x0
+#define DSU1_VOLT_TAB_LEVEL2_LAPTOP     0x0
+#define DSU1_VOLT_TAB_LEVEL3_LAPTOP     0x0
+#define DSU1_VOLT_TAB_LEVEL4_LAPTOP     0x0
+#define DSU1_VOLT_TAB_LEVEL5_LAPTOP     0x0
+#define DSU1_VOLT_TAB_LEVEL6_LAPTOP     0x2
+#define DSU1_VOLT_TAB_LEVEL7_LAPTOP     0xD
 
 /*****Thermal Sensor TMP0804******/
-#define  D_OTP_25               285
-#define  D_OTP_SL               5
-#define  TEMP_NORMAL			30
-#define  TEMP_MIDDLE			70
-#define  TEMP_HIGH				90
+#define  D_OTP_25                285
+#define  D_OTP_SL                5
+#define  TEMP_NORMAL			 30
+#define  TEMP_MIDDLE			 50
+#define  TEMP_HIGH				 95
+#define  TEMP_CRIT               105
+#define  TEMP_PSV                TEMP_MIDDLE
+
+#define  TS_AC3                  TEMP_NORMAL
+#define  TS_AC2                  TEMP_NORMAL+10
+#define  TS_AC1                  TEMP_NORMAL+20
+#define  TS_AC0                  TEMP_NORMAL+30
+
+#define  FAN_DUTY0               0x30
+#define  FAN_DUTY1               0x40
+#define  FAN_DUTY2               0x50
+#define  FAN_DUTY3               0x60
+#define  FAN_DUTY4               0x64
 
 #endif   /* __ARISE2_SOC_HW_CONFIG */
