@@ -89,6 +89,7 @@ python3 -m unittest tests.test_timing_parse_compare -v
 python3 -m unittest tests.test_gui_matrix -v
 python3 -m unittest tests.test_ui_roundtrip tests.test_ui_param_coverage -v
 python3 -m unittest tests.test_gui_server tests.test_ddr_config_init -v
+python3 -m unittest tests.test_build_scp_parity tests.test_original_toolchain_compare -v
 python3 tools/refresh_golden_refs.py   # only if numeric output intentionally changed
 make coverage                          # optional (needs coverage.py)
 ```

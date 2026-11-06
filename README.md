@@ -207,7 +207,16 @@ python3 -m unittest tests.test_timing_lpddr4 tests.test_timing_lpddr5 -v
   `/load-json-path`, `/browse`).
 - Added `tests/test_ddr_config_init.py`: direct defaults/override/
   serialization tests.
-- Test suite: 136 tests, all passing.
+- Added `tests/test_build_scp_parity.py`: parses the timing-table
+  command/frequency tables directly from `arise2/build/scp.mk`, runs the
+  build-style CLI and the GUI form path, and asserts byte-identical 4 KiB
+  images for LP4/LP5, single/dual channel and all DDR_FREQ_LEVELs.
+- Added `tests/test_original_toolchain_compare.py`: runs the original
+  `arise2/toolchains/ddr_timingtable_gen_tool`, assembles the image exactly
+  like scp.mk, and compares it with the GUI image field-by-field. Only two
+  intentional fixes are tolerated (LPDDR5 WCK always-on window and LPDDR4
+  canonical density_code); any other difference fails.
+- Test suite: 138 tests, all passing.
 - Coverage (`make coverage`): overall 92%, gui.py 88%,
   ddr_config_init.py 95%, orbit_config.py 100%.
 

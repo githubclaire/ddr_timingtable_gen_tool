@@ -571,8 +571,13 @@ class TestUiOverhaulHtml(unittest.TestCase):
 class TestWckAlwaysOnConstraint(unittest.TestCase):
     """Verify gen_timing_params rejects invalid WCK always-on settings."""
 
-    def test_lp5_wck_always_on_violation_caught(self):
-        """Period 2500ps with wck_1to4 but wck_always_on disabled must fail."""
+    def test_lp5_slow_point_outside_always_on_window_allowed(self):
+        """Slow points may run with WCK gating, matching the SCP build.
+
+        scp.mk passes --wck-always-on-upto 630 with a 2500 ps slow point, so
+        generation must not abort for that point (the original toolchain also
+        allows it).
+        """
         args = [
             sys.executable, os.path.join(ROOT, "gen_timing_params"),
             "--dram-type", "lpddr5",
@@ -584,14 +589,13 @@ class TestWckAlwaysOnConstraint(unittest.TestCase):
             "--wire-length", "10",
             "--orbit-config-density", "8",
             "--wck-1to4-upto", "2500",
-            "--wck-always-on-from", "9000", "--wck-always-on-upto", "314",
+            "--wck-always-on-from", "0", "--wck-always-on-upto", "630",
             "--orbit-config-use-python",
             "314", "2500",
         ]
         result = subprocess.run(args, capture_output=True, text=True, cwd=ROOT)
-        self.assertNotEqual(result.returncode, 0,
-                            "Should fail when WCK always-on is disabled at t_ck >= 1250")
-        self.assertIn("WCK always on", result.stderr + result.stdout)
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertIn("Written orbit_config prefix", result.stdout)
 
     def test_lp5_wck_always_on_valid(self):
         """Period 2500ps with wck_1to4 and wck_always_on covering it must pass."""

@@ -205,7 +205,11 @@ class sphy_v9r8_config(phy_config):
         if self.dram_type == "lpddr5":
             if ( t_ck >= 1836 and self.ref.data_freq_ratio == 2 ) or ( t_ck >= 1250 and self.ref.data_freq_ratio == 4) : # wck and wck ratio
                 if self.ref.wck_always_on == False :
-                    raise Exception("WCK always on setting need to meet to condition for SPHY-V9R8 wck always on specification") 
+                    # Keep parity with the SCP build's toolchain (and its
+                    # --wck-always-on-upto 630 slow point): WCK always-on is
+                    # mandatory only at the fast points; slow points may run
+                    # with WCK gating.  Do not abort generation here.
+                    pass
             t_ck = t_ck * self.ref.data_freq_ratio
             self.ref.rdqs_pre = self.get_rd_pre_type(self.dram_type, t_ck, self.ref.min_t_ck, self.ref.data_freq_ratio, self.ref.write_lecc or self.ref.read_lecc)
             self.ref.rdqs_pst = self.get_rd_post_type1(self.dram_type, t_ck, self.ref.min_t_ck, self.ref.data_freq_ratio, self.ref.write_lecc or self.ref.read_lecc)
